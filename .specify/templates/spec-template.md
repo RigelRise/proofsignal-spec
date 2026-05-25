@@ -5,6 +5,20 @@
 **Status**: Draft  
 **Input**: User description: "$ARGUMENTS"
 
+## Constitution Alignment *(mandatory)*
+
+<!--
+  ACTION REQUIRED: Summarize how this feature respects the ProofSignal Spec
+  constitution. Cover public Core boundary, project-local workspace portability,
+  secret safety, agent-neutral behavior, and testable spec-driven delivery.
+-->
+
+- **Public Core boundary**: [How the feature avoids private Core imports and undocumented internals]
+- **Project-local workspace portability**: [How project-local state and portability are preserved]
+- **Secret safety**: [How credential values, sensitive files, logs, and generated artifacts are protected]
+- **Agent-neutral interface**: [How agent integrations remain adapters and non-AI flows remain possible]
+- **Testable delivery**: [How independent tests or repeatable validations will prove the feature]
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--

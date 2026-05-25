@@ -1,50 +1,134 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+Version change: template -> 1.0.0
+Modified principles:
+- template principle 1 -> I. Public Core Boundary
+- template principle 2 -> II. Project-Local Workspace Portability
+- template principle 3 -> III. Secret Safety
+- template principle 4 -> IV. Agent-Neutral Interface
+- template principle 5 -> V. Testable Spec-Driven Delivery
+Added sections:
+- Additional Constraints
+- Development Workflow
+Removed sections:
+- Placeholder template sections
+Templates requiring updates:
+- updated: .specify/templates/plan-template.md
+- updated: .specify/templates/spec-template.md
+- updated: .specify/templates/tasks-template.md
+Deferred items:
+- none
+-->
+# ProofSignal Spec Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Public Core Boundary
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+ProofSignal Spec MUST interact with ProofSignal Core only through documented
+public CLI JSON contracts. Features that validate, run, inspect reports, or
+check Core readiness MUST define the required public operation names, schema
+names, schema versions, and incompatibility behavior. Private Core package
+imports, private source inspection, undocumented report internals, and
+implementation-specific response fields are prohibited.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+Rationale: ProofSignal Spec is an open-source interface over a private Core.
+The boundary must remain stable, reviewable, and safe for external clients.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### II. Project-Local Workspace Portability
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+Project state owned by ProofSignal Spec MUST live in the target repository and
+MUST use `.proofsignal/` as the canonical workspace unless a future constitution
+amendment changes the workspace contract. Workspace records MUST remain portable
+across supported coding-agent integrations and deterministic non-AI CLI flows.
+Generated run requests, reusable skills, registry records, run history, repair
+state, and integration manifests MUST have explicit ownership and preservation
+rules.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+Rationale: Users should be able to move, review, commit, and run their use case
+state without depending on one assistant, machine, or hidden global state.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### III. Secret Safety
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Credential values and secret-looking runtime values MUST NOT be persisted in
+workspace metadata, generated run requests, skills, logs, run history, repair
+sessions, templates, or public summaries. Agents and commands MUST avoid
+sensitive files by default and require explicit user approval before reading
+local environment files or secret-bearing configuration. Features that handle
+runtime inputs, project inspection, Core output, or repair suggestions MUST
+include redaction and non-persistence tests.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+Rationale: The product works inside user repositories and may invoke browser
+runs with credentials. Secret handling must be deterministic and conservative.
+
+### IV. Agent-Neutral Interface
+
+Agent integrations MUST be adapters over the shared workspace and CLI contract,
+not separate product implementations. MVP integrations are Codex and Claude
+Code, but existing registered use cases MUST remain listable and runnable
+without AI assistance. Integration install, upgrade, switch, and removal flows
+MUST preserve user-modified managed files unless explicit replacement is
+approved.
+
+Rationale: ProofSignal Spec is the interface layer for ProofSignal use cases,
+not a one-assistant workflow that locks users into generated files.
+
+### V. Testable Spec-Driven Delivery
+
+Every feature MUST be driven by prioritized, independently testable user stories
+and MUST keep `spec.md`, `plan.md`, `contracts/`, and `tasks.md` consistent
+before implementation. Public CLI behavior, workspace schema behavior, Core
+compatibility behavior, secret safety behavior, and cross-agent portability
+behavior MUST have contract, unit, integration, or documented repeatable manual
+validation tasks before implementation is considered complete.
+
+Rationale: The repository exists to make ProofSignal use cases repeatable.
+Implementation work must remain traceable to executable behavior and reviewable
+artifacts.
+
+## Additional Constraints
+
+- Repository documentation, generated workspace guidance, agent skill
+  instructions, command help, and template text MUST be written in English.
+- Conversations with maintainers MAY happen in other languages, but committed
+  project artifacts MUST remain English.
+- ProofSignal Spec SHOULD prefer local file workflows and bundled templates over
+  network-dependent setup.
+- New dependencies MUST be justified in `plan.md` and must not weaken the public
+  Core boundary or secret-safety rules.
+
+## Development Workflow
+
+- `/speckit-specify` output MUST capture user value, independent tests,
+  functional requirements, success criteria, edge cases, and assumptions.
+- `/speckit-plan` output MUST evaluate each constitution principle before and
+  after design and must document any complexity that cannot be avoided.
+- `/speckit-tasks` output MUST include tests or repeatable validation tasks for
+  public CLI contracts, workspace schema behavior, Core compatibility, secret
+  handling, and any stated performance or usability criteria.
+- `/speckit-analyze` SHOULD be run after task generation and before
+  implementation. Critical or high-severity findings MUST be resolved or
+  explicitly accepted by maintainers before `/speckit-implement`.
+- Implementation MAY proceed story by story, but each completed story must pass
+  its independent validation checkpoint before lower-priority stories are
+  treated as complete.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes conflicting feature plans, task lists, templates,
+and agent instructions in this repository. Amendments require an explicit
+constitution update, a Sync Impact Report, and review of dependent templates and
+active feature artifacts.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+Versioning follows semantic versioning:
+
+- MAJOR: Removes or redefines a principle in a way that changes existing
+  obligations.
+- MINOR: Adds a principle or materially expands governance requirements.
+- PATCH: Clarifies wording without changing obligations.
+
+Compliance review is required during planning and analysis. If a feature needs
+to violate a principle, the feature must either change or the constitution must
+be amended first.
+
+**Version**: 1.0.0 | **Ratified**: 2026-05-25 | **Last Amended**: 2026-05-25

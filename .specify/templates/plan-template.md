@@ -31,7 +31,21 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- **Public Core boundary**: Does the feature use only documented public CLI JSON
+  contracts for ProofSignal Core interactions, with operation names, schema
+  names, schema versions, and incompatibility behavior defined?
+- **Project-local workspace portability**: Does the feature keep ProofSignal
+  Spec state project-local, preserve `.proofsignal/` workspace semantics, and
+  avoid agent-specific state as the source of truth?
+- **Secret safety**: Does the feature avoid persisted credential values, require
+  approval for sensitive file access, and include redaction/non-persistence
+  validation when runtime inputs, logs, reports, or repair suggestions are
+  involved?
+- **Agent-neutral interface**: Does the feature keep agent integrations as
+  adapters over the shared workspace and preserve deterministic non-AI flows?
+- **Testable spec-driven delivery**: Are user stories independently testable,
+  and are public CLI, workspace schema, Core compatibility, secret-safety,
+  performance, and usability claims covered by tests or repeatable validation?
 
 ## Project Structure
 
