@@ -1,0 +1,11 @@
+{
+  "workspaceVersion": "proofsignal-spec-workspace/v1",
+  "productContextPath": ".proofsignal/product-context.yaml",
+  "registryPath": ".proofsignal/registry.yaml",
+  "useCasesDir": ".proofsignal/use-cases",
+  "runRequestsDir": ".proofsignal/run-requests",
+  "skillsDir": ".proofsignal/skills",
+  "runsDir": ".proofsignal/runs",
+  "repairsDir": ".proofsignal/repairs",
+  "integrationsDir": ".proofsignal/integrations"
+}

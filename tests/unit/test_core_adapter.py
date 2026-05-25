@@ -1,0 +1,36 @@
+from __future__ import annotations
+
+import os
+
+from helpers import CliTestCase, FAKE_CORE
+from proofsignal_spec.core.adapter import CoreAdapter, readiness
+from proofsignal_spec.core.errors import CoreIncompatibleError
+
+
+class CoreAdapterTests(CliTestCase):
+    def test_compatible_version_contract(self) -> None:
+        result = CoreAdapter(executable=str(FAKE_CORE), cwd=self.project).check_compatibility()
+        self.assertTrue(result.compatible)
+        self.assertEqual(result.contractVersion, "proofsignal-public-cli-json/v1")
+
+    def test_incompatible_contract_blocks(self) -> None:
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "incompatible"
+        with self.assertRaises(CoreIncompatibleError):
+            CoreAdapter(executable=str(FAKE_CORE), cwd=self.project).require_compatible()
+
+    def test_missing_core_readiness_is_reported(self) -> None:
+        result = readiness(executable="definitely-not-proofsignal", cwd=self.project)
+        self.assertFalse(result["available"])
+        self.assertFalse(result["compatible"])
+
+    def test_directory_core_command_maps_to_npm_repo(self) -> None:
+        core_repo = self.project / "proofsignal"
+        core_repo.mkdir()
+        (core_repo / "package.json").write_text("{}", encoding="utf-8")
+        command = CoreAdapter(executable=str(core_repo), cwd=self.project)._base_command()
+        self.assertEqual(command[:4], ["npm", "--silent", "--prefix", str(core_repo.resolve())])
+
+    def test_command_string_is_supported(self) -> None:
+        command = CoreAdapter(executable=f"{FAKE_CORE} version-wrapper", cwd=self.project)._base_command()
+        self.assertEqual(command[0], str(FAKE_CORE))
+        self.assertEqual(command[1], "version-wrapper")

@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from .base import AgentIntegration, RenderedFile
+
+
+class CodexIntegration(AgentIntegration):
+    key = "codex"
+    display_name = "Codex"
+    invoke_style = "Codex skills under .agents/skills/proofsignal-spec-*; invoke as $proofsignal-spec-*"
+
+    def render_files(self, project: Path) -> list[RenderedFile]:
+        files = [
+            RenderedFile("AGENTS.md", _context("AGENTS.md"), "codex/context", "context"),
+        ]
+        for name in ["author", "refine", "plan", "check", "list", "validate", "run", "repair"]:
+            files.append(
+                RenderedFile(
+                    f".agents/skills/proofsignal-spec-{name}/SKILL.md",
+                    _skill(name, "Codex"),
+                    f"codex/proofsignal-spec-{name}",
+                )
+            )
+        return files
+
+
+def _context(filename: str) -> str:
+    return """# ProofSignal Spec Agent Guidance
+
+Use `proofsignal-spec` commands from the target repository root. Keep generated
+project artifacts and guidance in English. Store ProofSignal Spec state in
+`.proofsignal/`. Do not import private ProofSignal Core packages.
+
+Avoid sensitive files by default and ask before reading local environment files
+or secret-bearing configuration. Never persist credential values.
+"""
+
+
+def _skill(name: str, agent: str) -> str:
+    title = f"proofsignal-spec-{name}"
+    description, body = _workflow_copy(name)
+    return f"""---
+name: "{title}"
+description: "{agent} workflow for ProofSignal Spec {name}: {description}"
+---
+
+# {title}
+
+Work inside the target repository and use the `.proofsignal/` workspace.
+
+- Keep generated docs, run requests, skills, and guidance in English.
+- Store generated run requests under `.proofsignal/run-requests/`.
+- Store reusable skills under `.proofsignal/skills/`.
+- A use case references exactly one run request; skills may be reused.
+- Avoid sensitive files by default and ask before reading local env or secrets.
+- Validate through `proofsignal-spec validate <alias>` before marking ready.
+- Never persist credential values.
+
+## Workflow
+
+{body}
+"""
+
+
+def _workflow_copy(name: str) -> tuple[str, str]:
+    workflows = {
+        "author": (
+            "create a browser validation use case",
+            "Gather the target behavior, then run `proofsignal-spec author <alias> \"<description>\"`. Keep one use case mapped to one run request and write reusable skills under `.proofsignal/skills/`.",
+        ),
+        "refine": (
+            "improve an existing use case",
+            "Inspect the selected use case record and related run request or skills, ask focused questions for missing product knowledge, then update only the relevant `.proofsignal/` artifacts.",
+        ),
+        "plan": (
+            "plan ProofSignal artifact changes",
+            "Review repository context and the requested validation goal, then produce a concise implementation plan for the run request and reusable skills before editing artifacts.",
+        ),
+        "check": (
+            "check workspace and Core readiness",
+            "Run `proofsignal-spec check` and summarize workspace, integration, and Core readiness issues with the exact next command the user should run.",
+        ),
+        "list": (
+            "list registered ProofSignal use cases",
+            "Run `proofsignal-spec list` and summarize aliases, status, runtime requirements, and the latest result. Do not inspect sensitive files.",
+        ),
+        "validate": (
+            "validate a use case through ProofSignal Core",
+            "Run `proofsignal-spec validate <alias> --runtime-readiness` when runtime readiness matters, then summarize Core findings without exposing secret values.",
+        ),
+        "run": (
+            "run a registered use case",
+            "Run `proofsignal-spec run <alias> --profile normal` unless the user requests `debug`. If required runtime inputs are missing, ask only for the missing values and never persist credentials.",
+        ),
+        "repair": (
+            "repair invalid or failed use cases",
+            "Run `proofsignal-spec repair <alias>` or include `--from-report <path>` when the user provides a report. Present proposed edits for approval before applying changes.",
+        ),
+    }
+    return workflows[name]
