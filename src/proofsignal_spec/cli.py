@@ -15,6 +15,7 @@ from .commands import list as list_command
 from .commands import repair as repair_command
 from .commands import run as run_command
 from .commands import validate as validate_command
+from .commands import workflow as workflow_command
 from .core.errors import CoreIncompatibleError, CoreMissingError, RuntimeInputError
 from .workspace.layout import resolve_project_path
 
@@ -84,6 +85,38 @@ def create_parser() -> argparse.ArgumentParser:
     core_version.add_argument("--project", default=".")
     core_version.add_argument("--core-cmd", help="ProofSignal Core executable, command string, or local Core repository path")
     core_version.add_argument("--json", action="store_true")
+
+    workflow_parser = subparsers.add_parser("workflow", help="Run guided ProofSignal workflows")
+    workflow_sub = workflow_parser.add_subparsers(dest="workflow_command", required=True)
+    workflow_run = workflow_sub.add_parser("run")
+    workflow_run.add_argument("workflow_id")
+    workflow_run.add_argument("--goal", required=True)
+    workflow_run.add_argument("--alias")
+    workflow_run.add_argument("--integration", choices=["codex", "claude"])
+    workflow_run.add_argument("--project", default=".")
+    workflow_run.add_argument("--json", action="store_true")
+    workflow_resume = workflow_sub.add_parser("resume")
+    workflow_resume.add_argument("run_id")
+    workflow_resume.add_argument("--project", default=".")
+    workflow_resume.add_argument("--json", action="store_true")
+    workflow_status = workflow_sub.add_parser("status")
+    workflow_status.add_argument("run_id", nargs="?")
+    workflow_status.add_argument("--project", default=".")
+    workflow_status.add_argument("--json", action="store_true")
+    workflow_list = workflow_sub.add_parser("list")
+    workflow_list.add_argument("--project", default=".")
+    workflow_list.add_argument("--json", action="store_true")
+    workflow_check = workflow_sub.add_parser("check", help="Check prerequisites for a workflow stage")
+    workflow_check.add_argument("stage", help="Workflow stage to check")
+    workflow_check.add_argument("--alias", help="Use case alias for stages that target one use case")
+    workflow_check.add_argument("--refresh-decision", choices=["accepted", "declined"], help="Record a stale-understanding refresh decision")
+    workflow_check.add_argument("--project", default=".")
+    workflow_check.add_argument("--json", action="store_true")
+    workflow_info = workflow_sub.add_parser("info")
+    workflow_info.add_argument("workflow_id")
+    workflow_info.add_argument("--project", default=".")
+    workflow_info.add_argument("--integration", choices=["codex", "claude"])
+    workflow_info.add_argument("--json", action="store_true")
 
     integration_parser = subparsers.add_parser("integration", help="Manage agent integrations")
     integration_sub = integration_parser.add_subparsers(dest="integration_command", required=True)
@@ -166,6 +199,20 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
         project = Path(args.project).resolve()
         if args.core_command == "version":
             return CoreAdapter(executable=args.core_cmd or get_core_command(project), cwd=project).version(), args.json
+    if command == "workflow":
+        project = Path(args.project).resolve()
+        if args.workflow_command == "run":
+            return workflow_command.run_workflow(project, args.workflow_id, args.goal, alias=args.alias, integration=args.integration), args.json
+        if args.workflow_command == "resume":
+            return workflow_command.resume(project, args.run_id), args.json
+        if args.workflow_command == "status":
+            return workflow_command.status(project, args.run_id), args.json
+        if args.workflow_command == "list":
+            return workflow_command.list_runs(project), args.json
+        if args.workflow_command == "check":
+            return workflow_command.check(project, args.stage, alias=args.alias, refresh_decision=args.refresh_decision), args.json
+        if args.workflow_command == "info":
+            return workflow_command.info(project, args.workflow_id, integration=args.integration), args.json
     if command == "integration":
         project = Path(args.project).resolve()
         if args.integration_command == "list":
@@ -201,6 +248,25 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
         print(f"Status: {result['status']}")
         print(f"Workspace: {result['workspace']['path']}")
         print(f"Core: {result['core'].get('message')}")
+        return
+    if result.get("schemaVersion") == "proofsignal-spec-workflow-prerequisite-check/v1":
+        print(f"Stage: {result['stage']}")
+        print(f"Status: {result['status']}")
+        print(f"Can proceed: {str(result['canProceed']).lower()}")
+        if result.get("useCaseAlias"):
+            print(f"Alias: {result['useCaseAlias']}")
+        if result.get("missingArtifacts"):
+            print("Missing:")
+            for path in result["missingArtifacts"]:
+                print(f"- {path}")
+        if result.get("staleReasons"):
+            print("Stale reasons:")
+            for reason in result["staleReasons"]:
+                print(f"- {reason.get('code')}: {reason.get('message')}")
+        for warning in result.get("warnings", []):
+            print(f"warning: {warning}", file=sys.stderr)
+        if result.get("nextCommand"):
+            print(f"Next: {result['nextCommand']}")
         return
     print(json.dumps(result, indent=2, sort_keys=False))
 

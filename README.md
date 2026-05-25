@@ -58,6 +58,10 @@ python -m pip install -e ".[dev]"
 ```sh
 proofsignal-spec init --here --integration codex
 proofsignal-spec check
+proofsignal-spec workflow info proofsignal-use-case --json
+proofsignal-spec workflow check specify --json
+proofsignal-spec workflow run proofsignal-use-case --goal "Validate that a QA user can sign in." --alias login
+proofsignal-spec workflow status
 proofsignal-spec author login "Validate that a QA user can sign in."
 proofsignal-spec list
 proofsignal-spec validate login --json
@@ -66,6 +70,47 @@ proofsignal-spec repair login --json
 proofsignal-spec integration install claude
 proofsignal-spec core version --json
 ```
+
+## Guided Workflow Commands
+
+After initialization, Codex and Claude Code integrations install the staged
+`/proofsignal-*` workflow commands:
+
+```text
+/proofsignal-understand
+/proofsignal-specify login Validate that a QA user can sign in.
+/proofsignal-clarify login
+/proofsignal-plan login
+/proofsignal-tasks login
+/proofsignal-implement login
+/proofsignal-validate login
+/proofsignal-run login
+/proofsignal-repair login
+```
+
+The canonical command identity uses dot notation, such as
+`proofsignal.plan`, while skill-based integrations render the invocable command
+as `/proofsignal-plan`. Legacy `proofsignal-spec-*` skills may remain installed
+for compatibility, but the preferred workflow commands are `/proofsignal-*`.
+
+The workflow stores reusable repository understanding globally and use-case
+snapshots under `.proofsignal/workflows/use-cases/<alias>/`. Structured state,
+not Markdown body text, drives status and resume behavior.
+
+Every staged `/proofsignal-*` command starts from the deterministic prerequisite
+check instead of guessing local state:
+
+```sh
+proofsignal-spec workflow check specify --json
+proofsignal-spec workflow check plan --alias login --json
+proofsignal-spec workflow check run --alias login --json
+```
+
+`/proofsignal-specify` requires `.proofsignal/workflows/understanding.md` and
+`.proofsignal/product-context.yaml` before collecting use-case details. If the
+understanding is stale by age or Git commit distance, the check recommends
+refreshing through `/proofsignal-understand`; declined refresh decisions are
+recorded without persisting credential values.
 
 ## ProofSignal Core Configuration
 
@@ -108,6 +153,7 @@ command named `proofsignal`.
 - Generated run requests live under `.proofsignal/run-requests/`.
 - Generated reusable skills live under `.proofsignal/skills/` and can be shared
   by multiple run requests.
+- Guided workflow state lives under `.proofsignal/workflows/`.
 - Each use case references exactly one run request.
 - Linked external artifacts are marked `generated: false` and are not copied or
   overwritten by default.

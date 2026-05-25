@@ -2,18 +2,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .base import AgentIntegration, RenderedFile
+from .base import AgentIntegration, RenderedFile, render_workflow_skill_files
 
 
 class CodexIntegration(AgentIntegration):
     key = "codex"
     display_name = "Codex"
-    invoke_style = "Codex skills under .agents/skills/proofsignal-spec-*; invoke as $proofsignal-spec-*"
+    invoke_style = "Codex skills under .agents/skills/proofsignal-*; invoke as /proofsignal-*"
 
     def render_files(self, project: Path) -> list[RenderedFile]:
         files = [
             RenderedFile("AGENTS.md", _context("AGENTS.md"), "codex/context", "context"),
         ]
+        files.extend(render_workflow_skill_files(".agents/skills", "Codex"))
         for name in ["author", "refine", "plan", "check", "list", "validate", "run", "repair"]:
             files.append(
                 RenderedFile(
@@ -28,12 +29,20 @@ class CodexIntegration(AgentIntegration):
 def _context(filename: str) -> str:
     return """# ProofSignal Spec Agent Guidance
 
-Use `proofsignal-spec` commands from the target repository root. Keep generated
-project artifacts and guidance in English. Store ProofSignal Spec state in
-`.proofsignal/`. Do not import private ProofSignal Core packages.
+Use `/proofsignal-*` workflow skills for staged ProofSignal use case authoring.
+Use `proofsignal-spec` commands from the target repository root for deterministic
+non-AI operations. Keep generated project artifacts and guidance in English.
+Use pt-BR only for conversation with the project owner when appropriate. Store
+ProofSignal Spec state in `.proofsignal/`. Do not import private ProofSignal
+Core packages.
 
 Avoid sensitive files by default and ask before reading local environment files
 or secret-bearing configuration. Never persist credential values.
+
+Each use case maps to exactly one run request. Skills are decoupled reusable
+artifacts that may support multiple run requests. Store staged workflow
+documents under `.proofsignal/workflows/` and use structured workflow state for
+status, gates, and resume.
 """
 
 

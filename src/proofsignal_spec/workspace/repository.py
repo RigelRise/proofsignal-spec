@@ -105,6 +105,7 @@ def init_workspace(project: Path, force: bool = False, core_cmd: str | None = No
             "runsDir": f"{layout.WORKSPACE_DIR}/{layout.RUNS_DIR}",
             "repairsDir": f"{layout.WORKSPACE_DIR}/{layout.REPAIRS_DIR}",
             "integrationsDir": f"{layout.WORKSPACE_DIR}/{layout.INTEGRATIONS_DIR}",
+            "workflowsDir": f"{layout.WORKSPACE_DIR}/{layout.WORKFLOWS_DIR}",
         }
     )
     if core_cmd:
@@ -136,6 +137,19 @@ def init_workspace(project: Path, force: bool = False, core_cmd: str | None = No
 
     registry = load_registry(project)
     save_registry(project, registry)
+
+    workflow_definition = layout.workflow_definition_path(project, "proofsignal-use-case")
+    if force or not workflow_definition.exists():
+        save_document(
+            workflow_definition,
+            {
+                "workflowId": "proofsignal-use-case",
+                "name": "ProofSignal Use Case",
+                "version": "1.0.0",
+                "stages": ["understand", "specify", "clarify", "plan", "tasks", "implement", "validate", "run", "repair"],
+                "requiredInputs": ["goal", "alias"],
+            },
+        )
     return workspace
 
 
@@ -172,6 +186,13 @@ def save_use_case(project: Path, record: UseCaseRecord) -> None:
     upsert_registry_entry(project, record)
 
 
+def update_use_case_workflow_reference(project: Path, alias: str, workflow: dict[str, Any]) -> UseCaseRecord:
+    record = load_use_case(project, alias)
+    record.workflow = workflow
+    save_use_case(project, record)
+    return record
+
+
 def upsert_registry_entry(project: Path, record: UseCaseRecord) -> None:
     registry = load_registry(project)
     entry = {
@@ -186,6 +207,12 @@ def upsert_registry_entry(project: Path, record: UseCaseRecord) -> None:
         ],
         "lastResult": record.lastRun,
     }
+    if record.workflow:
+        entry["workflow"] = {
+            "currentStage": record.workflow.get("currentStage"),
+            "workflowStatus": record.workflow.get("workflowStatus"),
+            "lastWorkflowRunId": record.workflow.get("lastWorkflowRunId"),
+        }
     entries = [item for item in registry.get("useCases", []) if item.get("alias") != record.alias]
     entries.append(entry)
     entries.sort(key=lambda item: item.get("alias", ""))

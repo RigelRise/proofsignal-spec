@@ -51,6 +51,7 @@ uvx --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z proofsignal-
 cd /path/to/target-project
 proofsignal-spec init --here --integration codex
 proofsignal-spec check
+proofsignal-spec workflow info proofsignal-use-case --json
 ```
 
 For Claude Code:
@@ -58,6 +59,55 @@ For Claude Code:
 ```sh
 proofsignal-spec init --here --integration claude
 ```
+
+After initialization, supported agents expose staged workflow commands using the
+native skill invocation style:
+
+```text
+/proofsignal-understand
+/proofsignal-specify
+/proofsignal-clarify
+/proofsignal-plan
+/proofsignal-tasks
+/proofsignal-implement
+/proofsignal-validate
+/proofsignal-list
+/proofsignal-run
+/proofsignal-repair
+```
+
+Installed workflow commands use `proofsignal-spec workflow check <stage> --json`
+before stage-specific work. After upgrading ProofSignal Spec, rerun integration
+installation so regenerated agent skills receive the latest prerequisite
+guidance:
+
+```sh
+proofsignal-spec integration upgrade codex
+proofsignal-spec integration upgrade claude
+```
+
+Use the same deterministic check outside an agent conversation:
+
+```sh
+proofsignal-spec workflow check specify --json
+proofsignal-spec workflow check plan --alias login --json
+```
+
+The deterministic runner is available without an active agent conversation:
+
+```sh
+proofsignal-spec workflow run proofsignal-use-case \
+  --goal "Validate that a QA user can sign in." \
+  --alias login \
+  --integration codex
+
+proofsignal-spec workflow status
+proofsignal-spec workflow resume <run-id>
+```
+
+Existing legacy `proofsignal-spec-*` skills may be left in place for projects
+that already installed the earlier thin CLI flow. New installations prefer
+`/proofsignal-*` workflow commands.
 
 ## Configure ProofSignal Core
 

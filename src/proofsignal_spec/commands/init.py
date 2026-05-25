@@ -18,5 +18,5 @@ def run(project: Path, integration: str, force: bool = False, core_cmd: str | No
         "integration": installed["integration"]["key"],
         "installedFiles": installed["installedFiles"],
         "core": core,
-        "next": "Run `proofsignal-spec author <alias> \"<description>\"`.",
+        "next": "Run `/proofsignal-understand` in your agent, or use `proofsignal-spec workflow run proofsignal-use-case --goal \"<behavior>\"`.",
     }

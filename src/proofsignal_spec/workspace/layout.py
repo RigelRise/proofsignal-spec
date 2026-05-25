@@ -14,6 +14,11 @@ RUNS_DIR = "runs"
 REPAIRS_DIR = "repairs"
 INTEGRATIONS_DIR = "integrations"
 MANIFESTS_DIR = "manifests"
+WORKFLOWS_DIR = "workflows"
+WORKFLOW_DEFINITIONS_DIR = "definitions"
+WORKFLOW_RUNS_DIR = "runs"
+WORKFLOW_USE_CASES_DIR = "use-cases"
+WORKFLOW_GLOBAL_UNDERSTANDING = "understanding.md"
 
 ALIAS_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,79}$")
 
@@ -64,6 +69,57 @@ def manifest_path(project: Path, integration_key: str) -> Path:
     return workspace_root(project) / INTEGRATIONS_DIR / MANIFESTS_DIR / f"{integration_key}.yaml"
 
 
+def workflows_root(project: Path) -> Path:
+    return workspace_root(project) / WORKFLOWS_DIR
+
+
+def workflow_definitions_dir(project: Path) -> Path:
+    return workflows_root(project) / WORKFLOW_DEFINITIONS_DIR
+
+
+def workflow_definition_path(project: Path, workflow_id: str) -> Path:
+    return workflow_definitions_dir(project) / f"{workflow_id}.yaml"
+
+
+def workflow_runs_dir(project: Path) -> Path:
+    return workflows_root(project) / WORKFLOW_RUNS_DIR
+
+
+def workflow_run_path(project: Path, run_id: str) -> Path:
+    return workflow_runs_dir(project) / f"{run_id}.yaml"
+
+
+def workflow_use_cases_dir(project: Path) -> Path:
+    return workflows_root(project) / WORKFLOW_USE_CASES_DIR
+
+
+def workflow_use_case_dir(project: Path, alias: str) -> Path:
+    return workflow_use_cases_dir(project) / ensure_path_safe_alias(alias)
+
+
+def workflow_state_path(project: Path, alias: str) -> Path:
+    return workflow_use_case_dir(project, alias) / "state.yaml"
+
+
+def workflow_stage_document_path(project: Path, alias: str, stage: str) -> Path:
+    filename = {
+        "understand": "understanding.md",
+        "specify": "spec.md",
+        "clarify": "clarifications.md",
+        "plan": "plan.md",
+        "tasks": "tasks.md",
+        "implement": "handoff.md",
+        "validate": "validation.md",
+        "run": "validation.md",
+        "repair": "repair.md",
+    }.get(stage, f"{stage}.md")
+    return workflow_use_case_dir(project, alias) / filename
+
+
+def workflow_global_understanding_path(project: Path) -> Path:
+    return workflows_root(project) / WORKFLOW_GLOBAL_UNDERSTANDING
+
+
 def ensure_path_safe_alias(alias: str) -> str:
     if not ALIAS_RE.match(alias):
         raise ValueError("Alias must be lowercase path-safe text using letters, numbers, '.', '_' or '-'.")
@@ -95,4 +151,8 @@ def workspace_dirs(project: Path) -> list[Path]:
         root / REPAIRS_DIR,
         root / INTEGRATIONS_DIR,
         root / INTEGRATIONS_DIR / MANIFESTS_DIR,
+        root / WORKFLOWS_DIR,
+        root / WORKFLOWS_DIR / WORKFLOW_DEFINITIONS_DIR,
+        root / WORKFLOWS_DIR / WORKFLOW_RUNS_DIR,
+        root / WORKFLOWS_DIR / WORKFLOW_USE_CASES_DIR,
     ]

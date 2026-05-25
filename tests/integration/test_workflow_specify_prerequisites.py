@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+from helpers import CliTestCase
+
+from proofsignal_spec.workflows.prerequisites import check_prerequisites
+
+from tests.fixtures.workflows.prerequisites import (
+    create_current_understanding_workspace,
+    create_missing_understanding_workspace,
+    create_stale_understanding_workspace,
+    sample_candidate,
+)
+
+
+class WorkflowSpecifyPrerequisitesTests(CliTestCase):
+    def test_missing_understanding_guidance_is_installed_for_codex(self) -> None:
+        code, _, err = self.cli(["init", str(self.project), "--integration", "codex", "--json"])
+        self.assertEqual(code, 0, err)
+        content = (self.project / ".agents" / "skills" / "proofsignal-specify" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("proofsignal-spec workflow check specify --json", content)
+        self.assertIn("repository understanding is required", content)
+        self.assertIn("candidate validation use cases", content)
+
+    def test_specify_missing_understanding_routes_to_understand(self) -> None:
+        create_missing_understanding_workspace(self.project)
+        result = check_prerequisites(self.project, "specify")
+        assert result["status"] == "missing"
+        assert result["nextCommand"] == "/proofsignal-understand"
+
+    def test_specify_current_understanding_surfaces_candidates(self) -> None:
+        create_current_understanding_workspace(self.project, candidates=[sample_candidate("profile")])
+        result = check_prerequisites(self.project, "specify")
+        assert result["status"] == "ready"
+        assert result["recommendedCandidate"]["candidateAlias"] == "profile"
+
+    def test_specify_stale_refresh_accept_and_decline_paths(self) -> None:
+        create_stale_understanding_workspace(self.project)
+        stale = check_prerequisites(self.project, "specify")
+        assert stale["status"] == "stale"
+        assert stale["requiresConfirmation"] is True
+
+        accepted = check_prerequisites(self.project, "specify", refresh_decision="accepted")
+        assert accepted["canProceed"] is False
+        assert accepted["nextCommand"] == "/proofsignal-understand"
+        assert accepted["recordedDecision"]["decision"] == "accepted"
+
+        declined = check_prerequisites(self.project, "specify", refresh_decision="declined")
+        assert declined["canProceed"] is True
+        assert declined["requiresConfirmation"] is False
+        assert declined["recordedDecision"]["decision"] == "declined"

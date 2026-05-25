@@ -1,9 +1,8 @@
 <!-- SPECKIT START -->
 Follow `.specify/memory/constitution.md` as the governing project rules.
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the active feature
-directory from `.specify/feature.json`, then read that feature's `plan.md` when
-it exists. If `plan.md` does not exist yet, read the feature's `spec.md`.
+shell commands, and other important information for the active feature, read
+`specs/003-skill-prerequisite-guidance/plan.md`.
 
 Write project documentation, specs, plans, tasks, generated agent instructions,
 runtime guidance, run requests, and skills in English.

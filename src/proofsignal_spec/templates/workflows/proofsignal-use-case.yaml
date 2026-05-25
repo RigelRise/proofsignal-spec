@@ -1,0 +1,16 @@
+workflowId: proofsignal-use-case
+name: ProofSignal Use Case
+version: 1.0.0
+requiredInputs:
+  - goal
+  - alias
+stages:
+  - understand
+  - specify
+  - clarify
+  - plan
+  - tasks
+  - implement
+  - validate
+  - run
+  - repair

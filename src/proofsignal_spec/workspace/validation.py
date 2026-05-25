@@ -24,7 +24,18 @@ def looks_secret(value: Any, field_name: str = "") -> bool:
         return False
     if text.lower() in DUMMY_VALUES or text.startswith("${") or text.startswith("<"):
         return False
-    if field_name in {"schemaVersion", "version", "id", "path", "recordPath", "reportPath", "evidenceDir"}:
+    if field_name in {
+        "schemaVersion",
+        "version",
+        "id",
+        "path",
+        "recordPath",
+        "reportPath",
+        "evidenceDir",
+        "planFingerprint",
+        "sha256",
+        "generatedGitHash",
+    }:
         return False
     if SECRET_FIELD_RE.search(field_name) and text.lower() not in DUMMY_VALUES:
         return True

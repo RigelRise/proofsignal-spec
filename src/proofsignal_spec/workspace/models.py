@@ -194,6 +194,7 @@ class UseCaseRecord:
     validation: dict[str, Any] = field(default_factory=lambda: {"status": "unknown"})
     lastRun: dict[str, Any] | None = None
     repair: dict[str, Any] | None = None
+    workflow: dict[str, Any] | None = None
     schemaVersion: str = "proofsignal-spec-use-case/v1"
 
     @classmethod
@@ -215,6 +216,7 @@ class UseCaseRecord:
             validation=dict(data.get("validation", {"status": "unknown"})),
             lastRun=data.get("lastRun"),
             repair=data.get("repair"),
+            workflow=data.get("workflow"),
         )
 
     def to_dict(self) -> dict[str, Any]:

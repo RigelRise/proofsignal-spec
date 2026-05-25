@@ -1,0 +1,162 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from proofsignal_spec.workspace import layout
+from proofsignal_spec.workspace.repository import save_document
+from proofsignal_spec.workspace.validation import validate_no_secret_values
+
+from .models import ArtifactPlan, AuthoringTaskSet
+from .repository import project_relative
+
+
+def _reject_secret_text(title: str, content: str) -> None:
+    findings = validate_no_secret_values({"title": title, "content": content})
+    if findings:
+        first = findings[0]
+        raise ValueError(f"Secret-looking value in stage document at {first.get('path')}")
+
+
+def write_markdown(path: Path, title: str, sections: dict[str, Any]) -> str:
+    lines = [f"# {title}", ""]
+    for heading, value in sections.items():
+        lines.extend([f"## {heading}", ""])
+        if isinstance(value, list):
+            if not value:
+                lines.append("- None recorded")
+            else:
+                for item in value:
+                    lines.append(f"- {item}")
+        elif isinstance(value, dict):
+            if not value:
+                lines.append("- None recorded")
+            else:
+                for key, item in value.items():
+                    lines.append(f"- **{key}**: {item}")
+        else:
+            lines.append(str(value or "Not recorded."))
+        lines.append("")
+    content = "\n".join(lines).rstrip() + "\n"
+    _reject_secret_text(title, content)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return content
+
+
+def write_global_understanding(project: Path, context: dict[str, Any]) -> str:
+    metadata = context.get("understanding", {})
+    return write_markdown(
+        layout.workflow_global_understanding_path(project),
+        "ProofSignal Repository Understanding",
+        {
+            "Metadata": _render_understanding_metadata(metadata),
+            "Project Overview": context.get("productSummary") or context.get("repositorySummary") or "",
+            "Safe Inspection Paths": context.get("safeInspectionPaths", []),
+            "Blocked Sensitive Paths": context.get("blockedSensitivePaths", []),
+            "Candidate Validation Use Cases": _render_candidate_use_cases(context.get("candidateUseCases", [])),
+            "Startup Notes": context.get("startupNotes") or context.get("localStartInstructions") or "",
+            "Validation Boundaries": context.get("validationBoundaries", []),
+            "Runtime Requirements": context.get("runtimeRequirements") or context.get("knownRuntimeRequirements", []),
+            "Unresolved Questions": context.get("unresolvedQuestions", []),
+        },
+    )
+
+
+def write_understanding_snapshot(project: Path, alias: str, context: dict[str, Any]) -> str:
+    metadata = context.get("understanding", {})
+    return write_markdown(
+        layout.workflow_stage_document_path(project, alias, "understand"),
+        f"Understanding Snapshot: {alias}",
+        {
+            "Metadata": _render_understanding_metadata(metadata),
+            "Product Context": context.get("productSummary") or context.get("repositorySummary") or "",
+            "Use Case Focus": context.get("useCaseFocus", alias),
+            "Safe Inspection Paths": context.get("safeInspectionPaths", []),
+            "Blocked Sensitive Paths": context.get("blockedSensitivePaths", []),
+            "Candidate Validation Use Cases": _render_candidate_use_cases(context.get("candidateUseCases", [])),
+            "Runtime Requirements": context.get("runtimeRequirements") or context.get("knownRuntimeRequirements", []),
+            "Unresolved Questions": context.get("unresolvedQuestions", []),
+        },
+    )
+
+
+def write_specification(project: Path, alias: str, goal: str, runtime_assumptions: list[str] | None = None) -> str:
+    return write_markdown(
+        layout.workflow_stage_document_path(project, alias, "specify"),
+        f"Use Case Specification: {alias}",
+        {
+            "Alias": alias,
+            "Purpose": goal,
+            "Target Surface": "browser",
+            "Expected Outcome": "To be confirmed through clarification.",
+            "Runtime Assumptions": runtime_assumptions or [],
+            "Acceptance Scenarios": ["To be refined before artifact planning."],
+            "Unresolved Questions": ["Confirm target URL, credential group names, and expected success evidence."],
+        },
+    )
+
+
+def write_clarifications(project: Path, alias: str, questions: list[dict[str, Any]]) -> str:
+    rendered = [f"{item.get('prompt')} ({item.get('status', 'pending')})" for item in questions]
+    return write_markdown(
+        layout.workflow_stage_document_path(project, alias, "clarify"),
+        f"Clarifications: {alias}",
+        {"Questions": rendered},
+    )
+
+
+def write_artifact_plan(project: Path, plan: ArtifactPlan) -> str:
+    skills = [plan.mainSkill, *plan.supportingSkills]
+    return write_markdown(
+        layout.workflow_stage_document_path(project, plan.useCaseAlias, "plan"),
+        f"Artifact Plan: {plan.useCaseAlias}",
+        {
+            "Run Request": plan.runRequest,
+            "Reusable Skills": skills,
+            "Skill Reuse": [str(item) for item in plan.skillReuse],
+            "Runtime Inputs": [item.get("name", str(item)) for item in plan.runtimeInputs],
+            "Preconditions": plan.preconditions,
+            "Validation Gates": plan.validationGates,
+        },
+    )
+
+
+def write_task_set(project: Path, task_set: AuthoringTaskSet) -> str:
+    return write_markdown(
+        layout.workflow_stage_document_path(project, task_set.useCaseAlias, "tasks"),
+        f"Authoring Tasks: {task_set.useCaseAlias}",
+        {"Tasks": [f"[{item.status}] {item.id}: {item.description}" for item in task_set.tasks]},
+    )
+
+
+def write_handoff(project: Path, alias: str, stage: str, summary: str) -> str:
+    return write_markdown(
+        layout.workflow_stage_document_path(project, alias, stage),
+        f"Workflow Handoff: {alias}",
+        {"Summary": summary, "Workflow Directory": project_relative(project, layout.workflow_use_case_dir(project, alias))},
+    )
+
+
+def _render_understanding_metadata(metadata: dict[str, Any]) -> list[str]:
+    if not metadata:
+        return []
+    return [
+        f"Generated At: {metadata.get('generatedAt', 'Not recorded')}",
+        f"Generated Git Hash: {metadata.get('generatedGitHash') or 'Unavailable'}",
+        f"Git Available: {str(metadata.get('gitAvailable', False)).lower()}",
+        f"Stale Reasons: {', '.join(metadata.get('staleReasons', [])) or 'None'}",
+    ]
+
+
+def _render_candidate_use_cases(candidates: list[dict[str, Any]]) -> list[str]:
+    if not candidates:
+        return ["No candidate validation use cases could be inferred from safe repository context."]
+    rendered: list[str] = []
+    for candidate in candidates:
+        alias = candidate.get("candidateAlias", "candidate")
+        title = candidate.get("title", alias)
+        rationale = candidate.get("rationale", "No rationale recorded.")
+        confidence = candidate.get("confidence", "medium")
+        rendered.append(f"{alias}: {title} ({confidence}) - {rationale}")
+    return rendered
