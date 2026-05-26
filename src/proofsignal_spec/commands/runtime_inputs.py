@@ -8,7 +8,12 @@ from proofsignal_spec.core.errors import RuntimeInputError
 from proofsignal_spec.workspace.models import RuntimeInputRequirement
 
 
-def resolve_runtime_inputs(requirements: list[RuntimeInputRequirement], interactive: bool = True) -> dict[str, str]:
+def resolve_runtime_inputs(
+    requirements: list[RuntimeInputRequirement],
+    interactive: bool = True,
+    provided: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    provided = {str(key): value for key, value in (provided or {}).items() if value is not None and value != ""}
     values: dict[str, str] = {}
     for requirement in requirements:
         value = None
@@ -16,6 +21,8 @@ def resolve_runtime_inputs(requirements: list[RuntimeInputRequirement], interact
             value = os.environ.get(requirement.envVar)
         elif requirement.envVar:
             value = os.environ.get(requirement.envVar)
+        if value is None and requirement.name in provided:
+            value = provided[requirement.name]
         if value is None and requirement.source == "default":
             value = ""
         if value is None and interactive:

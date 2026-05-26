@@ -16,6 +16,8 @@ from proofsignal_spec.workspace.repository import load_registry, load_use_case
 
 from .models import (
     COMMAND_STAGES,
+    WORKFLOW_CAPABILITY_SCHEMA,
+    WORKFLOW_GUARDRAILS_CAPABILITY,
     WORKFLOW_PREREQUISITE_CHECK_SCHEMA,
     WORKFLOW_UNDERSTANDING_COMMIT_THRESHOLD,
     WORKFLOW_UNDERSTANDING_MAX_AGE_DAYS,
@@ -319,6 +321,8 @@ def _missing_stage_artifacts(project: Path, stage: str, alias: str | None) -> li
         record = load_use_case(project, alias)
     except FileNotFoundError:
         return [{"path": use_case_record, "nextStage": "specify"}]
+    if stage in {"plan", "tasks", "implement", "validate", "run", "repair"} and _has_unresolved_blocking_clarifications(record):
+        return [{"path": f"{use_case_record}:authoringQuestions", "nextStage": "clarify"}]
 
     spec_md = _stage_rel(project, alias, "specify")
     if stage in {"clarify", "plan"} and not _exists(project, spec_md):
@@ -389,6 +393,17 @@ def _has_repair_context(record: Any) -> bool:
     return bool(last_run and last_run.get("status") not in {None, "passed"})
 
 
+def _has_unresolved_blocking_clarifications(record: Any) -> bool:
+    blocking_terms = {"runtime", "data", "credential", "credentials", "permission", "permissions", "outcome", "expectedoutcome"}
+    for question in getattr(record, "authoringQuestions", []):
+        if question.status == "answered":
+            continue
+        text = f"{question.affects or ''} {question.reason or ''} {question.prompt or ''}".lower()
+        if any(term in text for term in blocking_terms):
+            return True
+    return False
+
+
 def _stage_rel(project: Path, alias: str, stage: str) -> str:
     return layout.to_project_relative(project, layout.workflow_stage_document_path(project, alias, stage))
 
@@ -456,7 +471,10 @@ def _result(
     understanding: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
-        "schemaVersion": WORKFLOW_PREREQUISITE_CHECK_SCHEMA,
+        "schemaVersion": WORKFLOW_CAPABILITY_SCHEMA,
+        "prerequisiteSchemaVersion": WORKFLOW_PREREQUISITE_CHECK_SCHEMA,
+        "requiredCapability": WORKFLOW_GUARDRAILS_CAPABILITY,
+        "supported": True,
         "stage": stage,
         "useCaseAlias": alias,
         "status": status,

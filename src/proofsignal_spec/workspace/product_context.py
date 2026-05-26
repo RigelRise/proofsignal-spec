@@ -106,3 +106,43 @@ def record_understanding_refresh_decision(
         metadata["refreshAcceptedReasons"] = reason_codes
     save_product_context(project, context)
     return metadata["refreshDecision"]
+
+
+def persist_understanding_context(
+    project: Path,
+    *,
+    repository_summary: str,
+    local_start_instructions: str,
+    coverage_inventory: dict[str, Any],
+    candidate_use_cases: list[dict[str, Any]],
+    generated_at: str,
+    generated_git_hash: str | None,
+    git_available: bool,
+    safe_inspection_paths: list[str] | None = None,
+    blocked_sensitive_paths: list[str] | None = None,
+    runtime_requirements: list[str] | None = None,
+) -> dict[str, Any]:
+    context = load_product_context(project)
+    context.update(
+        {
+            "repositorySummary": repository_summary,
+            "localStartInstructions": local_start_instructions,
+            "safeInspectionPaths": safe_inspection_paths or context.get("safeInspectionPaths", []),
+            "blockedSensitivePaths": blocked_sensitive_paths or context.get("blockedSensitivePaths", []),
+            "knownRuntimeRequirements": runtime_requirements or context.get("knownRuntimeRequirements", []),
+            "coverageInventory": coverage_inventory,
+            "candidateUseCases": candidate_use_cases,
+        }
+    )
+    metadata = understanding_metadata(context)
+    metadata.update(
+        {
+            "generatedAt": generated_at,
+            "generatedGitHash": generated_git_hash,
+            "gitAvailable": git_available,
+            "staleReasons": [],
+            "inventoryStatus": coverage_inventory.get("status"),
+        }
+    )
+    save_product_context(project, context)
+    return context

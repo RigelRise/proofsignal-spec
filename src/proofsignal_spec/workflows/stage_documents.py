@@ -154,9 +154,11 @@ def _render_candidate_use_cases(candidates: list[dict[str, Any]]) -> list[str]:
         return ["No candidate validation use cases could be inferred from safe repository context."]
     rendered: list[str] = []
     for candidate in candidates:
-        alias = candidate.get("candidateAlias", "candidate")
-        title = candidate.get("title", alias)
+        alias = candidate.get("alias") or candidate.get("candidateAlias") or "candidate"
+        title = candidate.get("title") or candidate.get("behavior") or alias
         rationale = candidate.get("rationale", "No rationale recorded.")
         confidence = candidate.get("confidence", "medium")
-        rendered.append(f"{alias}: {title} ({confidence}) - {rationale}")
+        source_status = candidate.get("inventorySourceStatus")
+        source = f", inventory: {source_status}" if source_status else ""
+        rendered.append(f"{alias}: {title} ({confidence}{source}) - {rationale}")
     return rendered

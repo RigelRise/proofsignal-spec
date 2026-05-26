@@ -101,8 +101,13 @@ def create_parser() -> argparse.ArgumentParser:
     workflow_resume.add_argument("--json", action="store_true")
     workflow_status = workflow_sub.add_parser("status")
     workflow_status.add_argument("run_id", nargs="?")
+    workflow_status.add_argument("--alias", help="Use case alias to inspect without a workflow run id")
     workflow_status.add_argument("--project", default=".")
     workflow_status.add_argument("--json", action="store_true")
+    workflow_show = workflow_sub.add_parser("show", help="Show persisted workflow context for a use case")
+    workflow_show.add_argument("--alias", required=True, help="Use case alias to inspect")
+    workflow_show.add_argument("--project", default=".")
+    workflow_show.add_argument("--json", action="store_true")
     workflow_list = workflow_sub.add_parser("list")
     workflow_list.add_argument("--project", default=".")
     workflow_list.add_argument("--json", action="store_true")
@@ -112,8 +117,20 @@ def create_parser() -> argparse.ArgumentParser:
     workflow_check.add_argument("--refresh-decision", choices=["accepted", "declined"], help="Record a stale-understanding refresh decision")
     workflow_check.add_argument("--project", default=".")
     workflow_check.add_argument("--json", action="store_true")
+    workflow_persist = workflow_sub.add_parser("persist", help="Persist a workflow stage through canonical CLI operations")
+    workflow_persist.add_argument("stage", help="Workflow stage to persist")
+    workflow_persist.add_argument("--alias", help="Use case alias for use-case stages")
+    workflow_persist.add_argument("--scope", help="Understanding inventory scope: all, changed, continue, route:<path>, or area:<name>")
+    workflow_persist.add_argument("--payload", help="Path to a JSON/YAML payload outside managed .proofsignal artifacts")
+    workflow_persist.add_argument("--stdin", action="store_true", help="Read JSON payload from stdin")
+    workflow_persist.add_argument("--project", default=".")
+    workflow_persist.add_argument("--json", action="store_true")
+    workflow_migrate = workflow_sub.add_parser("migrate", help="Apply an approved workspace migration plan")
+    workflow_migrate.add_argument("--approve", required=True, help="Migration id to apply")
+    workflow_migrate.add_argument("--project", default=".")
+    workflow_migrate.add_argument("--json", action="store_true")
     workflow_info = workflow_sub.add_parser("info")
-    workflow_info.add_argument("workflow_id")
+    workflow_info.add_argument("workflow_id", nargs="?", default="proofsignal-use-case")
     workflow_info.add_argument("--project", default=".")
     workflow_info.add_argument("--integration", choices=["codex", "claude"])
     workflow_info.add_argument("--json", action="store_true")
@@ -206,11 +223,17 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
         if args.workflow_command == "resume":
             return workflow_command.resume(project, args.run_id), args.json
         if args.workflow_command == "status":
-            return workflow_command.status(project, args.run_id), args.json
+            return workflow_command.status(project, args.run_id, alias=args.alias), args.json
+        if args.workflow_command == "show":
+            return workflow_command.show(project, args.alias), args.json
         if args.workflow_command == "list":
             return workflow_command.list_runs(project), args.json
         if args.workflow_command == "check":
             return workflow_command.check(project, args.stage, alias=args.alias, refresh_decision=args.refresh_decision), args.json
+        if args.workflow_command == "persist":
+            return workflow_command.persist(project, args.stage, alias=args.alias, scope=args.scope, payload=_load_payload(args)), args.json
+        if args.workflow_command == "migrate":
+            return workflow_command.migrate(project, args.approve), args.json
         if args.workflow_command == "info":
             return workflow_command.info(project, args.workflow_id, integration=args.integration), args.json
     if command == "integration":
@@ -249,7 +272,10 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
         print(f"Workspace: {result['workspace']['path']}")
         print(f"Core: {result['core'].get('message')}")
         return
-    if result.get("schemaVersion") == "proofsignal-spec-workflow-prerequisite-check/v1":
+    if result.get("schemaVersion") in {
+        "proofsignal-spec-workflow-prerequisite-check/v1",
+        "proofsignal-spec-workflow-capability/v1",
+    }:
         print(f"Stage: {result['stage']}")
         print(f"Status: {result['status']}")
         print(f"Can proceed: {str(result['canProceed']).lower()}")
@@ -268,6 +294,23 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
         if result.get("nextCommand"):
             print(f"Next: {result['nextCommand']}")
         return
+    if result.get("schemaVersion") == "proofsignal-spec-workflow-stage-persistence-result/v1":
+        print(f"Stage: {result['stage']}")
+        print(f"Status: {result['status']}")
+        if result.get("alias"):
+            print(f"Alias: {result['alias']}")
+        for blocker in result.get("blockers", []):
+            print(f"blocker: {blocker.get('code')}: {blocker.get('message')}", file=sys.stderr)
+        if result.get("nextCommand"):
+            print(f"Next: {result['nextCommand']}")
+        return
+    if result.get("schemaVersion") == "proofsignal-spec-validation-readiness/v1":
+        print(f"Status: {result['status']}")
+        print(f"Structural: {result.get('structuralValidation', {}).get('status')}")
+        print(f"Core: {result.get('coreReadiness', {}).get('status')}")
+        for blocker in result.get("blockers", []):
+            print(f"blocker: {blocker.get('code')}: {blocker.get('message')}", file=sys.stderr)
+        return
     print(json.dumps(result, indent=2, sort_keys=False))
 
 
@@ -280,3 +323,22 @@ def exit_code_for_result(command: str, result: dict[str, Any]) -> int:
     if status in {"blocked", "error"}:
         return EXIT_VALIDATION_FAILED
     return EXIT_SUCCESS
+
+
+def _load_payload(args: argparse.Namespace) -> dict[str, Any]:
+    if bool(args.payload) == bool(args.stdin):
+        raise ValueError("Use exactly one of --payload or --stdin.")
+    if args.payload:
+        from .workspace.repository import load_document
+
+        path = Path(args.payload).resolve()
+        if f"{Path(args.project).resolve() / '.proofsignal'}" in str(path):
+            raise ValueError("Payload file must be outside managed .proofsignal artifacts.")
+        payload = load_document(path, default={})
+        if not isinstance(payload, dict):
+            raise ValueError("Workflow persistence payload must be an object.")
+        return payload
+    payload = json.loads(sys.stdin.read() or "{}")
+    if not isinstance(payload, dict):
+        raise ValueError("Workflow persistence payload must be an object.")
+    return payload

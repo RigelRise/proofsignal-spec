@@ -10,9 +10,10 @@ from proofsignal_spec.commands import run as run_command
 from proofsignal_spec.commands import validate as validate_command
 from proofsignal_spec.workspace import layout
 from proofsignal_spec.workspace.models import ArtifactReference
-from proofsignal_spec.workspace.repository import load_use_case, now_iso, save_use_case
+from proofsignal_spec.workspace.repository import load_document, load_use_case, now_iso, save_use_case
 
 from .definitions import load_workflow_definition
+from .browser_authoring import browser_authoring_contract
 from .models import WORKFLOW_ID, WORKFLOW_STAGES, ArtifactPlan, WorkflowRun, native_invocation
 from .repository import (
     create_or_load_use_case,
@@ -122,6 +123,62 @@ def workflow_status(project: Path, run_id: str | None = None) -> dict[str, Any]:
     }
 
 
+def workflow_status_for_alias(project: Path, alias: str) -> dict[str, Any]:
+    alias = layout.ensure_path_safe_alias(alias)
+    record = load_use_case(project, alias)
+    state = load_workflow_state(project, alias)
+    workflow = record.workflow or {}
+    run_id = workflow.get("lastWorkflowRunId")
+    if run_id:
+        try:
+            return workflow_status(project, str(run_id))
+        except FileNotFoundError:
+            pass
+    return {
+        "schemaVersion": "proofsignal-spec-workflow-status/v1",
+        "useCaseAlias": alias,
+        "status": state.get("status") or workflow.get("workflowStatus") or record.status,
+        "currentStage": state.get("currentStage") or workflow.get("currentStage"),
+        "workflowDir": workflow.get("workflowDir") or workflow_dir_rel(project, alias),
+        "nextCommand": state.get("nextCommand"),
+        "state": state,
+    }
+
+
+def workflow_show(project: Path, alias: str) -> dict[str, Any]:
+    alias = layout.ensure_path_safe_alias(alias)
+    record = load_use_case(project, alias)
+    state = load_workflow_state(project, alias)
+    documents = {
+        stage: _workflow_document(project, alias, stage)
+        for stage in ["understand", "specify", "clarify", "plan", "tasks", "implement", "validate", "run", "repair"]
+    }
+    artifact_plan = load_document(layout.workflow_stage_document_path(project, alias, "plan").with_suffix(".yaml"), default={}) or {}
+    task_set = load_document(layout.workflow_stage_document_path(project, alias, "tasks").with_suffix(".yaml"), default={}) or {}
+    return {
+        "schemaVersion": "proofsignal-spec-workflow-show/v1",
+        "useCaseAlias": alias,
+        "status": state.get("status") or record.status,
+        "currentStage": state.get("currentStage") or (record.workflow or {}).get("currentStage"),
+        "useCase": record.to_dict(),
+        "workflowState": state,
+        "documents": documents,
+        "artifactPlan": artifact_plan,
+        "taskSet": task_set,
+    }
+
+
+def _workflow_document(project: Path, alias: str, stage: str) -> dict[str, Any]:
+    path = layout.workflow_stage_document_path(project, alias, stage)
+    if not path.exists():
+        return {"path": project_relative(project, path), "exists": False}
+    return {
+        "path": project_relative(project, path),
+        "exists": True,
+        "content": path.read_text(encoding="utf-8"),
+    }
+
+
 def workflow_list(project: Path) -> dict[str, Any]:
     return {
         "schemaVersion": "proofsignal-spec-workflow-list/v1",
@@ -152,6 +209,7 @@ def workflow_info(project: Path, workflow_id: str = WORKFLOW_ID, integration: st
         "gates": definition.gates,
         "supportedIntegrations": ["codex", "claude"],
         "nativeCommands": {stage: native_invocation(stage, "skill") for stage in [*WORKFLOW_STAGES, "list"]},
+        "browserAuthoringContract": browser_authoring_contract(),
         "integration": integration,
     }
 

@@ -53,6 +53,22 @@ def skill_path(project: Path, name: str) -> Path:
     return workspace_root(project) / SKILLS_DIR / f"{name}.browser.md"
 
 
+def canonical_run_request_path(project: Path, alias: str) -> Path:
+    return run_request_path(project, ensure_path_safe_alias(alias))
+
+
+def canonical_skill_path(project: Path, name: str) -> Path:
+    return skill_path(project, ensure_path_safe_alias(name))
+
+
+def canonical_run_request_rel(alias: str) -> str:
+    return f"{WORKSPACE_DIR}/{RUN_REQUESTS_DIR}/{ensure_path_safe_alias(alias)}.yaml"
+
+
+def canonical_skill_rel(name: str) -> str:
+    return f"{WORKSPACE_DIR}/{SKILLS_DIR}/{ensure_path_safe_alias(name)}.browser.md"
+
+
 def repair_path(project: Path, repair_id: str) -> Path:
     return workspace_root(project) / REPAIRS_DIR / f"{repair_id}.yaml"
 
@@ -116,6 +132,10 @@ def workflow_stage_document_path(project: Path, alias: str, stage: str) -> Path:
     return workflow_use_case_dir(project, alias) / filename
 
 
+def canonical_workflow_stage_document_rel(project: Path, alias: str, stage: str) -> str:
+    return to_project_relative(project, workflow_stage_document_path(project, alias, stage))
+
+
 def workflow_global_understanding_path(project: Path) -> Path:
     return workflows_root(project) / WORKFLOW_GLOBAL_UNDERSTANDING
 
@@ -128,6 +148,13 @@ def ensure_path_safe_alias(alias: str) -> str:
 
 def to_project_relative(project: Path, path: Path) -> str:
     return path.resolve().relative_to(project.resolve()).as_posix()
+
+
+def is_canonical_generated_skill_path(path: str) -> bool:
+    prefix = f"{WORKSPACE_DIR}/{SKILLS_DIR}/"
+    if not path.startswith(prefix) or not path.endswith(".browser.md"):
+        return False
+    return "/" not in path.removeprefix(prefix)
 
 
 def project_relative_path(project: Path, rel_path: str) -> Path:

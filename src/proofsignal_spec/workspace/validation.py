@@ -24,6 +24,7 @@ def looks_secret(value: Any, field_name: str = "") -> bool:
         return False
     if text.lower() in DUMMY_VALUES or text.startswith("${") or text.startswith("<"):
         return False
+    normalized_field = field_name.lower()
     if field_name in {
         "schemaVersion",
         "version",
@@ -36,6 +37,8 @@ def looks_secret(value: Any, field_name: str = "") -> bool:
         "sha256",
         "generatedGitHash",
     }:
+        return False
+    if any(term in normalized_field for term in ["githash", "gitsha", "commithash", "commitsha", "revision", "sha256"]):
         return False
     if SECRET_FIELD_RE.search(field_name) and text.lower() not in DUMMY_VALUES:
         return True
@@ -82,6 +85,9 @@ def validate_workspace(project: Path) -> list[dict[str, str]]:
             findings.append({"severity": "blocking", "code": "duplicate-alias", "path": layout.REGISTRY_FILE, "message": f"Duplicate alias: {alias}"})
         aliases.add(alias)
         record_path = item.get("recordPath", "")
+        if not record_path:
+            findings.append({"severity": "blocking", "code": "missing-record-path", "path": layout.REGISTRY_FILE, "message": f"Registry entry for {alias or '<unknown>'} is missing recordPath."})
+            continue
         try:
             path = layout.project_relative_path(project, record_path)
         except Exception:
@@ -128,8 +134,33 @@ def _validate_artifact(project: Path, artifact: ArtifactReference, generated_dir
     if not path.exists():
         findings.append({"severity": "blocking", "code": "missing-artifact", "path": artifact.path, "message": "Referenced artifact does not exist."})
     expected_prefix = f"{layout.WORKSPACE_DIR}/{generated_dir}/"
+    if artifact.generated and artifact.kind == "skill":
+        remainder = artifact.path.removeprefix(f"{layout.WORKSPACE_DIR}/{layout.SKILLS_DIR}/")
+        if (
+            not artifact.path.startswith(f"{layout.WORKSPACE_DIR}/{layout.SKILLS_DIR}/")
+            or not artifact.path.endswith(".browser.md")
+            or "/" in remainder
+        ):
+            findings.append(
+                {
+                    "severity": "blocking",
+                    "code": "non-canonical-generated-skill",
+                    "path": artifact.path,
+                    "message": "Generated browser skills must be single markdown files at .proofsignal/skills/<name>.browser.md.",
+                }
+            )
+    if artifact.generated and artifact.kind == "run-request":
+        if not artifact.path.startswith(f"{layout.WORKSPACE_DIR}/{layout.RUN_REQUESTS_DIR}/"):
+            findings.append(
+                {
+                    "severity": "blocking",
+                    "code": "non-canonical-generated-run-request",
+                    "path": artifact.path,
+                    "message": "Generated run requests must be under .proofsignal/run-requests/.",
+                }
+            )
     if artifact.generated and not artifact.path.startswith(expected_prefix):
-        findings.append({"severity": "warning", "code": "generated-artifact-outside-canonical-dir", "path": artifact.path, "message": "Generated artifact is outside the canonical directory."})
+        findings.append({"severity": "blocking", "code": "generated-artifact-outside-canonical-dir", "path": artifact.path, "message": "Generated artifact is outside the canonical directory."})
     if not artifact.generated and artifact.path.startswith(f"{layout.WORKSPACE_DIR}/"):
         findings.append({"severity": "warning", "code": "external-artifact-in-managed-workspace", "path": artifact.path, "message": "External artifact is inside the managed workspace."})
     return findings

@@ -1,0 +1,440 @@
+from __future__ import annotations
+
+from proofsignal_spec.workflows.stage_persistence import persist_stage
+from proofsignal_spec.workspace.repository import init_workspace, load_document
+
+
+def test_persistence_rejects_secret_looking_payload_values(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    result = persist_stage(
+        project,
+        "specify",
+        alias="login",
+        payload={
+            "alias": "login",
+            "surface": "/login",
+            "behavior": "Validate login.",
+            "expectedOutcome": "Dashboard.",
+            "customSourceReason": "Fixture.",
+            "password": "super-secret-value",
+        },
+    )
+    assert result["status"] == "invalid"
+    assert result["blockers"][0]["code"] == "payload.secret-looking-value"
+
+
+def test_unknown_persistence_stage_is_invalid(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    result = persist_stage(project, "unknown", payload={})
+    assert result["status"] == "invalid"
+    assert result["blockers"][0]["code"] == "stage.unsupported"
+
+
+def test_specify_accepts_real_agent_payload_synonyms(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    result = persist_stage(
+        project,
+        "specify",
+        alias="search-people",
+        payload={
+            "alias": "search-people",
+            "purpose": "Validate people search.",
+            "targetSurface": "/search/people",
+            "expectedOutcome": ["People cards appear."],
+            "customSourceReason": "Selected from a partial inventory.",
+        },
+    )
+    assert result["status"] == "persisted"
+    record = load_document(project / ".proofsignal/use-cases/search-people.yaml")
+    assert record["targetSurface"] == "/search/people"
+
+
+def test_plan_accepts_skills_alias_for_reusable_skills(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    persist_stage(
+        project,
+        "specify",
+        alias="search-people",
+        payload={
+            "alias": "search-people",
+            "surface": "/search/people",
+            "behavior": "Validate people search.",
+            "expectedOutcome": "People cards appear.",
+            "customSourceReason": "Fixture.",
+        },
+    )
+    result = persist_stage(
+        project,
+        "plan",
+        alias="search-people",
+        payload={
+            "runRequest": {"path": ".proofsignal/run-requests/search-people.yaml"},
+            "skills": [{"name": "navigate-to-search"}],
+            "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
+            "unresolvedBlockingClarifications": [],
+        },
+    )
+    assert result["status"] == "persisted"
+
+
+def test_plan_accepts_supporting_skills_alias_from_real_agent_payload(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    persist_stage(
+        project,
+        "specify",
+        alias="search-people",
+        payload={
+            "alias": "search-people",
+            "surface": "/search/people",
+            "behavior": "Validate people search.",
+            "expectedOutcome": "People cards appear.",
+            "customSourceReason": "Fixture.",
+        },
+    )
+    result = persist_stage(
+        project,
+        "plan",
+        alias="search-people",
+        payload={
+            "runRequest": ".proofsignal/run-requests/search-people.yaml",
+            "mainSkill": ".proofsignal/skills/validate-search-people-flow.browser.md",
+            "supportingSkills": [
+                ".proofsignal/skills/navigate-to-search.browser.md",
+                ".proofsignal/skills/search-and-verify-results.browser.md",
+            ],
+            "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
+            "unresolvedBlockingClarifications": [],
+        },
+    )
+    assert result["status"] == "persisted"
+    plan = load_document(project / ".proofsignal/workflows/use-cases/search-people/plan.yaml")
+    assert plan["mainSkill"] == ".proofsignal/skills/validate-search-people-flow.browser.md"
+    assert ".proofsignal/skills/navigate-to-search.browser.md" in plan["supportingSkills"]
+
+
+def test_implement_accepts_artifacts_list_and_writes_core_envelopes(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    persist_stage(
+        project,
+        "specify",
+        alias="search-people",
+        payload={
+            "alias": "search-people",
+            "surface": "/search/people",
+            "behavior": "Validate people search.",
+            "expectedOutcome": "People cards appear.",
+            "customSourceReason": "Fixture.",
+        },
+    )
+    persist_stage(
+        project,
+        "plan",
+        alias="search-people",
+        payload={
+            "runRequest": ".proofsignal/run-requests/search-people.yaml",
+            "reusableSkills": [".proofsignal/skills/navigate-to-search.browser.md"],
+            "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
+            "unresolvedBlockingClarifications": [],
+        },
+    )
+    result = persist_stage(
+        project,
+        "implement",
+        alias="search-people",
+        payload={
+            "artifacts": [
+                {
+                    "path": ".proofsignal/run-requests/search-people.yaml",
+                    "kind": "run-request",
+                    "content": "alias: search-people\n",
+                },
+                {
+                    "path": ".proofsignal/skills/navigate-to-search.browser.md",
+                    "kind": "skill",
+                    "content": "# navigate-to-search\n\nNavigate to search.",
+                },
+            ]
+        },
+    )
+    assert result["status"] == "persisted"
+    run_request = (project / ".proofsignal/run-requests/search-people.yaml").read_text()
+    skill = (project / ".proofsignal/skills/navigate-to-search.browser.md").read_text()
+    assert '"schemaVersion": "qa-run-request/v1"' in run_request
+    assert "schemaVersion: qa-skill/v1" in skill
+    assert "browser:" in skill
+
+
+def test_implement_rejects_detailed_skill_intent_without_executable_browser_steps(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    persist_stage(
+        project,
+        "specify",
+        alias="search-people",
+        payload={
+            "alias": "search-people",
+            "surface": "/search/people",
+            "behavior": "Validate people search.",
+            "expectedOutcome": "People cards appear.",
+            "customSourceReason": "Fixture.",
+        },
+    )
+    result = persist_stage(
+        project,
+        "implement",
+        alias="search-people",
+        payload={
+            "runRequest": {"path": ".proofsignal/run-requests/search-people.yaml"},
+            "skills": [
+                {
+                    "path": ".proofsignal/skills/validate-search-people-flow.browser.md",
+                    "kind": "skill",
+                    "intent": {
+                        "description": "Validate the full search people flow.",
+                        "successGate": "All five validation gates pass.",
+                        "browser": {"startUrl": "https://app.example.test/search/people"},
+                        "steps": [
+                            {"id": "navigate", "instructions": "Open search people."},
+                            {"id": "happy", "instructions": "Search Jordan and assert cards."},
+                        ],
+                    },
+                }
+            ],
+        },
+    )
+    assert result["status"] == "invalid"
+    assert "executable browser.steps" in result["blockers"][0]["message"]
+
+
+def test_implement_preserves_executable_intent_and_runtime_input_values(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    persist_stage(
+        project,
+        "specify",
+        alias="search-people",
+        payload={
+            "alias": "search-people",
+            "surface": "/search/people",
+            "behavior": "Validate people search.",
+            "expectedOutcome": "People cards appear.",
+            "customSourceReason": "Fixture.",
+        },
+    )
+    result = persist_stage(
+        project,
+        "implement",
+        alias="search-people",
+        payload={
+            "runRequest": {
+                "path": ".proofsignal/run-requests/search-people.yaml",
+                "intent": {
+                    "runtimeInputs": [
+                        {"name": "baseUrl", "value": "https://app.example.test"},
+                        {"name": "happyPathQuery", "value": "Jordan"},
+                    ]
+                },
+            },
+            "skills": [
+                {
+                    "path": ".proofsignal/skills/validate-search-people-flow.browser.md",
+                    "kind": "skill",
+                    "intent": {
+                        "description": "Validate the full search people flow.",
+                        "successGate": "Both gates pass.",
+                        "browser": {
+                            "targets": {"results": {"css": "body"}},
+                            "steps": [
+                                {"id": "open", "action": "navigate", "value": "{{parameters.baseUrl}}/search/people"},
+                                {"id": "wait-query", "action": "waitForText", "target": "results", "value": "{{parameters.happyPathQuery}}"},
+                            ],
+                            "assertions": [
+                                {"id": "results-visible", "kind": "visible", "target": "results"}
+                            ],
+                        },
+                        "steps": [
+                            {"id": "navigate", "instructions": "Open search people."},
+                            {"id": "happy", "instructions": "Search Jordan and assert cards."},
+                        ],
+                    },
+                }
+            ],
+        },
+    )
+    assert result["status"] == "persisted"
+    run_request = load_document(project / ".proofsignal/run-requests/search-people.yaml")
+    skill = (project / ".proofsignal/skills/validate-search-people-flow.browser.md").read_text()
+    assert run_request["parameters"]["baseUrl"] == "https://app.example.test"
+    assert run_request["parameters"]["happyPathQuery"] == "Thiago"
+    assert "wait-query" in skill
+    assert "Execution Intent" in skill
+
+
+def test_clarify_accepts_answer_only_payload_for_existing_questions(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    persist_stage(
+        project,
+        "specify",
+        alias="search-people",
+        payload={
+            "alias": "search-people",
+            "surface": "/search/people",
+            "behavior": "Validate people search.",
+            "expectedOutcome": "People cards appear.",
+            "customSourceReason": "Fixture.",
+        },
+    )
+    persist_stage(
+        project,
+        "clarify",
+        alias="search-people",
+        payload={
+            "questions": [
+                {
+                    "id": "q1",
+                    "prompt": "Which environment should be used?",
+                    "reason": "Runtime target affects execution.",
+                    "affects": "runtime",
+                    "environmentDependent": True,
+                }
+            ]
+        },
+    )
+
+    result = persist_stage(
+        project,
+        "clarify",
+        alias="search-people",
+        payload={"answers": [{"questionId": "q1", "answerSummary": "Production: https://app.example.test"}]},
+    )
+
+    assert result["status"] == "persisted"
+    record = load_document(project / ".proofsignal/use-cases/search-people.yaml")
+    assert record["authoringQuestions"][0]["status"] == "answered"
+    assert record["authoringQuestions"][0]["answerSummary"] == "Production: https://app.example.test"
+
+
+def test_implement_rejects_invalid_browser_action_before_core_validation(tmp_path) -> None:
+    result = _persist_browser_skill(tmp_path, {"targets": {"page": {"css": "body"}}, "steps": [{"id": "bad", "action": "waitForSelector", "target": "page"}]})
+
+    assert result["status"] == "invalid"
+    assert "Unsupported browser step action" in result["blockers"][0]["message"]
+
+
+def test_implement_rejects_navigate_target_without_value(tmp_path) -> None:
+    result = _persist_browser_skill(tmp_path, {"steps": [{"id": "open", "action": "navigate", "target": "https://app.example.test"}]})
+
+    assert result["status"] == "invalid"
+    assert "navigate must put the URL in value" in result["blockers"][0]["message"]
+
+
+def test_implement_rejects_inline_step_target_not_declared_in_browser_targets(tmp_path) -> None:
+    result = _persist_browser_skill(
+        tmp_path,
+        {
+            "steps": [
+                {"id": "open", "action": "navigate", "value": "https://app.example.test/search/people"},
+                {"id": "click-search", "action": "click", "target": "input#search"},
+            ]
+        },
+    )
+
+    assert result["status"] == "invalid"
+    assert "target 'input#search' is not declared in browser.targets" in result["blockers"][0]["message"]
+
+
+def test_implement_rejects_browser_assertion_value_field_for_text_kind(tmp_path) -> None:
+    result = _persist_browser_skill(
+        tmp_path,
+        {
+            "targets": {"page": {"css": "body"}},
+            "steps": [{"id": "open", "action": "navigate", "value": "https://app.example.test/search/people"}],
+            "assertions": [{"id": "a1", "kind": "text", "target": "page", "value": "Results"}],
+        },
+    )
+
+    assert result["status"] == "invalid"
+    assert "browser assertions require expected" in result["blockers"][0]["message"]
+
+
+def test_implement_rejects_await_network_unknown_match_key(tmp_path) -> None:
+    result = _persist_browser_skill(
+        tmp_path,
+        {
+            "steps": [
+                {"id": "open", "action": "navigate", "value": "https://app.example.test/search/people"},
+                {"id": "wait", "action": "awaitNetwork", "match": {"url": "**/api/people**"}},
+            ]
+        },
+    )
+
+    assert result["status"] == "invalid"
+    assert "awaitNetwork.match uses unsupported keys: url" in result["blockers"][0]["message"]
+
+
+def test_implement_rejects_target_with_multiple_primary_locator_signals(tmp_path) -> None:
+    result = _persist_browser_skill(
+        tmp_path,
+        {
+            "targets": {"searchInput": {"label": "Search people", "css": "input#search"}},
+            "steps": [
+                {"id": "open", "action": "navigate", "value": "https://app.example.test/search/people"},
+                {"id": "click", "action": "click", "target": "searchInput"},
+            ],
+        },
+    )
+
+    assert result["status"] == "invalid"
+    assert "defines multiple primary selector signals" in result["blockers"][0]["message"]
+
+
+def _persist_browser_skill(tmp_path, browser: dict) -> dict:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    persist_stage(
+        project,
+        "specify",
+        alias="search-people",
+        payload={
+            "alias": "search-people",
+            "surface": "/search/people",
+            "behavior": "Validate people search.",
+            "expectedOutcome": "People cards appear.",
+            "customSourceReason": "Fixture.",
+        },
+    )
+    return persist_stage(
+        project,
+        "implement",
+        alias="search-people",
+        payload={
+            "runRequest": {"path": ".proofsignal/run-requests/search-people.yaml"},
+            "skills": [
+                {
+                    "path": ".proofsignal/skills/validate-search-people-flow.browser.md",
+                    "kind": "skill",
+                    "intent": {
+                        "description": "Validate the search people flow.",
+                        "successGate": "The browser flow executes.",
+                        "browser": browser,
+                    },
+                }
+            ],
+        },
+    )

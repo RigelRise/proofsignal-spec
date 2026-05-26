@@ -14,6 +14,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 FAKE_CORE = ROOT / "tests" / "fixtures" / "proofsignal-core" / "fake_proofsignal.py"
+TEMPLATE_DIR = ROOT / "src" / "proofsignal_spec" / "templates" / "agent-commands"
 
 
 class CliTestCase(unittest.TestCase):
@@ -44,3 +45,14 @@ class CliTestCase(unittest.TestCase):
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             code = main(args)
         return code, stdout.getvalue(), stderr.getvalue()
+
+
+def agent_template(stage: str) -> str:
+    return (TEMPLATE_DIR / f"proofsignal.{stage}.md").read_text(encoding="utf-8")
+
+
+def assert_guardrail_template(content: str, stage: str) -> None:
+    assert f"proofsignal-spec workflow check {stage}" in content
+    assert "workflow.guardrails/v1" in content
+    assert "Do not use `npx proofsignal-spec`" in content
+    assert "Do not write managed `.proofsignal/` artifacts directly" in content

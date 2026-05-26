@@ -14,6 +14,11 @@ WORKFLOW_STATE_SCHEMA = "proofsignal-spec-workflow-state/v1"
 WORKFLOW_TASK_SET_SCHEMA = "proofsignal-spec-workflow-tasks/v1"
 WORKFLOW_ARTIFACT_PLAN_SCHEMA = "proofsignal-spec-workflow-artifact-plan/v1"
 WORKFLOW_PREREQUISITE_CHECK_SCHEMA = "proofsignal-spec-workflow-prerequisite-check/v1"
+WORKFLOW_CAPABILITY_SCHEMA = "proofsignal-spec-workflow-capability/v1"
+WORKFLOW_GUARDRAILS_CAPABILITY = "workflow.guardrails/v1"
+WORKFLOW_STAGE_PERSISTENCE_RESULT_SCHEMA = "proofsignal-spec-workflow-stage-persistence-result/v1"
+WORKFLOW_VALIDATION_READINESS_SCHEMA = "proofsignal-spec-validation-readiness/v1"
+WORKFLOW_MIGRATION_RESULT_SCHEMA = "proofsignal-spec-workflow-migration-result/v1"
 WORKFLOW_UNDERSTANDING_COMMIT_THRESHOLD = 10
 WORKFLOW_UNDERSTANDING_MAX_AGE_DAYS = 7
 WORKFLOW_STAGES = ["understand", "specify", "clarify", "plan", "tasks", "implement", "validate", "run", "repair"]
@@ -26,6 +31,272 @@ def clean(value: Any) -> Any:
     if isinstance(value, list):
         return [clean(v) for v in value]
     return value
+
+
+@dataclass(slots=True)
+class ReadinessBlocker:
+    code: str
+    severity: Literal["warning", "error", "blocker"] = "blocker"
+    message: str = ""
+    recoveryCommand: str | None = None
+    documentationRef: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ReadinessBlocker":
+        return cls(
+            code=str(data.get("code", "")),
+            severity=data.get("severity", "blocker"),
+            message=str(data.get("message", "")),
+            recoveryCommand=data.get("recoveryCommand"),
+            documentationRef=data.get("documentationRef"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class WorkflowContractCapability:
+    stage: str
+    supported: bool = True
+    minimumRequiredVersion: str = "0.0.0"
+    currentVersion: str | None = None
+    missingCommands: list[str] = field(default_factory=list)
+    blockers: list[ReadinessBlocker] = field(default_factory=list)
+    schemaVersion: str = WORKFLOW_CAPABILITY_SCHEMA
+    requiredCapability: str = WORKFLOW_GUARDRAILS_CAPABILITY
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["blockers"] = [item.to_dict() for item in self.blockers]
+        return clean(data)
+
+
+@dataclass(slots=True)
+class ManagedWorkspaceArtifact:
+    path: str
+    kind: str
+    schemaVersion: str | None = None
+    managed: bool = True
+    checksum: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class StagePersistenceRequest:
+    stage: str
+    alias: str | None = None
+    scope: str | None = None
+    payload: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "StagePersistenceRequest":
+        return cls(
+            stage=str(data.get("stage", "")),
+            alias=data.get("alias"),
+            scope=data.get("scope"),
+            payload=dict(data.get("payload", {})),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class StagePersistenceResult:
+    stage: str
+    alias: str | None = None
+    status: Literal["persisted", "blocked", "invalid"] = "persisted"
+    writtenArtifacts: list[ManagedWorkspaceArtifact] = field(default_factory=list)
+    updatedRecords: list[str] = field(default_factory=list)
+    blockers: list[ReadinessBlocker] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    nextCommand: str | None = None
+    schemaVersion: str = WORKFLOW_STAGE_PERSISTENCE_RESULT_SCHEMA
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["writtenArtifacts"] = [item.to_dict() for item in self.writtenArtifacts]
+        data["blockers"] = [item.to_dict() for item in self.blockers]
+        return clean(data)
+
+
+@dataclass(slots=True)
+class InventoryPass:
+    scope: str
+    startedAt: str
+    completedAt: str | None = None
+    coveredAreas: list[str] = field(default_factory=list)
+    uncoveredAreas: list[str] = field(default_factory=list)
+    sourceFilesVisited: int = 0
+    status: Literal["complete", "partial", "interrupted"] = "partial"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "InventoryPass":
+        return cls(
+            scope=str(data.get("scope", "all")),
+            startedAt=str(data.get("startedAt", "")),
+            completedAt=data.get("completedAt"),
+            coveredAreas=[str(item) for item in data.get("coveredAreas", [])],
+            uncoveredAreas=[str(item) for item in data.get("uncoveredAreas", [])],
+            sourceFilesVisited=int(data.get("sourceFilesVisited", 0) or 0),
+            status=data.get("status", "partial"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class CoverageInventoryItem:
+    id: str
+    surfaceType: str
+    path: str
+    title: str
+    sourceRefs: list[str] = field(default_factory=list)
+    userFacing: bool = True
+    inventoryStatus: Literal["covered", "excluded", "stale", "uncovered"] = "covered"
+    exclusionReason: str | None = None
+    candidateUseCaseRefs: list[str] = field(default_factory=list)
+    priority: Literal["critical", "high", "medium", "low"] = "medium"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CoverageInventoryItem":
+        return cls(
+            id=str(data.get("id", "")),
+            surfaceType=str(data.get("surfaceType", "route")),
+            path=str(data.get("path", "")),
+            title=str(data.get("title", "")),
+            sourceRefs=[str(item) for item in data.get("sourceRefs", [])],
+            userFacing=bool(data.get("userFacing", True)),
+            inventoryStatus=data.get("inventoryStatus", "covered"),
+            exclusionReason=data.get("exclusionReason"),
+            candidateUseCaseRefs=[str(item) for item in data.get("candidateUseCaseRefs", [])],
+            priority=data.get("priority", "medium"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class CandidateValidationUseCase:
+    alias: str
+    surface: str
+    behavior: str
+    sourceInventoryItems: list[str]
+    rationale: str
+    confidence: Literal["high", "medium", "low"] = "medium"
+    inventorySourceStatus: Literal["complete", "partial", "stale"] = "partial"
+    priority: Literal["critical", "high", "medium", "low"] = "medium"
+    requiresEnvironment: bool = False
+    knownRuntimeRequirements: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], inventory_status: str = "partial") -> "CandidateValidationUseCase":
+        alias = str(data.get("alias") or data.get("candidateAlias") or "")
+        surface = str(data.get("surface") or data.get("targetSurface") or "")
+        source_items = data.get("sourceInventoryItems") or data.get("sourceCoverageItems") or data.get("sourceContext") or []
+        return cls(
+            alias=alias,
+            surface=surface,
+            behavior=str(data.get("behavior") or data.get("description") or data.get("title") or ""),
+            sourceInventoryItems=[str(item) for item in source_items],
+            rationale=str(data.get("rationale") or data.get("description") or data.get("behavior") or ""),
+            confidence=data.get("confidence", "medium"),
+            inventorySourceStatus=data.get("inventorySourceStatus", inventory_status),
+            priority=data.get("priority", "medium"),
+            requiresEnvironment=bool(data.get("requiresEnvironment", False)),
+            knownRuntimeRequirements=[str(item) for item in data.get("knownRuntimeRequirements", [])],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class CoverageInventory:
+    status: Literal["complete", "partial", "stale"] = "partial"
+    generatedAt: str = ""
+    generatedGitHash: str | None = None
+    gitAvailable: bool = False
+    passes: list[InventoryPass] = field(default_factory=list)
+    items: list[CoverageInventoryItem] = field(default_factory=list)
+    candidateUseCases: list[CandidateValidationUseCase] = field(default_factory=list)
+    uncoveredAreas: list[str] = field(default_factory=list)
+    staleAreas: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CoverageInventory":
+        status = data.get("status", "partial")
+        return cls(
+            status=status,
+            generatedAt=str(data.get("generatedAt", "")),
+            generatedGitHash=data.get("generatedGitHash"),
+            gitAvailable=bool(data.get("gitAvailable", False)),
+            passes=[InventoryPass.from_dict(item) for item in data.get("passes", [])],
+            items=[CoverageInventoryItem.from_dict(item) for item in data.get("items", [])],
+            candidateUseCases=[CandidateValidationUseCase.from_dict(item, status) for item in data.get("candidateUseCases", [])],
+            uncoveredAreas=[str(item) for item in data.get("uncoveredAreas", [])],
+            staleAreas=[str(item) for item in data.get("staleAreas", [])],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["passes"] = [item.to_dict() for item in self.passes]
+        data["items"] = [item.to_dict() for item in self.items]
+        data["candidateUseCases"] = [item.to_dict() for item in self.candidateUseCases]
+        return clean(data)
+
+
+@dataclass(slots=True)
+class MigrationPlan:
+    id: str
+    reason: str
+    affectedArtifacts: list[str]
+    proposedActions: list[str]
+    destructive: bool = False
+    requiresApproval: bool = True
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MigrationPlan":
+        return cls(
+            id=str(data.get("id", "")),
+            reason=str(data.get("reason", "")),
+            affectedArtifacts=[str(item) for item in data.get("affectedArtifacts", [])],
+            proposedActions=[str(item) for item in data.get("proposedActions", [])],
+            destructive=bool(data.get("destructive", False)),
+            requiresApproval=bool(data.get("requiresApproval", True)),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class StructuralWorkspaceValidation:
+    status: Literal["pass", "warning", "blocked"] = "pass"
+    findings: list[dict[str, Any]] = field(default_factory=list)
+    checkedArtifacts: list[str] = field(default_factory=list)
+    migrationPlans: list[MigrationPlan] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["migrationPlans"] = [item.to_dict() for item in self.migrationPlans]
+        return clean(data)
+
+
+@dataclass(slots=True)
+class CoreReadiness:
+    status: Literal["available", "missing", "incompatible", "error"] = "missing"
+    coreCommand: str | None = None
+    version: str | None = None
+    message: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
 
 
 @dataclass(slots=True)

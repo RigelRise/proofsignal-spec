@@ -4,6 +4,7 @@ from helpers import CliTestCase
 
 from proofsignal_spec.workspace import artifacts
 from proofsignal_spec.workspace.models import ArtifactReference, UseCaseRecord
+from proofsignal_spec.workspace.models import RuntimeInputRequirement
 from proofsignal_spec.workspace.repository import init_workspace, save_use_case
 from proofsignal_spec.workspace.validation import validate_workspace
 
@@ -43,3 +44,23 @@ class WorkspaceModelTests(CliTestCase):
 
         findings = validate_workspace(self.project)
         self.assertTrue(any(item["code"] == "secret-looking-value" for item in findings))
+
+    def test_generated_artifacts_use_core_compliant_skill_envelopes(self) -> None:
+        init_workspace(self.project)
+        record = UseCaseRecord(
+            alias="login",
+            title="Login",
+            description="Validate login.",
+            runRequest=ArtifactReference(path=".proofsignal/run-requests/login.yaml", kind="run-request", id="request.login"),
+            mainSkill=ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login"),
+            skills=[ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login")],
+            runtimeInputs=[RuntimeInputRequirement(name="baseUrl")],
+        )
+        artifacts.write_generated_artifacts(self.project, record, overwrite=True)
+        run_request = (self.project / ".proofsignal/run-requests/login.yaml").read_text()
+        skill = (self.project / ".proofsignal/skills/login.browser.md").read_text()
+        self.assertIn('"schemaVersion": "qa-run-request/v1"', run_request)
+        self.assertIn('"parameters"', run_request)
+        self.assertIn("schemaVersion: qa-skill/v1", skill)
+        self.assertIn("browser:", skill)
+        self.assertIn("value: \"{{parameters.baseUrl}}\"", skill)

@@ -6,7 +6,7 @@ from typing import Any
 from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
 from proofsignal_spec.core.adapter import CoreAdapter, core_status
 from proofsignal_spec.workspace.models import RunHistoryEntry
-from proofsignal_spec.workspace.repository import get_core_command, now_iso, record_run, resolve_artifacts
+from proofsignal_spec.workspace.repository import get_core_command, load_document, now_iso, record_run, resolve_artifacts
 
 
 def run(project: Path, alias: str, profile_name: str = "normal", interactive: bool = True, core_cmd: str | None = None) -> dict[str, Any]:
@@ -14,7 +14,11 @@ def run(project: Path, alias: str, profile_name: str = "normal", interactive: bo
     profile = next((item for item in record.profiles if item.name == profile_name), None)
     if profile is None:
         raise ValueError(f"Unknown profile for {alias}: {profile_name}")
-    runtime_values = resolve_runtime_inputs(record.runtimeInputs, interactive=interactive)
+    runtime_values = resolve_runtime_inputs(
+        record.runtimeInputs,
+        interactive=interactive,
+        provided=_run_request_parameters(run_request),
+    )
     output_dir = project / ".proofsignal" / "runs" / alias
     result = CoreAdapter(executable=core_cmd or get_core_command(project), cwd=project).run(
         run_request,
@@ -40,3 +44,23 @@ def run(project: Path, alias: str, profile_name: str = "normal", interactive: bo
     )
     record_run(project, entry)
     return {"alias": alias, "status": entry.status, "reportPath": entry.reportPath, "evidenceDir": entry.evidenceDir, "core": result}
+
+
+def _run_request_parameters(run_request: Path) -> dict[str, Any]:
+    data = load_document(run_request, default={}) or {}
+    if not isinstance(data, dict):
+        return {}
+    parameters = data.get("parameters")
+    if isinstance(parameters, dict):
+        return dict(parameters)
+    runtime_inputs = data.get("runtimeInputs")
+    if isinstance(runtime_inputs, list):
+        return {
+            str(item["name"]): value
+            for item in runtime_inputs
+            if isinstance(item, dict)
+            and item.get("name")
+            for value in [item.get("value", item.get("default"))]
+            if value is not None and value != ""
+        }
+    return {}
