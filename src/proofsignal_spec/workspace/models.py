@@ -127,6 +127,11 @@ class RunHistoryEntry:
     status: CoreStatus
     startedAt: str
     completedAt: str | None = None
+    coreStatus: str | None = None
+    coverageStatus: str | None = None
+    profileSettings: dict[str, Any] | None = None
+    gateCoverage: list[dict[str, Any]] = field(default_factory=list)
+    runtimeContradictions: list[dict[str, Any]] = field(default_factory=list)
     summary: str | dict[str, Any] | None = None
     reportPath: str | None = None
     evidenceDir: str | None = None
@@ -140,6 +145,11 @@ class RunHistoryEntry:
             status=data.get("status", "error"),
             startedAt=str(data.get("startedAt", "")),
             completedAt=data.get("completedAt"),
+            coreStatus=data.get("coreStatus"),
+            coverageStatus=data.get("coverageStatus"),
+            profileSettings=data.get("profileSettings"),
+            gateCoverage=list(data.get("gateCoverage", [])),
+            runtimeContradictions=list(data.get("runtimeContradictions", [])),
             summary=data.get("summary"),
             reportPath=data.get("reportPath"),
             evidenceDir=data.get("evidenceDir"),

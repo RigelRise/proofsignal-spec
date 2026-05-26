@@ -32,7 +32,7 @@ from .repository import (
     state_document,
     workflow_dir_rel,
 )
-from .stage_documents import write_artifact_plan, write_clarifications, write_handoff, write_specification
+from .stage_documents import write_artifact_plan, write_clarifications, write_handoff, write_specification, write_validation_summary
 from .stages import initialize_understanding
 from .tasks import generate_authoring_tasks
 from .stage_documents import write_task_set
@@ -267,13 +267,13 @@ def implement_artifacts(project: Path, alias: str) -> dict[str, Any]:
 
 def validate_stage(project: Path, alias: str, core_cmd: str | None = None) -> dict[str, Any]:
     result = validate_command.run(project, alias, runtime_readiness=True, core_cmd=core_cmd)
-    write_handoff(project, alias, "validate", f"Validation status: {result.get('status')}")
+    write_validation_summary(project, alias, result, stage="validate")
     return result
 
 
 def run_stage(project: Path, alias: str, core_cmd: str | None = None, non_interactive: bool = True) -> dict[str, Any]:
     result = run_command.run(project, alias, interactive=not non_interactive, core_cmd=core_cmd)
-    write_handoff(project, alias, "run", f"Run status: {result.get('status')}")
+    write_validation_summary(project, alias, result, stage="run")
     return result
 
 

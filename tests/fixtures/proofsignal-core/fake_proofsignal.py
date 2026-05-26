@@ -70,6 +70,13 @@ def main() -> int:
         )
         return 0
     if args and args[0] == "run":
+        headed = "--headed" in args
+        slow_mo = 0
+        if "--slow-mo" in args:
+            try:
+                slow_mo = int(args[args.index("--slow-mo") + 1])
+            except Exception:
+                slow_mo = -1
         print(
             json.dumps(
                 {
@@ -82,6 +89,9 @@ def main() -> int:
                         "reportPath": ".proofsignal/runs/login/fake-run-1/report.json",
                         "evidencePath": ".proofsignal/runs/login/fake-run-1/evidence",
                         "summary": {"title": "Fake run", "status": "failed" if mode == "failed" else "passed"},
+                        "args": args,
+                        "headed": headed,
+                        "slowMoMs": slow_mo,
                     },
                 }
             )

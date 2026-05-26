@@ -122,6 +122,12 @@ def validate_use_case(project: Path, record: UseCaseRecord) -> list[dict[str, st
     for question in record.authoringQuestions:
         if question.status == "deferred" and record.status == "ready":
             findings.append({"severity": "blocking", "code": "deferred-question-ready", "path": record.alias, "message": "Ready use cases cannot have deferred blocking questions."})
+    for profile in record.profiles:
+        if profile.slowMoMs < 0:
+            findings.append({"severity": "blocking", "code": "invalid-profile-slowmo", "path": record.alias, "message": f"Profile {profile.name} has negative slowMoMs."})
+        findings.extend(validate_no_secret_values(profile.to_dict(), f"{record.alias}.profiles.{profile.name}"))
+    if record.lastRun:
+        findings.extend(validate_no_secret_values(record.lastRun, f"{record.alias}.lastRun"))
     return findings
 
 

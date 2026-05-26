@@ -18,6 +18,7 @@ VALID_BROWSER_ACTIONS = {
 
 VALID_ASSERTION_KINDS = {"text", "location", "visible", "hidden", "screenshot-required"}
 VALID_NETWORK_MATCH_KEYS = {"urlContains", "method", "status", "requestBodyContains", "responseBodyContains"}
+NETWORK_METADATA_KEYS = {"operationName", "expectedStatus"}
 TARGET_SIGNAL_KEYS = ("testId", "label", "text", "css", "semanticLocator", "all")
 
 ACTION_REQUIREMENTS = {
@@ -55,6 +56,12 @@ def browser_authoring_contract() -> dict[str, Any]:
             "hidden": "Requires target.",
             "screenshot-required": "Use for intermediate visual gates captured during steps.",
             "fieldName": "Assertions use expected, not value.",
+            "gateId": "Assertions used for planned coverage must declare gateId and target a specific rendered result.",
+        },
+        "gateEvidenceRules": {
+            "gateId": "UI assertions, network waits, and screenshots must declare gateId to count toward planned gate coverage.",
+            "renderedResult": "Required page-view gates need a specific target plus expected text/state/count; URL, screenshot, body text, and HTTP 200 alone are not complete.",
+            "network": "awaitNetwork match may include operationName as metadata, but method plus a public match key and expected status are required for gate coverage.",
         },
         "timingGuidance": [
             "For debounced inputs, do not rely on awaitNetwork immediately after fill; the request may not have fired yet.",
@@ -138,6 +145,8 @@ def _validate_step(step: Any, index: int, targets: dict[str, Any]) -> list[str]:
         blockers.append(f"Step {step_id} action {action} requires string value.")
     if action == "awaitNetwork":
         blockers.extend(_validate_network_match(step.get("match"), f"Step {step_id}"))
+        if step.get("gateId") and not isinstance(step.get("gateId"), str):
+            blockers.append(f"Step {step_id} gateId must be a string.")
     if action == "repeatUntil":
         if not isinstance(step.get("until"), dict):
             blockers.append(f"Step {step_id} action repeatUntil requires until object.")
@@ -165,6 +174,8 @@ def _validate_assertion(assertion: Any, index: int, targets: dict[str, Any]) -> 
                 blockers.append(f"Assertion {assertion_id} uses value; browser assertions require expected.")
             else:
                 blockers.append(f"Assertion {assertion_id} kind {kind} requires expected.")
+    if assertion.get("gateId") and not isinstance(assertion.get("gateId"), str):
+        blockers.append(f"Assertion {assertion_id} gateId must be a string.")
     return blockers
 
 
@@ -172,11 +183,12 @@ def _validate_network_match(match: Any, prefix: str) -> list[str]:
     if not isinstance(match, dict):
         return [f"{prefix} action awaitNetwork requires match object."]
     present_keys = {str(key) for key, value in match.items() if value is not None}
-    unsupported = sorted(present_keys - VALID_NETWORK_MATCH_KEYS)
+    unsupported = sorted(present_keys - VALID_NETWORK_MATCH_KEYS - NETWORK_METADATA_KEYS)
     blockers = []
     if unsupported:
         blockers.append(f"{prefix} awaitNetwork.match uses unsupported keys: {', '.join(unsupported)}.")
-    if not present_keys:
+    public_present = present_keys & VALID_NETWORK_MATCH_KEYS
+    if not public_present:
         blockers.append(f"{prefix} awaitNetwork.match must include at least one supported field.")
     return blockers
 

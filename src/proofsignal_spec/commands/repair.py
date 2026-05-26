@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.workflows.repair_recommendations import proposals_from_contradictions
 from proofsignal_spec.workspace import layout
 from proofsignal_spec.workspace.models import RepairSession
 from proofsignal_spec.workspace.repository import get_core_command, load_use_case, now_iso, save_document, save_use_case
@@ -17,7 +18,26 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
         result = CoreAdapter(executable=core_cmd or get_core_command(project), cwd=project).inspect_report(Path(from_report))
         findings = list(result.get("data", {}).get("findings", []))
     else:
-        findings = list(record.validation.get("data", {}).get("findings", record.validation.get("findings", [])))
+        findings = list(
+            record.validation.get("data", {}).get(
+                "findings",
+                record.validation.get("findings", record.validation.get("core", {}).get("data", {}).get("findings", [])),
+            )
+        )
+    contradictions = []
+    if record.lastRun and isinstance(record.lastRun.get("runtimeContradictions"), list):
+        contradictions = list(record.lastRun.get("runtimeContradictions") or [])
+        findings.extend(
+            {
+                "severity": "warning",
+                "code": "runtime-contradiction",
+                "artifact": ".proofsignal/workflows",
+                "path": item.get("gateId"),
+                "message": item.get("observedEvidence", "Runtime evidence contradicted the planned gate."),
+                "suggestedFix": item.get("recommendation", "replan"),
+            }
+            for item in contradictions
+        )
     proposals = [
         {
             "artifact": finding.get("artifact") or (record.runRequest.path if record.runRequest else f".proofsignal/use-cases/{alias}.yaml"),
@@ -26,7 +46,26 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
             "expectedEffect": finding.get("suggestedFix", "Update the artifact and revalidate."),
         }
         for finding in findings
-    ] or [
+    ]
+    if contradictions:
+        from proofsignal_spec.workflows.models import RuntimeContradiction
+
+        proposals.extend(
+            proposals_from_contradictions(
+                [
+                    RuntimeContradiction(
+                        id=str(item.get("id", "")),
+                        gateId=str(item.get("gateId", "")),
+                        observedEvidence=str(item.get("observedEvidence", "")),
+                        expectedEvidence=str(item.get("expectedEvidence", "")),
+                        recommendation=item.get("recommendation", "replan"),
+                        sourceRunId=item.get("sourceRunId"),
+                    )
+                    for item in contradictions
+                ]
+            )
+        )
+    proposals = proposals or [
         {
             "artifact": record.runRequest.path if record.runRequest else f".proofsignal/use-cases/{alias}.yaml",
             "field": None,

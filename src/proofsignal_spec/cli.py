@@ -66,7 +66,7 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Run a use case")
     run_parser.add_argument("alias")
     run_parser.add_argument("--project", default=".")
-    run_parser.add_argument("--profile", default="normal", choices=["normal", "debug"])
+    run_parser.add_argument("--profile", default="normal")
     run_parser.add_argument("--core-cmd", help="Override configured ProofSignal Core command")
     run_parser.add_argument("--json", action="store_true")
     run_parser.add_argument("--non-interactive", action="store_true")

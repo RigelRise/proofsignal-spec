@@ -10,3 +10,8 @@ Every staged `/proofsignal-*` template must start with the installed
 Templates must not suggest package-manager fallbacks, and they must route all
 managed `.proofsignal/` writes through canonical CLI operations such as
 `proofsignal-spec workflow persist`.
+
+Real-run guardrail templates must also preserve the planned main skill, require
+explicit `gateId` evidence mappings, distinguish Core technical status from
+Spec planned coverage status, and route runtime contradictions through repair or
+replan instead of weakening skills live.

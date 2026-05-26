@@ -10,6 +10,7 @@ from proofsignal_spec.workspace.repository import init_workspace, load_use_case,
 from proofsignal_spec.workspace.validation import validate_no_secret_values
 
 from .coverage_inventory import candidate_dicts, merge_inventory, normalize_scope
+from .authoring_coherence import evaluate_implementation_coherence, normalize_artifact_aliases
 from .browser_authoring import validate_browser_payload
 from .models import (
     WORKFLOW_STAGES,
@@ -263,7 +264,7 @@ def _persist_plan(project: Path, alias: str, content: dict[str, Any]) -> StagePe
         skillReuse=list(content.get("skillReuse", [])),
         runtimeInputs=list(content.get("runtimeInputs", [])),
         preconditions=[str(item) for item in content.get("preconditions", [])],
-        validationGates=[str(item) for item in content.get("validationGates", ["authoring-check", "runtime-readiness"])],
+        validationGates=list(content.get("validationGates", ["authoring-check", "runtime-readiness"])),
     )
     save_artifact_plan(project, plan)
     write_artifact_plan(project, plan)
@@ -316,18 +317,50 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     content = _normalize_implementation_content(alias, content)
     _require_fields(content, ["runRequest", "skills"])
     record = load_use_case(project, alias)
+    coherence = evaluate_implementation_coherence(project, alias, content, new_artifacts=True)
+    if coherence.status == "blocked":
+        return StagePersistenceResult(
+            stage="implement",
+            alias=alias,
+            status="blocked",
+            blockers=[
+                ReadinessBlocker(
+                    code="authoring.coherence-blocked",
+                    message=message,
+                    recoveryCommand=f"proofsignal-spec workflow show --alias {alias} --json",
+                )
+                for message in coherence.blockers
+            ],
+            warnings=coherence.warnings,
+            nextCommand=f"/proofsignal-plan {alias}",
+        )
     run_request_path = _artifact_path(content["runRequest"], default=f".proofsignal/run-requests/{alias}.yaml")
     if not run_request_path.startswith(f"{layout.WORKSPACE_DIR}/{layout.RUN_REQUESTS_DIR}/"):
         raise ValueError("Generated run requests must be under .proofsignal/run-requests/.")
     skills = [_skill_reference(item) for item in content.get("skills", [])]
     if not skills:
         raise ValueError("Implementation requires at least one browser skill.")
+    try:
+        plan = load_artifact_plan(project, alias)
+        planned_main = next((skill for skill in skills if skill.path == plan.mainSkill), None)
+        if not planned_main:
+            raise ValueError(f"Planned main validation skill is missing: {plan.mainSkill}.")
+        supporting = [skill for skill in skills if skill.path != planned_main.path]
+        skills = [planned_main, *supporting]
+    except FileNotFoundError:
+        pass
     record.runRequest = ArtifactReference(path=run_request_path, kind="run-request", generated=True, id=f"request.{alias}", version="1.0.0")
     record.mainSkill = skills[0]
     record.skills = skills
     runtime_inputs = content.get("runtimeInputs") or _runtime_inputs_from_run_request_payload(content.get("runRequest")) or _planned_runtime_inputs(project, alias)
     content["runtimeInputs"] = runtime_inputs
     record.runtimeInputs = [_runtime_input(item) for item in runtime_inputs]
+    profiles = _profiles_from_payload(content)
+    if profiles:
+        from proofsignal_spec.workspace.models import RunProfile
+
+        record.profiles = [RunProfile.from_dict(item) for item in profiles]
+    record.validation = {"status": coherence.status, "authoringCoherence": coherence.to_dict()}
     record.status = "draft"
 
     run_request_content = _ensure_core_run_request_document(_artifact_content(content["runRequest"]), record, content)
@@ -352,6 +385,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
             _artifact(project, layout.workflow_state_path(project, alias), "workflow-state"),
         ],
         updatedRecords=[f"use-cases/{alias}", "registry"],
+        warnings=coherence.warnings,
         nextCommand=f"/proofsignal-validate {alias}",
     )
 
@@ -429,7 +463,7 @@ def _normalize_plan_content(alias: str, content: dict[str, Any]) -> dict[str, An
 
 
 def _normalize_implementation_content(alias: str, content: dict[str, Any]) -> dict[str, Any]:
-    normalized = dict(content)
+    normalized = normalize_artifact_aliases(dict(content))
     artifacts_payload = normalized.get("artifacts")
     if isinstance(artifacts_payload, list):
         skills: list[dict[str, Any]] = []
@@ -527,7 +561,7 @@ def _artifact_content(value: Any) -> str | None:
 
 def _ensure_core_run_request_document(content: str | None, record: Any, payload: dict[str, Any]) -> str:
     if content and _looks_like_core_run_request(content):
-        return content
+        return _ensure_run_request_skill_order(content, record)
     return artifacts.render_run_request(record, parameters=_parameters_from_payload(payload))
 
 
@@ -543,6 +577,24 @@ def _looks_like_core_run_request(content: str) -> bool:
 
 def _looks_like_core_skill(content: str) -> bool:
     return all(token in content for token in ["schemaVersion: qa-skill/v1", "skill:", "kind: browser", "browser:"])
+
+
+def _ensure_run_request_skill_order(content: str, record: Any) -> str:
+    try:
+        import yaml  # type: ignore
+
+        parsed = yaml.safe_load(content) or {}
+    except Exception:
+        return content
+    if not isinstance(parsed, dict):
+        return content
+    parsed["skills"] = [{"id": skill.id or f"skill.{record.alias}", "version": skill.version or "1.0.0"} for skill in record.skills]
+    try:
+        import json
+
+        return json.dumps(parsed, indent=2) + "\n"
+    except Exception:
+        return content
 
 
 def _parameters_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -596,6 +648,21 @@ def _runtime_inputs_from_parameters(parameters: Any) -> list[dict[str, Any]]:
     if not isinstance(parameters, dict):
         return []
     return [{"name": str(name), "value": value, "source": "default", "required": True} for name, value in parameters.items()]
+
+
+def _profiles_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    profiles = payload.get("profiles")
+    if isinstance(profiles, list):
+        return [item for item in profiles if isinstance(item, dict)]
+    run_request = payload.get("runRequest") if isinstance(payload.get("runRequest"), dict) else {}
+    profiles = run_request.get("profiles")
+    if isinstance(profiles, list):
+        return [item for item in profiles if isinstance(item, dict)]
+    intent = run_request.get("intent") if isinstance(run_request.get("intent"), dict) else {}
+    profiles = intent.get("profiles")
+    if isinstance(profiles, list):
+        return [item for item in profiles if isinstance(item, dict)]
+    return []
 
 
 def _browser_from_payload(payload: Any) -> dict[str, Any]:

@@ -138,6 +138,23 @@ def write_handoff(project: Path, alias: str, stage: str, summary: str) -> str:
     )
 
 
+def write_validation_summary(project: Path, alias: str, result: dict[str, Any], stage: str = "validate") -> str:
+    coherence = result.get("authoringCoherence") if isinstance(result.get("authoringCoherence"), dict) else {}
+    coverage = result.get("gateCoverage") or coherence.get("gateCoverage") or []
+    return write_markdown(
+        layout.workflow_stage_document_path(project, alias, stage),
+        f"Validation Summary: {alias}",
+        {
+            "Status": result.get("status"),
+            "Selected Main Skill": result.get("selectedMainSkill"),
+            "Core Status": result.get("coreStatus") or result.get("core", {}).get("status"),
+            "Coverage Status": result.get("coverageStatus") or coherence.get("status"),
+            "Gate Coverage": _render_gate_coverage(coverage),
+            "Runtime Contradictions": _render_runtime_contradictions(result.get("runtimeContradictions", [])),
+        },
+    )
+
+
 def _render_understanding_metadata(metadata: dict[str, Any]) -> list[str]:
     if not metadata:
         return []
@@ -162,3 +179,25 @@ def _render_candidate_use_cases(candidates: list[dict[str, Any]]) -> list[str]:
         source = f", inventory: {source_status}" if source_status else ""
         rendered.append(f"{alias}: {title} ({confidence}{source}) - {rationale}")
     return rendered
+
+
+def _render_gate_coverage(coverage: list[dict[str, Any]]) -> list[str]:
+    if not coverage:
+        return ["No gate coverage recorded."]
+    rendered = []
+    for item in coverage:
+        rendered.append(
+            f"{item.get('gateId')}: {item.get('status')}"
+            + (f" ({item.get('conditionEvaluation')}: {item.get('condition')})" if item.get("condition") else "")
+            + (f" - {item.get('notes')}" if item.get("notes") else "")
+        )
+    return rendered
+
+
+def _render_runtime_contradictions(contradictions: list[dict[str, Any]]) -> list[str]:
+    if not contradictions:
+        return ["None recorded."]
+    return [
+        f"{item.get('gateId')}: {item.get('observedEvidence')} -> {item.get('recommendation')}"
+        for item in contradictions
+    ]

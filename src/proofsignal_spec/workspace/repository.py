@@ -298,6 +298,12 @@ def record_run(project: Path, entry: RunHistoryEntry) -> None:
     record.lastRun = {
         "runId": entry.runId,
         "status": entry.status,
+        "coreStatus": entry.coreStatus,
+        "coverageStatus": entry.coverageStatus,
+        "profile": entry.profile,
+        "profileSettings": entry.profileSettings,
+        "gateCoverage": entry.gateCoverage,
+        "runtimeContradictions": entry.runtimeContradictions,
         "reportPath": entry.reportPath,
         "evidenceDir": entry.evidenceDir,
     }

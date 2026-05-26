@@ -7,6 +7,17 @@ from typing import Any, Literal
 WorkflowStatus = Literal["not-started", "running", "paused", "blocked", "failed", "completed"]
 StageStatus = Literal["pending", "running", "completed", "blocked", "skipped", "failed"]
 GateDecisionValue = Literal["approved", "rejected"]
+GateConditionEvaluation = Literal["met", "unmet", "not-evaluated"]
+GateCoverageStatus = Literal[
+    "exercised",
+    "missing",
+    "conditional-met",
+    "conditional-unmet",
+    "not-evaluated",
+    "screenshot-only",
+    "network-only",
+    "unmapped",
+]
 
 WORKFLOW_ID = "proofsignal-use-case"
 WORKFLOW_RUN_SCHEMA = "proofsignal-spec-workflow-run/v1"
@@ -463,7 +474,7 @@ class ArtifactPlan:
     skillReuse: list[dict[str, Any]] = field(default_factory=list)
     runtimeInputs: list[dict[str, Any]] = field(default_factory=list)
     preconditions: list[str] = field(default_factory=list)
-    validationGates: list[str] = field(default_factory=list)
+    validationGates: list[Any] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ArtifactPlan":
@@ -475,13 +486,144 @@ class ArtifactPlan:
             skillReuse=list(data.get("skillReuse", [])),
             runtimeInputs=list(data.get("runtimeInputs", [])),
             preconditions=[str(item) for item in data.get("preconditions", [])],
-            validationGates=[str(item) for item in data.get("validationGates", [])],
+            validationGates=list(data.get("validationGates", [])),
         )
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["schemaVersion"] = WORKFLOW_ARTIFACT_PLAN_SCHEMA
         return clean(data)
+
+
+@dataclass(slots=True)
+class PlannedValidationGate:
+    id: str
+    description: str = ""
+    required: bool = True
+    condition: str | None = None
+    conditionEvaluation: GateConditionEvaluation | None = None
+    source: str = "plan.validationGates"
+    legacy: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PlannedValidationGate":
+        gate_id = str(data.get("id") or data.get("gateId") or "").strip()
+        return cls(
+            id=gate_id,
+            description=str(data.get("description") or data.get("title") or gate_id),
+            required=bool(data.get("required", True)),
+            condition=str(data.get("condition")).strip() if data.get("condition") else None,
+            conditionEvaluation=data.get("conditionEvaluation"),
+            source=str(data.get("source") or "plan.validationGates"),
+            legacy=bool(data.get("legacy", False)),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RenderedResultAssertion:
+    id: str
+    gateId: str
+    target: str
+    kind: str
+    expected: Any = None
+    domainSemantics: str | None = None
+    sourceArtifact: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class BackendRequestCheck:
+    id: str
+    gateId: str
+    method: str | None = None
+    urlContains: str | None = None
+    operationName: str | None = None
+    expectedStatus: int | str | None = None
+    publicMatchKeys: list[str] = field(default_factory=list)
+    sensitiveFieldsExcluded: bool = True
+    sourceArtifact: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ScreenshotEvidence:
+    id: str
+    gateId: str
+    name: str | None = None
+    sourceArtifact: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class EvidenceInventory:
+    uiAssertions: list[RenderedResultAssertion] = field(default_factory=list)
+    networkChecks: list[BackendRequestCheck] = field(default_factory=list)
+    screenshots: list[ScreenshotEvidence] = field(default_factory=list)
+    unmappedEvidence: list[dict[str, Any]] = field(default_factory=list)
+    blockers: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["uiAssertions"] = [item.to_dict() for item in self.uiAssertions]
+        data["networkChecks"] = [item.to_dict() for item in self.networkChecks]
+        data["screenshots"] = [item.to_dict() for item in self.screenshots]
+        return clean(data)
+
+
+@dataclass(slots=True)
+class GateCoverageResult:
+    gateId: str
+    status: GateCoverageStatus
+    condition: str | None = None
+    conditionEvaluation: GateConditionEvaluation | None = None
+    uiEvidenceIds: list[str] = field(default_factory=list)
+    networkEvidenceIds: list[str] = field(default_factory=list)
+    screenshotEvidenceIds: list[str] = field(default_factory=list)
+    notes: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class AuthoringCoherenceResult:
+    alias: str
+    status: Literal["passed", "warning", "blocked"] = "passed"
+    mainSkill: str | None = None
+    acceptedArtifactFields: list[str] = field(default_factory=lambda: ["path", "kind", "content", "intent", "browser"])
+    normalizedAliases: list[str] = field(default_factory=list)
+    blockers: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    gateCoverage: list[GateCoverageResult] = field(default_factory=list)
+    schemaVersion: str = "proofsignal-spec-authoring-coherence/v1"
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["gateCoverage"] = [item.to_dict() for item in self.gateCoverage]
+        return clean(data)
+
+
+@dataclass(slots=True)
+class RuntimeContradiction:
+    id: str
+    gateId: str
+    observedEvidence: str
+    expectedEvidence: str
+    recommendation: Literal["update-target-data", "mark-conditional", "replan"]
+    sourceRunId: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
 
 
 @dataclass(slots=True)

@@ -1,0 +1,18 @@
+from __future__ import annotations
+
+from proofsignal_spec.workflows.evidence import normalize_planned_gates
+from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage
+from proofsignal_spec.workflows.models import EvidenceInventory
+from proofsignal_spec.workflows.repair_recommendations import proposals_from_contradictions, recommend_repairs_for_gate_coverage
+
+
+def test_runtime_contradiction_proposes_replan_options_without_mutating_artifacts() -> None:
+    gates, _warnings = normalize_planned_gates([{"id": "projects-tab-content", "description": "Projects tab", "required": True}])
+    coverage = calculate_gate_coverage(gates, EvidenceInventory())
+
+    contradictions = recommend_repairs_for_gate_coverage(coverage, gates, source_run_id="run-1")
+    proposals = proposals_from_contradictions(contradictions)
+
+    assert contradictions[0].expectedEvidence == "Projects tab"
+    assert proposals[0]["expectedEffect"]
+    assert "weaken" in proposals[0]["expectedEffect"].lower() or "conditional" in proposals[0]["expectedEffect"].lower()

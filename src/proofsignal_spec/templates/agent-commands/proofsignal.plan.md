@@ -14,6 +14,10 @@ Plan one run request and reusable skills before implementation.
 - Plan skills as decoupled reusable artifacts under `.proofsignal/skills/<name>.browser.md`; one skill may be referenced by multiple run requests.
 - Make the main skill executable by Core for the complete planned validation path. Supporting skills can capture reusable intent, but Core v0.1 may execute only the main browser skill during a run.
 - Identify the main skill, supporting skills, runtime input names, credential groups, expected app state, and validation gates.
+- For browser page-view use cases, every required validation gate must have a stable `id`, `description`, and `required` flag. Conditional gates must include a human-readable `condition`.
+- Plan explicit gate evidence: each UI assertion, backend request check, and screenshot intended to prove coverage must declare `gateId`.
+- A page-view gate is not complete with only navigation, URL matching, body text, screenshots, or HTTP 200. Plan a specific rendered-result UI assertion with target and expected text/state/count.
+- Backend checks must declare method, public match keys such as `urlContains`, `status`, `requestBodyContains`, or `responseBodyContains`, expected status, and `gateId`. `operationName` is optional metadata only.
 - Persist both `mainSkill` and `reusableSkills`. `supportingSkills` is accepted for compatibility, but `reusableSkills` is the canonical payload field.
 - Reuse existing skills when appropriate instead of nesting or duplicating skills under a use case.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal-spec workflow persist plan --alias <alias> --payload <payload.json> --json`.

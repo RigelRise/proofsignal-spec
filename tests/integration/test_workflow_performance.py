@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import time
 
+from proofsignal_spec.workflows.authoring_coherence import evaluate_implementation_coherence
 from proofsignal_spec.workspace.repository import init_workspace
 from proofsignal_spec.workflows.readiness import validation_readiness
 from proofsignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, specify, workflow_list
 from proofsignal_spec.workflows.prerequisites import check_prerequisites
+from tests.fixtures.workflows.real_run_guardrails import coherent_profile_skill, create_real_run_guardrail_workspace, run_request_payload
 
 
 def test_workflow_status_list_handles_50_runs_under_one_second(tmp_path) -> None:
@@ -51,4 +53,19 @@ def test_validation_readiness_check_completes_under_one_second_without_core(tmp_
     result = validation_readiness(tmp_path, alias="login")
     elapsed = time.monotonic() - started
     assert result["schemaVersion"] == "proofsignal-spec-validation-readiness/v1"
+    assert elapsed < 1.0
+
+
+def test_authoring_coherence_completes_under_one_second(tmp_path) -> None:
+    create_real_run_guardrail_workspace(tmp_path)
+
+    started = time.monotonic()
+    result = evaluate_implementation_coherence(
+        tmp_path,
+        "profile-view-unauth",
+        {"runRequest": run_request_payload(), "skills": [coherent_profile_skill()]},
+    )
+    elapsed = time.monotonic() - started
+
+    assert result.status == "passed"
     assert elapsed < 1.0
