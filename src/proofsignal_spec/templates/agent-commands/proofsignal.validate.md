@@ -13,6 +13,7 @@ Validate draft artifacts through ProofSignal Spec and Core.
 - If Core is missing, state that structural validation can still run, but ProofSignal Core is required for the complete ProofSignal validation and browser execution experience. Explain how to configure it with `proofsignal-spec init --core-cmd /path/to/proofsignal` or `PROOFSIGNAL_CORE_CMD`.
 - Delegate Core-dependent behavior through `proofsignal-spec validate <alias> --runtime-readiness`.
 - Report the selected main skill shown by validation output before discussing Core results.
+- For later browser inspection, remind users that `proofsignal-spec run <alias> --profile debug` uses 900ms slow motion by default unless `--slow-mo` is explicitly set.
 - Review `authoringCoherence`. If it is blocked, treat the artifact as not ready even if individual browser steps look executable.
 - Distinguish coherent planned validation from a narrow technical pass. A page-view validation requires mapped rendered-result UI evidence and declared backend checks, not only navigation or HTTP 200.
 - Preserve Core verdicts exactly and do not reinterpret passed, failed, blocked, or error outcomes.

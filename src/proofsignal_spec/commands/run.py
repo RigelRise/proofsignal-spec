@@ -5,22 +5,31 @@ from typing import Any
 
 from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
 from proofsignal_spec.core.adapter import CoreAdapter, core_status
-from proofsignal_spec.workflows.authoring_coherence import evaluate_persisted_coherence
-from proofsignal_spec.workflows.evidence import normalize_planned_gates
-from proofsignal_spec.workflows.gate_coverage import coverage_status
+from proofsignal_spec.workflows.browser_authoring import resolve_effective_profile_settings
+from proofsignal_spec.workflows.evidence import extract_core_runtime_evidence, normalize_planned_gates
+from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
+from proofsignal_spec.workflows.models import GateCoverageResult, RepairRecommendation
 from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
 from proofsignal_spec.workflows.repository import load_artifact_plan
-from proofsignal_spec.workspace.models import RunHistoryEntry
+from proofsignal_spec.workspace.models import ArtifactReference, RunHistoryEntry
 from proofsignal_spec.workspace.repository import get_core_command, load_document, load_use_case, now_iso, record_run, resolve_artifacts
 
 
-def run(project: Path, alias: str, profile_name: str = "normal", interactive: bool = True, core_cmd: str | None = None) -> dict[str, Any]:
+def run(
+    project: Path,
+    alias: str,
+    profile_name: str = "normal",
+    interactive: bool = True,
+    core_cmd: str | None = None,
+    slow_mo_override: int | None = None,
+) -> dict[str, Any]:
     record = load_use_case(project, alias)
     profile = next((item for item in record.profiles if item.name == profile_name), None)
     if profile is None:
         available = ", ".join(item.name for item in record.profiles) or "normal"
         raise ValueError(f"Unknown profile for {alias}: {profile_name}. Available profiles: {available}.")
     record, run_request, main_skill, skills = resolve_artifacts(project, alias)
+    profile_settings_model = resolve_effective_profile_settings(profile, slow_mo_override=slow_mo_override)
     runtime_values = resolve_runtime_inputs(
         record.runtimeInputs,
         interactive=interactive,
@@ -32,41 +41,61 @@ def run(project: Path, alias: str, profile_name: str = "normal", interactive: bo
         main_skill,
         skills,
         output_dir=output_dir,
-        headed=profile.headed,
-        slow_mo_ms=profile.slowMoMs,
+        headed=profile_settings_model.headed,
+        slow_mo_ms=profile_settings_model.slowMoMs,
         env=runtime_values,
     )
     data = result.get("data", {})
     run_id = data.get("runId") or f"{alias}-{now_iso().replace(':', '').replace('-', '')}"
     core = core_status(result)
-    coherence = evaluate_persisted_coherence(project, alias)
-    gate_coverage = [item.to_dict() for item in coherence.gateCoverage]
-    try:
-        gates, _warnings = normalize_planned_gates(load_artifact_plan(project, alias).validationGates)
-    except Exception:
-        gates = []
+    gates = _planned_gates(project, alias)
+    gate_coverage_results = _runtime_gate_coverage(result, gates)
+    gate_coverage = [item.to_dict() for item in gate_coverage_results]
     contradictions = [
         item.to_dict()
-        for item in recommend_repairs_for_gate_coverage(coherence.gateCoverage, gates, source_run_id=str(run_id))
+        for item in recommend_repairs_for_gate_coverage(gate_coverage_results, gates, source_run_id=str(run_id))
     ]
-    spec_status = coverage_status(core, coherence.gateCoverage)
-    profile_settings = {"headed": profile.headed, "slowMoMs": profile.slowMoMs}
+    repair_recommendations = [
+        item.to_dict()
+        for item in _repair_recommendations_from_gate_coverage(gate_coverage_results, core, source_run_id=str(run_id))
+    ]
+    spec_coverage_status = coverage_status(core, gate_coverage_results)
+    selected_main_skill = _selected_main_skill(record.mainSkill, main_skill)
+    executed_skill = _executed_skill(data)
+    skill_selection_status = _skill_selection_status(selected_main_skill, executed_skill)
+    missing_required_gates = _missing_required_gates(gate_coverage_results)
+    use_case_status = _use_case_status(core, spec_coverage_status)
+    profile_settings = profile_settings_model.to_dict()
+    if not profile_settings.get("overrides"):
+        profile_settings.pop("overrides", None)
+    partial_coverage = gate_coverage if core in {"failed", "error", "blocked"} else []
+    reason = _reason(use_case_status, core, missing_required_gates, skill_selection_status)
+    next_action = _next_action(use_case_status, alias)
     entry = RunHistoryEntry(
         runId=run_id,
         useCaseAlias=alias,
         profile=profile_name,
-        status=core,
+        status=use_case_status,
         coreStatus=core,
-        coverageStatus=spec_status,
+        coverageStatus=spec_coverage_status,
         profileSettings=profile_settings,
+        selectedMainSkill=selected_main_skill,
+        executedSkill=executed_skill,
+        skillSelectionStatus=skill_selection_status,
         gateCoverage=gate_coverage,
+        missingRequiredGates=missing_required_gates,
+        partialCoverage=partial_coverage,
         runtimeContradictions=contradictions,
+        repairRecommendations=repair_recommendations,
         startedAt=now_iso(),
         completedAt=now_iso(),
         summary={
             "core": data.get("summary") or result.get("summary"),
-            "coverageStatus": spec_status,
-            "mainSkill": record.mainSkill.path if record.mainSkill else str(main_skill),
+            "status": use_case_status,
+            "coverageStatus": spec_coverage_status,
+            "reason": reason,
+            "nextAction": next_action,
+            "mainSkill": selected_main_skill,
         },
         reportPath=data.get("reportPath"),
         evidenceDir=data.get("evidencePath") or data.get("evidenceDir"),
@@ -76,16 +105,129 @@ def run(project: Path, alias: str, profile_name: str = "normal", interactive: bo
         "alias": alias,
         "status": entry.status,
         "coreStatus": core,
-        "coverageStatus": spec_status,
-        "selectedMainSkill": record.mainSkill.path if record.mainSkill else str(main_skill),
+        "coverageStatus": spec_coverage_status,
+        "selectedMainSkill": selected_main_skill,
+        "executedSkill": executed_skill,
+        "skillSelectionStatus": skill_selection_status,
         "profile": profile_name,
         "profileSettings": profile_settings,
         "gateCoverage": gate_coverage,
+        "missingRequiredGates": missing_required_gates,
+        "partialCoverage": partial_coverage,
         "runtimeContradictions": contradictions,
+        "repairRecommendations": repair_recommendations,
+        "reason": reason,
+        "nextAction": next_action,
         "reportPath": entry.reportPath,
         "evidenceDir": entry.evidenceDir,
         "core": result,
     }
+
+
+def _planned_gates(project: Path, alias: str) -> list[Any]:
+    try:
+        gates, _warnings = normalize_planned_gates(load_artifact_plan(project, alias).validationGates)
+        return gates
+    except Exception:
+        return []
+
+
+def _runtime_gate_coverage(result: dict[str, Any], gates: list[Any]) -> list[GateCoverageResult]:
+    if not gates:
+        return []
+    evidence = extract_core_runtime_evidence(result, known_gate_ids={gate.id for gate in gates})
+    return calculate_gate_coverage(gates, evidence)
+
+
+def _selected_main_skill(reference: ArtifactReference | None, path: Path) -> dict[str, Any]:
+    data: dict[str, Any] = {"path": str(reference.path if reference else path)}
+    if reference and reference.id:
+        data["id"] = reference.id
+    if reference and reference.version:
+        data["version"] = reference.version
+    return data
+
+
+def _executed_skill(data: dict[str, Any]) -> dict[str, Any] | None:
+    raw = data.get("executedSkill") or data.get("executedSkillId")
+    if not raw:
+        return None
+    if isinstance(raw, dict):
+        result = dict(raw)
+        result.setdefault("source", "core-public-result")
+        return result
+    return {"id": str(raw), "source": "core-public-result"}
+
+
+def _skill_selection_status(selected: dict[str, Any], executed: dict[str, Any] | None) -> str:
+    if not executed:
+        return "unknown"
+    selected_tokens = {str(value) for value in [selected.get("id"), selected.get("path")] if value}
+    selected_tokens.update(Path(token).name for token in list(selected_tokens))
+    executed_tokens = {str(value) for value in [executed.get("id"), executed.get("path")] if value}
+    executed_tokens.update(Path(token).name for token in list(executed_tokens))
+    return "matched" if selected_tokens & executed_tokens else "mismatch"
+
+
+def _missing_required_gates(gate_coverage: list[GateCoverageResult]) -> list[str]:
+    incomplete = {"missing", "network-only", "screenshot-only", "unmapped", "not-evaluated", "incomplete"}
+    return [item.gateId for item in gate_coverage if item.required and item.status in incomplete]
+
+
+def _use_case_status(core: str, spec_coverage_status: str) -> str:
+    if core in {"failed", "error", "blocked"}:
+        return "failed"
+    if spec_coverage_status != "complete":
+        return "incomplete"
+    return "passed"
+
+
+def _reason(status: str, core: str, missing_required_gates: list[str], skill_selection_status: str) -> str:
+    if status == "passed":
+        return "Core passed and all planned required validation gates were evidenced."
+    if status == "failed":
+        return f"Core reported {core}; any gate coverage is diagnostic only."
+    pieces = ["Core passed but required validation gates are missing or incomplete."]
+    if missing_required_gates:
+        pieces.append(f"Missing required gates: {', '.join(missing_required_gates)}.")
+    if skill_selection_status == "mismatch":
+        pieces.append("Core executed a different skill than the planned main validation skill.")
+    return " ".join(pieces)
+
+
+def _next_action(status: str, alias: str) -> str:
+    if status == "passed":
+        return "No repair needed."
+    if status == "incomplete":
+        return f"Run `proofsignal-spec repair {alias} --json` or re-run after repairing missing gate evidence."
+    return f"Inspect the Core report and run `proofsignal-spec repair {alias} --from-report <report> --json`."
+
+
+def _repair_recommendations_from_gate_coverage(
+    gate_coverage: list[GateCoverageResult],
+    core: str,
+    *,
+    source_run_id: str,
+) -> list[RepairRecommendation]:
+    if core in {"failed", "error", "blocked"}:
+        return []
+    recommendations: list[RepairRecommendation] = []
+    for item in gate_coverage:
+        if not item.required or item.status not in {"missing", "network-only", "screenshot-only", "unmapped", "not-evaluated", "incomplete"}:
+            continue
+        recommendations.append(
+            RepairRecommendation(
+                id=f"repair-{item.gateId}",
+                category="safe-artifact-repair",
+                safeCategory="gateid-mapping",
+                summary=f"Required gate {item.gateId} was not proven by runtime evidence.",
+                action="Map a specific rendered-result assertion or supported network check to this gate, or replan if the gate is no longer valid.",
+                affectedArtifacts=[],
+                requiresUserDecision=False,
+                sourceFeedback=[source_run_id, item.gateId],
+            )
+        )
+    return recommendations
 
 
 def _run_request_parameters(run_request: Path) -> dict[str, Any]:

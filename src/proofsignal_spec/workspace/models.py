@@ -124,14 +124,20 @@ class RunHistoryEntry:
     runId: str
     useCaseAlias: str
     profile: str
-    status: CoreStatus
+    status: str
     startedAt: str
     completedAt: str | None = None
     coreStatus: str | None = None
     coverageStatus: str | None = None
     profileSettings: dict[str, Any] | None = None
+    selectedMainSkill: dict[str, Any] | str | None = None
+    executedSkill: dict[str, Any] | str | None = None
+    skillSelectionStatus: str | None = None
     gateCoverage: list[dict[str, Any]] = field(default_factory=list)
+    missingRequiredGates: list[str] = field(default_factory=list)
+    partialCoverage: list[dict[str, Any]] = field(default_factory=list)
     runtimeContradictions: list[dict[str, Any]] = field(default_factory=list)
+    repairRecommendations: list[dict[str, Any]] = field(default_factory=list)
     summary: str | dict[str, Any] | None = None
     reportPath: str | None = None
     evidenceDir: str | None = None
@@ -148,8 +154,14 @@ class RunHistoryEntry:
             coreStatus=data.get("coreStatus"),
             coverageStatus=data.get("coverageStatus"),
             profileSettings=data.get("profileSettings"),
+            selectedMainSkill=data.get("selectedMainSkill"),
+            executedSkill=data.get("executedSkill"),
+            skillSelectionStatus=data.get("skillSelectionStatus"),
             gateCoverage=list(data.get("gateCoverage", [])),
+            missingRequiredGates=[str(item) for item in data.get("missingRequiredGates", [])],
+            partialCoverage=list(data.get("partialCoverage", [])),
             runtimeContradictions=list(data.get("runtimeContradictions", [])),
+            repairRecommendations=list(data.get("repairRecommendations", [])),
             summary=data.get("summary"),
             reportPath=data.get("reportPath"),
             evidenceDir=data.get("evidenceDir"),
@@ -166,9 +178,12 @@ class RepairSession:
     source: Literal["authoring-validation", "report-inspection"]
     findings: list[dict[str, Any]] = field(default_factory=list)
     proposals: list[dict[str, Any]] = field(default_factory=list)
+    recommendations: list[dict[str, Any]] = field(default_factory=list)
+    applications: list[dict[str, Any]] = field(default_factory=list)
     approvalStatus: Literal["pending", "approved", "rejected", "conflict", "applied"] = "pending"
     appliedAt: str | None = None
     revalidation: dict[str, Any] | None = None
+    readyForRun: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RepairSession":
@@ -178,9 +193,12 @@ class RepairSession:
             source=data.get("source", "authoring-validation"),
             findings=list(data.get("findings", [])),
             proposals=list(data.get("proposals", [])),
+            recommendations=list(data.get("recommendations", [])),
+            applications=list(data.get("applications", [])),
             approvalStatus=data.get("approvalStatus", "pending"),
             appliedAt=data.get("appliedAt"),
             revalidation=data.get("revalidation"),
+            readyForRun=bool(data.get("readyForRun", False)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -199,7 +217,13 @@ class UseCaseRecord:
     skills: list[ArtifactReference] = field(default_factory=list)
     runtimeInputs: list[RuntimeInputRequirement] = field(default_factory=list)
     credentialGroups: list[dict[str, Any] | str] = field(default_factory=list)
-    profiles: list[RunProfile] = field(default_factory=lambda: [RunProfile(), RunProfile(name="debug", description="Visible browser debug profile", headed=True, slowMoMs=700)])
+    profiles: list[RunProfile] = field(
+        default_factory=lambda: [
+            RunProfile(),
+            RunProfile(name="debug", description="Visible browser debug profile", headed=True, slowMoMs=900),
+            RunProfile(name="browser", description="Visible browser profile", headed=True, slowMoMs=900),
+        ]
+    )
     authoringQuestions: list[AuthoringQuestion] = field(default_factory=list)
     validation: dict[str, Any] = field(default_factory=lambda: {"status": "unknown"})
     lastRun: dict[str, Any] | None = None

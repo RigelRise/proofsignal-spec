@@ -10,6 +10,15 @@ from proofsignal_spec.workflows.readiness import structural_validation, validati
 from proofsignal_spec.workspace.repository import get_core_command, resolve_artifacts, update_validation
 
 
+def _selected_main_skill(record_main_skill: Any, main_skill: Path) -> dict[str, Any]:
+    data: dict[str, Any] = {"path": str(record_main_skill.path if record_main_skill else main_skill)}
+    if record_main_skill and record_main_skill.id:
+        data["id"] = record_main_skill.id
+    if record_main_skill and record_main_skill.version:
+        data["version"] = record_main_skill.version
+    return data
+
+
 def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: str | None = None) -> dict[str, Any]:
     structural = structural_validation(project, alias=alias)
     if structural.status == "blocked":
@@ -37,7 +46,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
             "schemaVersion": WORKFLOW_VALIDATION_READINESS_SCHEMA,
             "alias": alias,
             "status": "blocked",
-            "selectedMainSkill": record.mainSkill.path if record.mainSkill else str(main_skill),
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
             "authoringCoherence": coherence.to_dict(),
             "blockers": [
                 ReadinessBlocker(
@@ -54,7 +63,8 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
     wrapped = {
         "alias": alias,
         "status": result.get("status", "error"),
-        "selectedMainSkill": record.mainSkill.path if record.mainSkill else str(main_skill),
+        "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+        "skillSelectionStatus": "matched",
         "authoringCoherence": coherence.to_dict(),
         "core": result,
     }

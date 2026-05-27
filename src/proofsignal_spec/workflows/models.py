@@ -11,8 +11,10 @@ GateConditionEvaluation = Literal["met", "unmet", "not-evaluated"]
 GateCoverageStatus = Literal[
     "exercised",
     "missing",
+    "incomplete",
     "conditional-met",
     "conditional-unmet",
+    "not-applicable",
     "not-evaluated",
     "screenshot-only",
     "network-only",
@@ -590,9 +592,99 @@ class GateCoverageResult:
     networkEvidenceIds: list[str] = field(default_factory=list)
     screenshotEvidenceIds: list[str] = field(default_factory=list)
     notes: str | None = None
+    required: bool = True
+    missingEvidence: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RuntimeEvidence:
+    evidenceId: str
+    source: Literal["step", "assertion", "screenshot", "network", "report-summary", "profile-setting"]
+    gateId: str | None = None
+    status: Literal["passed", "failed", "skipped", "unknown"] = "unknown"
+    specificity: Literal["rendered-result", "supporting", "generic"] = "supporting"
+    artifactRef: str | None = None
+    redactionStatus: Literal["redacted", "not-sensitive", "unknown"] = "unknown"
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RunProfileSettings:
+    profile: str
+    headed: bool = False
+    slowMoMs: int = 0
+    source: Literal["default", "run-request", "workspace-profile", "cli-override"] = "default"
+    overrides: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RepairRecommendation:
+    id: str
+    category: Literal["safe-artifact-repair", "runtime-setup", "replan-required", "clarification-required", "unsupported"]
+    safeCategory: Literal[
+        "selector-ambiguity",
+        "wait-strategy",
+        "main-skill-ordering",
+        "run-profile-defaults",
+        "gateid-mapping",
+    ] | None = None
+    summary: str = ""
+    action: str = ""
+    affectedArtifacts: list[str] = field(default_factory=list)
+    blockedReason: str | None = None
+    requiresUserDecision: bool = False
+    sourceFeedback: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class SafeRepairApplication:
+    recommendationId: str
+    applied: bool = False
+    changedArtifacts: list[str] = field(default_factory=list)
+    validationStatus: Literal["passed", "failed", "not-run"] = "not-run"
+    validationReport: str | None = None
+    remainingGaps: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class UseCaseValidationResult:
+    alias: str
+    status: Literal["passed", "incomplete", "failed"]
+    coreStatus: str
+    coverageStatus: str
+    selectedMainSkill: dict[str, Any] | str | None = None
+    executedSkill: dict[str, Any] | str | None = None
+    skillSelectionStatus: Literal["matched", "mismatch", "unknown"] = "unknown"
+    gateCoverage: list[GateCoverageResult] = field(default_factory=list)
+    missingRequiredGates: list[str] = field(default_factory=list)
+    partialCoverage: list[GateCoverageResult] = field(default_factory=list)
+    profileSettings: RunProfileSettings | None = None
+    repairRecommendations: list[RepairRecommendation] = field(default_factory=list)
+    reportPath: str | None = None
+    evidenceDir: str | None = None
+    exitCode: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["gateCoverage"] = [item.to_dict() for item in self.gateCoverage]
+        data["partialCoverage"] = [item.to_dict() for item in self.partialCoverage]
+        data["profileSettings"] = self.profileSettings.to_dict() if self.profileSettings else None
+        data["repairRecommendations"] = [item.to_dict() for item in self.repairRecommendations]
+        return clean(data)
 
 
 @dataclass(slots=True)

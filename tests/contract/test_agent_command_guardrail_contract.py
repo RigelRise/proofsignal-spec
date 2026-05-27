@@ -32,3 +32,9 @@ def test_plan_template_makes_main_skill_executable() -> None:
     content = agent_template("plan")
     assert "Make the main skill executable by Core for the complete planned validation path" in content
     assert "workflow show --alias <alias> --json" in content
+
+
+def test_run_template_forbids_summarizing_incomplete_runs_as_passed() -> None:
+    content = agent_template("run")
+    assert "Core `passed` result can still be `coverageStatus: incomplete`" in content
+    assert "Do not summarize `status: incomplete` as passed" in content

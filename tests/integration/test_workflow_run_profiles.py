@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import contextlib
+import io
+import json
+
 from proofsignal_spec.cli import main
 from proofsignal_spec.workflows.stage_persistence import persist_stage
 from proofsignal_spec.workspace.repository import init_workspace
 
+from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 from tests.fixtures.workflows.real_run_guardrails import coherent_profile_skill, create_real_run_guardrail_workspace, run_request_payload
 
 
@@ -11,8 +16,9 @@ def test_cli_runs_custom_visual_profile_for_one_use_case(tmp_path, monkeypatch) 
     from tests.helpers import FAKE_CORE
 
     monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "full-coverage")
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
-    create_real_run_guardrail_workspace(tmp_path)
+    create_main_skill_coverage_workspace(tmp_path)
     persist_stage(
         tmp_path,
         "implement",
@@ -33,8 +39,41 @@ def test_cli_runs_custom_visual_profile_for_one_use_case(tmp_path, monkeypatch) 
 
 
 def test_cli_blocks_unknown_custom_profile(tmp_path) -> None:
-    create_real_run_guardrail_workspace(tmp_path)
+    create_main_skill_coverage_workspace(tmp_path)
 
     code = main(["run", "profile-view-unauth", "--project", str(tmp_path), "--profile", "visual", "--non-interactive"])
 
     assert code != 0
+
+
+def test_cli_debug_profile_summary_uses_observable_default(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "full-coverage")
+    create_main_skill_coverage_workspace(tmp_path)
+    stdout = io.StringIO()
+
+    with contextlib.redirect_stdout(stdout):
+        code = main(["run", "profile-view-unauth", "--project", str(tmp_path), "--profile", "debug", "--non-interactive", "--json"])
+
+    assert code == 0
+    payload = json.loads(stdout.getvalue())
+    assert payload["profileSettings"] == {"profile": "debug", "headed": True, "slowMoMs": 900, "source": "default"}
+
+
+def test_cli_slow_mo_override_is_reported_and_forwarded(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "full-coverage")
+    create_main_skill_coverage_workspace(tmp_path)
+    stdout = io.StringIO()
+
+    with contextlib.redirect_stdout(stdout):
+        code = main(["run", "profile-view-unauth", "--project", str(tmp_path), "--profile", "debug", "--slow-mo", "1200", "--non-interactive", "--json"])
+
+    assert code == 0
+    payload = json.loads(stdout.getvalue())
+    assert payload["profileSettings"] == {"profile": "debug", "headed": True, "slowMoMs": 1200, "source": "cli-override", "overrides": ["slowMoMs"]}
+    assert payload["core"]["data"]["slowMoMs"] == 1200

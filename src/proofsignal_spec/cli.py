@@ -67,6 +67,7 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("alias")
     run_parser.add_argument("--project", default=".")
     run_parser.add_argument("--profile", default="normal")
+    run_parser.add_argument("--slow-mo", dest="slow_mo", type=int, help="Override browser slow motion in milliseconds for this run")
     run_parser.add_argument("--core-cmd", help="Override configured ProofSignal Core command")
     run_parser.add_argument("--json", action="store_true")
     run_parser.add_argument("--non-interactive", action="store_true")
@@ -206,7 +207,14 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
     if command == "validate":
         return validate_command.run(Path(args.project).resolve(), args.alias, runtime_readiness=args.runtime_readiness, core_cmd=args.core_cmd), args.json
     if command == "run":
-        return run_command.run(Path(args.project).resolve(), args.alias, profile_name=args.profile, interactive=not args.non_interactive, core_cmd=args.core_cmd), args.json
+        return run_command.run(
+            Path(args.project).resolve(),
+            args.alias,
+            profile_name=args.profile,
+            interactive=not args.non_interactive,
+            core_cmd=args.core_cmd,
+            slow_mo_override=args.slow_mo,
+        ), args.json
     if command == "repair":
         return repair_command.run(Path(args.project).resolve(), args.alias, from_report=args.from_report, approve=args.approve, core_cmd=args.core_cmd), args.json
     if command == "core":
@@ -320,7 +328,7 @@ def exit_code_for_result(command: str, result: dict[str, Any]) -> int:
         return EXIT_VALIDATION_FAILED
     if command == "repair" and result.get("repair", {}).get("approvalStatus") == "pending":
         return EXIT_APPROVAL_REQUIRED
-    if status in {"blocked", "error"}:
+    if status in {"blocked", "error", "failed", "incomplete"}:
         return EXIT_VALIDATION_FAILED
     return EXIT_SUCCESS
 

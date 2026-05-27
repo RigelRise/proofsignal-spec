@@ -4,6 +4,7 @@ import json
 
 from helpers import CliTestCase
 
+from tests.fixtures.workflows.main_skill_run_coverage import HELPER_SKILL_PATH, MAIN_SKILL_PATH, create_main_skill_coverage_workspace
 from tests.fixtures.workflows.guardrails import stage_payload, write_payload
 
 
@@ -201,3 +202,137 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         code, out, err = self.cli(["workflow", "status", "login", "--project", str(self.project), "--json"])
         self.assertEqual(code, 0, err)
         self.assertEqual(json.loads(out)["useCaseAlias"], "login")
+
+    def test_implement_blocks_when_planned_main_skill_is_missing(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        payload = stage_payload(
+            "implement",
+            payload={
+                "runRequest": ".proofsignal/run-requests/profile-view-unauth.yaml",
+                "skills": [{"path": HELPER_SKILL_PATH, "kind": "skill", "browser": {"targets": {}, "steps": [], "assertions": []}}],
+            },
+        )
+
+        code, out, err = self.cli(
+            [
+                "workflow",
+                "persist",
+                "implement",
+                "--alias",
+                "profile-view-unauth",
+                "--project",
+                str(self.project),
+                "--payload",
+                str(write_payload(self.project, "implement-missing-main", payload)),
+                "--json",
+            ]
+        )
+
+        self.assertEqual(code, 2, err)
+        result = json.loads(out)
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn(MAIN_SKILL_PATH, result["blockers"][0]["message"])
+
+    def test_implement_reorders_helper_first_payload_to_planned_main_skill(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        payload = stage_payload(
+            "implement",
+            payload={
+                "runRequest": ".proofsignal/run-requests/profile-view-unauth.yaml",
+                "skills": [
+                    {"path": HELPER_SKILL_PATH, "kind": "skill", "browser": {"targets": {}, "steps": [], "assertions": []}},
+                    {
+                        "path": MAIN_SKILL_PATH,
+                        "kind": "skill",
+                        "browser": {
+                            "targets": {"profileName": {"css": "h2", "domainSemantics": "Profile name"}},
+                            "steps": [],
+                            "assertions": [
+                                {"id": "name", "kind": "visible", "target": "profileName", "gateId": "overview-data-card"},
+                                {"id": "project", "kind": "visible", "target": "profileName", "gateId": "projects-tab-content"},
+                                {"id": "query", "kind": "visible", "target": "profileName", "gateId": "overview-profile-query"},
+                            ],
+                        },
+                    },
+                ],
+            },
+        )
+
+        code, out, err = self.cli(
+            [
+                "workflow",
+                "persist",
+                "implement",
+                "--alias",
+                "profile-view-unauth",
+                "--project",
+                str(self.project),
+                "--payload",
+                str(write_payload(self.project, "implement-reorder-main", payload)),
+                "--json",
+            ]
+        )
+
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        self.assertEqual(result["status"], "persisted")
+        record = json.loads((self.project / ".proofsignal/use-cases/profile-view-unauth.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(record["mainSkill"]["path"], MAIN_SKILL_PATH)
+        self.assertEqual(record["skills"][0]["path"], MAIN_SKILL_PATH)
+        self.assertEqual(record["mainSkill"]["version"], "3.0.0")
+
+    def test_implement_preserves_run_request_content_parameters(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        payload = stage_payload(
+            "implement",
+            payload={
+                "runRequest": {
+                    "path": ".proofsignal/run-requests/profile-view-unauth.yaml",
+                    "kind": "run-request",
+                    "content": {
+                        "schemaVersion": "qa-run-request/v1",
+                        "request": {"id": "request.profile-view-unauth", "name": "Profile View Unauth", "version": "3.0.0"},
+                        "target": "browser",
+                        "validationScope": "feature-level",
+                        "skills": [{"id": "skill.validate-profile-view-unauth-flow", "version": "3.0.0"}],
+                        "parameters": {"baseUrl": "https://app.example.test"},
+                    },
+                },
+                "skills": [
+                    {
+                        "path": MAIN_SKILL_PATH,
+                        "kind": "skill",
+                        "intent": {"id": "skill.validate-profile-view-unauth-flow", "version": "3.0.0"},
+                        "browser": {
+                            "targets": {"profileName": {"css": "h2", "domainSemantics": "Profile name"}},
+                            "steps": [],
+                            "assertions": [
+                                {"id": "name", "kind": "visible", "target": "profileName", "gateId": "overview-data-card"},
+                                {"id": "project", "kind": "visible", "target": "profileName", "gateId": "projects-tab-content"},
+                                {"id": "query", "kind": "visible", "target": "profileName", "gateId": "overview-profile-query"},
+                            ],
+                        },
+                    }
+                ],
+            },
+        )
+
+        code, out, err = self.cli(
+            [
+                "workflow",
+                "persist",
+                "implement",
+                "--alias",
+                "profile-view-unauth",
+                "--project",
+                str(self.project),
+                "--payload",
+                str(write_payload(self.project, "implement-preserve-params", payload)),
+                "--json",
+            ]
+        )
+
+        self.assertEqual(code, 0, err)
+        run_request = json.loads((self.project / ".proofsignal/run-requests/profile-view-unauth.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(run_request["parameters"]["baseUrl"], "https://app.example.test")
+        self.assertEqual(run_request["skills"][0]["version"], "3.0.0")

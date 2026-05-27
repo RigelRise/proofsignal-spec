@@ -8,6 +8,7 @@ from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputReq
 from proofsignal_spec.workspace.repository import init_workspace
 from proofsignal_spec.workspace.repository import save_use_case
 from proofsignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, validate_stage
+from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 
 
 def test_workflow_validate_preserves_core_result(tmp_path, monkeypatch) -> None:
@@ -78,3 +79,18 @@ browser:
 
     result = run_command.run(tmp_path, "login", interactive=True, core_cmd=str(FAKE_CORE))
     assert result["status"] == "passed"
+
+
+def test_run_summary_shows_missing_required_gates_and_partial_diagnostics(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "failed-with-partial")
+    create_main_skill_coverage_workspace(tmp_path)
+
+    result = run_command.run(tmp_path, "profile-view-unauth", interactive=False, core_cmd=str(FAKE_CORE))
+
+    assert result["status"] == "failed"
+    assert result["partialCoverage"]
+    assert sorted(result["missingRequiredGates"]) == ["overview-profile-query", "projects-tab-content"]
+    assert any(item["gateId"] == "overview-data-card" and item["status"] == "exercised" for item in result["gateCoverage"])

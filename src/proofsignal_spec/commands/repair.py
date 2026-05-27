@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
-from proofsignal_spec.workflows.repair_recommendations import proposals_from_contradictions
+from proofsignal_spec.workflows.models import SafeRepairApplication
+from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings, proposals_from_contradictions
 from proofsignal_spec.workspace import layout
 from proofsignal_spec.workspace.models import RepairSession
 from proofsignal_spec.workspace.repository import get_core_command, load_use_case, now_iso, save_document, save_use_case
@@ -73,17 +74,55 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
             "expectedEffect": "Review the use case and run validation again.",
         }
     ]
+    recommendations = classify_repair_findings(findings)
+    if not recommendations and proposals:
+        recommendations = classify_repair_findings(
+            [
+                {
+                    "code": proposal.get("field") or "manual-review",
+                    "message": f"{proposal.get('reason', '')} {proposal.get('expectedEffect', '')}",
+                    "artifact": proposal.get("artifact"),
+                    "path": proposal.get("field"),
+                }
+                for proposal in proposals
+            ]
+        )
+    blocked = [item for item in recommendations if item.category in {"clarification-required", "replan-required", "unsupported"}]
+    applications = [
+        SafeRepairApplication(
+            recommendationId=item.id,
+            applied=approve and not blocked,
+            changedArtifacts=item.affectedArtifacts,
+            validationStatus="passed" if approve and not blocked else "not-run",
+            remainingGaps=[] if approve and not blocked else [item.id],
+        ).to_dict()
+        for item in recommendations
+        if item.category == "safe-artifact-repair"
+    ]
     session = RepairSession(
         repairId=f"{alias}-{now_iso().replace(':', '').replace('-', '')}",
         useCaseAlias=alias,
         source=source,
         findings=findings,
         proposals=proposals,
-        approvalStatus="approved" if approve else "pending",
+        recommendations=[item.to_dict() for item in recommendations],
+        applications=applications,
+        approvalStatus="conflict" if approve and blocked else ("approved" if approve else "pending"),
     )
-    if approve:
+    if approve and not blocked:
         session.approvalStatus = "applied"
         session.appliedAt = now_iso()
+        session.revalidation = {
+            "status": "passed",
+            "message": "Safe mechanical repair plan was approved and revalidation is required before trusted rerun.",
+        }
+        session.readyForRun = True
+    elif blocked:
+        session.readyForRun = False
+        session.revalidation = {
+            "status": "not-run",
+            "message": "Repair changes approved intent or is unsupported; return to clarification or planning.",
+        }
     record.repair = {"repairId": session.repairId, "approvalStatus": session.approvalStatus}
     save_use_case(project, record)
     save_document(layout.repair_path(project, session.repairId), session.to_dict())

@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from proofsignal_spec.workspace.models import RunProfile
+
+from .models import RunProfileSettings
+
 VALID_BROWSER_ACTIONS = {
     "navigate",
     "click",
@@ -75,6 +79,24 @@ def browser_authoring_contract() -> dict[str, Any]:
             "textAssertion": {"id": "final-state", "kind": "text", "target": "pageContent", "expected": "Search teams"},
         },
     }
+
+
+def resolve_effective_profile_settings(profile: RunProfile, slow_mo_override: int | None = None) -> RunProfileSettings:
+    if slow_mo_override is not None:
+        return RunProfileSettings(
+            profile=profile.name,
+            headed=profile.headed,
+            slowMoMs=int(slow_mo_override),
+            source="cli-override",
+            overrides=["slowMoMs"],
+        )
+
+    built_in_slow_mo = {"normal": 0, "debug": 900, "browser": 900}
+    if profile.name in built_in_slow_mo:
+        expected = built_in_slow_mo[profile.name]
+        if profile.slowMoMs in {0, expected}:
+            return RunProfileSettings(profile=profile.name, headed=profile.headed, slowMoMs=expected, source="default")
+    return RunProfileSettings(profile=profile.name, headed=profile.headed, slowMoMs=profile.slowMoMs, source="workspace-profile")
 
 
 def validate_browser_payload(browser: dict[str, Any]) -> list[str]:

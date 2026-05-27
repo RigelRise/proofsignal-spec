@@ -8,7 +8,7 @@ import sys
 
 def main() -> int:
     args = sys.argv[1:]
-    mode = os.environ.get("FAKE_PROOFSIGNAL_MODE", "ok")
+    mode = os.environ.get("FAKE_PROOFSIGNAL_MODE", "ok").replace("_", "-")
     if args[:2] == ["version", "--json"]:
         if mode == "incompatible":
             payload = {
@@ -72,6 +72,29 @@ def main() -> int:
     if args and args[0] == "run":
         headed = "--headed" in args
         slow_mo = 0
+        skill_args = [args[index + 1] for index, item in enumerate(args) if item == "--skill" and index + 1 < len(args)]
+        executed_skill = skill_args[0] if skill_args else None
+        gate_evidence = []
+        if mode == "helper-only":
+            executed_skill = "skill.discover-profile"
+        elif mode == "full-coverage":
+            executed_skill = skill_args[0] if skill_args else "skill.validate-profile-view-unauth-flow"
+            gate_evidence = [
+                {"id": "profile-name", "source": "assertion", "gateId": "overview-data-card", "status": "passed", "target": "profileName"},
+                {"id": "project-card", "source": "assertion", "gateId": "projects-tab-content", "status": "passed", "target": "projectCard"},
+                {
+                    "id": "profile-query",
+                    "source": "network",
+                    "gateId": "overview-profile-query",
+                    "status": "passed",
+                    "method": "POST",
+                    "urlContains": "graphql",
+                    "expectedStatus": 200,
+                    "publicMatchKeys": ["urlContains"],
+                },
+            ]
+        elif mode == "failed-with-partial":
+            gate_evidence = [{"id": "profile-name", "source": "assertion", "gateId": "overview-data-card", "status": "passed", "target": "profileName"}]
         if "--slow-mo" in args:
             try:
                 slow_mo = int(args[args.index("--slow-mo") + 1])
@@ -83,15 +106,17 @@ def main() -> int:
                     "schema": "proofsignal.run/v1",
                     "schemaVersion": 1,
                     "operation": "run",
-                    "status": "failed" if mode == "failed" else "passed",
+                    "status": "failed" if mode in {"failed", "failed-with-partial"} else "passed",
                     "data": {
                         "runId": "fake-run-1",
                         "reportPath": ".proofsignal/runs/login/fake-run-1/report.json",
                         "evidencePath": ".proofsignal/runs/login/fake-run-1/evidence",
-                        "summary": {"title": "Fake run", "status": "failed" if mode == "failed" else "passed"},
+                        "summary": {"title": "Fake run", "status": "failed" if mode in {"failed", "failed-with-partial"} else "passed"},
                         "args": args,
                         "headed": headed,
                         "slowMoMs": slow_mo,
+                        "executedSkill": executed_skill,
+                        "gateEvidence": gate_evidence,
                     },
                 }
             )

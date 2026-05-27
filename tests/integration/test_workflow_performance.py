@@ -4,7 +4,10 @@ import time
 
 from proofsignal_spec.workflows.authoring_coherence import evaluate_implementation_coherence
 from proofsignal_spec.workspace.repository import init_workspace
+from proofsignal_spec.workflows.evidence import extract_core_runtime_evidence, normalize_planned_gates
+from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
 from proofsignal_spec.workflows.readiness import validation_readiness
+from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
 from proofsignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, specify, workflow_list
 from proofsignal_spec.workflows.prerequisites import check_prerequisites
 from tests.fixtures.workflows.real_run_guardrails import coherent_profile_skill, create_real_run_guardrail_workspace, run_request_payload
@@ -68,4 +71,33 @@ def test_authoring_coherence_completes_under_one_second(tmp_path) -> None:
     elapsed = time.monotonic() - started
 
     assert result.status == "passed"
+    assert elapsed < 1.0
+
+
+def test_runtime_coverage_classification_and_repair_recommendations_stay_under_one_second() -> None:
+    gates, _warnings = normalize_planned_gates(
+        [
+            {"id": f"gate-{index}", "description": f"Required rendered result {index}", "required": True}
+            for index in range(100)
+        ]
+    )
+    core_result = {
+        "status": "passed",
+        "data": {
+            "gateEvidence": [
+                {"id": f"assert-{index}", "source": "assertion", "gateId": f"gate-{index}", "status": "passed", "target": f"target-{index}"}
+                for index in range(50)
+            ]
+        },
+    }
+
+    started = time.monotonic()
+    inventory = extract_core_runtime_evidence(core_result, known_gate_ids={gate.id for gate in gates})
+    coverage = calculate_gate_coverage(gates, inventory)
+    status = coverage_status("passed", coverage)
+    recommendations = recommend_repairs_for_gate_coverage(coverage, gates, source_run_id="run-1")
+    elapsed = time.monotonic() - started
+
+    assert status == "incomplete"
+    assert len(recommendations) == 50
     assert elapsed < 1.0

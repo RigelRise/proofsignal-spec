@@ -10,6 +10,9 @@ Repair invalid or failed use cases through the workflow.
 - Do not perform stage-specific work until the check allows it.
 - Use Core validation findings or public report inspection through `proofsignal-spec repair <alias>`.
 - Treat runtime contradictions and incomplete planned gate coverage as repair/replan inputs. Do not silently weaken browser skills when a planned gate is absent in the target product state.
+- Only safe mechanical categories may be applied directly: selector ambiguity, wait strategy, main-skill ordering, run profile defaults, and gateId mapping.
+- If a repair would replace dynamic discovery with fixed data, weaken a rendered-result gate, or remove required evidence, route it to clarification or planning instead of applying it.
+- After any approved safe repair, require the CLI `revalidation.status` to be `passed` and `readyForRun: true` before a trusted rerun.
 - Decide whether the finding should return to clarification, planning, task generation, or implementation before proposing edits.
 - For absent planned gates, propose one of: update target data/runtime assumptions, mark the gate conditional with an explicit condition, or replan the use case.
 - Identify every use case affected by an edit to a reusable skill.

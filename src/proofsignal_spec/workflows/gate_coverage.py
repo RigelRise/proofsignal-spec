@@ -25,6 +25,8 @@ def calculate_gate_coverage(gates: list[PlannedValidationGate], evidence: Eviden
                 networkEvidenceIds=network_ids,
                 screenshotEvidenceIds=screenshot_ids,
                 notes=notes,
+                required=gate.required,
+                missingEvidence=_missing_evidence_for_status(status),
             )
         )
     return coverage
@@ -35,8 +37,8 @@ def coverage_status(core_status: str, gate_coverage: list[GateCoverageResult]) -
         return "failed"
     if core_status == "blocked":
         return "blocked"
-    incomplete = {"missing", "network-only", "screenshot-only", "unmapped", "not-evaluated"}
-    if any(item.status in incomplete for item in gate_coverage):
+    incomplete = {"missing", "network-only", "screenshot-only", "unmapped", "not-evaluated", "incomplete"}
+    if any(item.required and item.status in incomplete for item in gate_coverage):
         return "incomplete"
     return "complete"
 
@@ -102,6 +104,20 @@ def _notes_for_status(status: str) -> str | None:
     if status == "not-evaluated":
         return "Conditional gate had no condition evaluation for this run."
     return None
+
+
+def _missing_evidence_for_status(status: str) -> list[str]:
+    if status == "missing":
+        return ["mapped rendered-result evidence"]
+    if status == "network-only":
+        return ["mapped rendered-result UI assertion"]
+    if status == "screenshot-only":
+        return ["mapped rendered-result assertion"]
+    if status == "not-evaluated":
+        return ["condition evaluation"]
+    if status == "incomplete":
+        return ["required gate evidence"]
+    return []
 
 
 def _group(items: list[object], field: str) -> dict[str, list[object]]:

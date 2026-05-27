@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .browser_authoring import VALID_NETWORK_MATCH_KEYS
-from .models import BackendRequestCheck, EvidenceInventory, PlannedValidationGate, RenderedResultAssertion, ScreenshotEvidence
+from .models import BackendRequestCheck, EvidenceInventory, PlannedValidationGate, RenderedResultAssertion, RuntimeEvidence, ScreenshotEvidence
 
 GENERIC_BODY_TARGETS = {"body", "page", "pagebody", "pageBody", "document", "root"}
 
@@ -151,10 +151,112 @@ def merge_evidence(inventories: list[EvidenceInventory]) -> EvidenceInventory:
     return merged
 
 
+def extract_core_runtime_evidence(
+    result: dict[str, Any],
+    *,
+    known_gate_ids: set[str] | None = None,
+) -> EvidenceInventory:
+    """Normalize public Core run evidence into the Spec evidence inventory.
+
+    The adapter only consumes documented/public JSON fields. Current Core
+    versions may omit this section entirely; callers should treat that as
+    missing runtime evidence rather than inspect private report internals.
+    """
+
+    inventory = EvidenceInventory()
+    known_gate_ids = known_gate_ids or set()
+    data = result.get("data") if isinstance(result.get("data"), dict) else {}
+    items = data.get("gateEvidence") or data.get("evidence") or []
+    if not isinstance(items, list):
+        return inventory
+
+    for index, raw in enumerate(items, start=1):
+        if not isinstance(raw, dict):
+            continue
+        evidence = _runtime_evidence_from_dict(raw, index)
+        if evidence.gateId and known_gate_ids and evidence.gateId not in known_gate_ids:
+            inventory.blockers.append(f"Runtime evidence {evidence.evidenceId} references unknown gateId '{evidence.gateId}'.")
+            continue
+        if not evidence.gateId:
+            inventory.unmappedEvidence.append(evidence.to_dict())
+            continue
+        if evidence.source == "network":
+            inventory.networkChecks.append(
+                BackendRequestCheck(
+                    id=evidence.evidenceId,
+                    gateId=evidence.gateId,
+                    method=str(raw.get("method")) if raw.get("method") is not None else None,
+                    urlContains=str(raw.get("urlContains")) if raw.get("urlContains") is not None else None,
+                    operationName=str(raw.get("operationName")) if raw.get("operationName") is not None else None,
+                    expectedStatus=raw.get("expectedStatus") or raw.get("statusCode"),
+                    publicMatchKeys=[str(item) for item in raw.get("publicMatchKeys", []) if item],
+                    sensitiveFieldsExcluded=True,
+                    sourceArtifact=evidence.artifactRef,
+                )
+            )
+        elif evidence.source == "screenshot":
+            inventory.screenshots.append(
+                ScreenshotEvidence(
+                    id=evidence.evidenceId,
+                    gateId=evidence.gateId,
+                    name=str(raw.get("name") or raw.get("artifactRef") or evidence.evidenceId),
+                    sourceArtifact=evidence.artifactRef,
+                )
+            )
+        else:
+            inventory.uiAssertions.append(
+                RenderedResultAssertion(
+                    id=evidence.evidenceId,
+                    gateId=evidence.gateId,
+                    target=str(raw.get("target") or raw.get("selector") or evidence.evidenceId),
+                    kind=str(raw.get("kind") or evidence.source),
+                    expected=raw.get("expected"),
+                    domainSemantics=str(raw.get("domainSemantics")) if raw.get("domainSemantics") else None,
+                    sourceArtifact=evidence.artifactRef,
+                )
+            )
+    return inventory
+
+
 def browser_from_skill_content(content: str) -> dict[str, Any]:
     data = _load_skill_yaml(content)
     browser = data.get("browser") if isinstance(data, dict) else None
     return browser if isinstance(browser, dict) else {}
+
+
+def _runtime_evidence_from_dict(raw: dict[str, Any], index: int) -> RuntimeEvidence:
+    source = str(raw.get("source") or raw.get("type") or raw.get("kind") or "assertion")
+    normalized_source = _runtime_source(source)
+    specificity = str(raw.get("specificity") or ("rendered-result" if normalized_source in {"step", "assertion"} else "supporting"))
+    if specificity not in {"rendered-result", "supporting", "generic"}:
+        specificity = "supporting"
+    status = str(raw.get("status") or "unknown")
+    if status not in {"passed", "failed", "skipped", "unknown"}:
+        status = "unknown"
+    return RuntimeEvidence(
+        evidenceId=str(raw.get("evidenceId") or raw.get("id") or f"runtime-evidence-{index}"),
+        source=normalized_source,
+        gateId=str(raw.get("gateId") or raw.get("gate") or "").strip() or None,
+        status=status,  # type: ignore[arg-type]
+        specificity=specificity,  # type: ignore[arg-type]
+        artifactRef=str(raw.get("artifactRef") or raw.get("sourceArtifact") or "").strip() or None,
+        redactionStatus="not-sensitive",
+    )
+
+
+def _runtime_source(value: str) -> str:
+    lowered = value.lower()
+    if "network" in lowered or "request" in lowered:
+        return "network"
+    if "screenshot" in lowered:
+        return "screenshot"
+    if "step" in lowered:
+        return "step"
+    if "profile" in lowered:
+        return "profile-setting"
+    if "report" in lowered:
+        return "report-summary"
+    return "assertion"
 
 
 def browser_from_skill_path(path: Path) -> dict[str, Any]:

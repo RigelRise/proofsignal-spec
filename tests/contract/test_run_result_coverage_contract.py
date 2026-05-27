@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
+import os
+
+from helpers import CliTestCase
 from proofsignal_spec.workflows.evidence import normalize_planned_gates
 from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
 from proofsignal_spec.workflows.models import EvidenceInventory
 from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
+from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 
 
 def test_core_pass_with_missing_required_gate_is_incomplete() -> None:
@@ -32,3 +37,35 @@ def test_conditional_unmet_gate_does_not_make_run_incomplete() -> None:
 
     assert coverage[0].status == "conditional-unmet"
     assert coverage_status("passed", coverage) == "complete"
+
+
+class RunResultCoverageCliContractTests(CliTestCase):
+    def test_helper_only_core_success_is_incomplete_and_nonzero(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "helper-only"
+
+        code, out, err = self.cli(["run", "profile-view-unauth", "--project", str(self.project), "--json", "--non-interactive"])
+
+        assert err == ""
+        assert code != 0
+        payload = json.loads(out)
+        assert payload["status"] == "incomplete"
+        assert payload["coreStatus"] == "passed"
+        assert payload["coverageStatus"] == "incomplete"
+        assert payload["skillSelectionStatus"] == "mismatch"
+        assert payload["executedSkill"]["id"] == "skill.discover-profile"
+        assert payload["selectedMainSkill"]["id"] == "skill.validate-profile-view-unauth-flow"
+        assert sorted(payload["missingRequiredGates"]) == ["overview-data-card", "overview-profile-query", "projects-tab-content"]
+        assert payload["reason"]
+        assert payload["nextAction"]
+
+    def test_incomplete_summary_includes_missing_gates_reason_and_next_action(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "helper-only"
+
+        _code, out, _err = self.cli(["run", "profile-view-unauth", "--project", str(self.project), "--json", "--non-interactive"])
+        payload = json.loads(out)
+
+        assert payload["missingRequiredGates"]
+        assert "required validation gates" in payload["reason"]
+        assert "proofsignal-spec repair profile-view-unauth" in payload["nextAction"]

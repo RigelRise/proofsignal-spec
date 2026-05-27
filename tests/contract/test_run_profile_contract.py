@@ -4,6 +4,7 @@ from proofsignal_spec.commands import run as run_command
 from proofsignal_spec.workflows.stage_persistence import persist_stage
 from proofsignal_spec.workspace.repository import init_workspace, load_use_case
 
+from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 from tests.fixtures.workflows.real_run_guardrails import coherent_profile_skill, create_real_run_guardrail_workspace, run_request_payload
 
 
@@ -11,8 +12,9 @@ def test_custom_profile_is_persisted_and_passed_to_core(tmp_path, monkeypatch) -
     from tests.helpers import FAKE_CORE
 
     monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "full-coverage")
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
-    create_real_run_guardrail_workspace(tmp_path)
+    create_main_skill_coverage_workspace(tmp_path)
     result = persist_stage(
         tmp_path,
         "implement",
@@ -31,7 +33,7 @@ def test_custom_profile_is_persisted_and_passed_to_core(tmp_path, monkeypatch) -
 
     run = run_command.run(tmp_path, "profile-view-unauth", profile_name="visual-15s", core_cmd=str(FAKE_CORE), interactive=False)
 
-    assert run["profileSettings"] == {"headed": True, "slowMoMs": 15000}
+    assert run["profileSettings"] == {"profile": "visual-15s", "headed": True, "slowMoMs": 15000, "source": "workspace-profile"}
     assert run["core"]["data"]["headed"] is True
     assert run["core"]["data"]["slowMoMs"] == 15000
     record = load_use_case(tmp_path, "profile-view-unauth")
@@ -40,7 +42,7 @@ def test_custom_profile_is_persisted_and_passed_to_core(tmp_path, monkeypatch) -
 
 
 def test_unknown_profile_lists_available_profiles(tmp_path) -> None:
-    create_real_run_guardrail_workspace(tmp_path)
+    create_main_skill_coverage_workspace(tmp_path)
 
     try:
         run_command.run(tmp_path, "profile-view-unauth", profile_name="visual", interactive=False)
@@ -51,3 +53,42 @@ def test_unknown_profile_lists_available_profiles(tmp_path) -> None:
 
     assert "Unknown profile for profile-view-unauth: visual" in message
     assert "normal" in message
+
+
+def test_debug_profile_defaults_to_900ms_slow_motion(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "full-coverage")
+    create_main_skill_coverage_workspace(tmp_path)
+
+    run = run_command.run(tmp_path, "profile-view-unauth", profile_name="debug", core_cmd=str(FAKE_CORE), interactive=False)
+
+    assert run["profileSettings"] == {"profile": "debug", "headed": True, "slowMoMs": 900, "source": "default"}
+    assert run["core"]["data"]["slowMoMs"] == 900
+
+
+def test_normal_profile_defaults_to_zero_slow_motion(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "full-coverage")
+    create_main_skill_coverage_workspace(tmp_path)
+
+    run = run_command.run(tmp_path, "profile-view-unauth", profile_name="normal", core_cmd=str(FAKE_CORE), interactive=False)
+
+    assert run["profileSettings"] == {"profile": "normal", "headed": False, "slowMoMs": 0, "source": "default"}
+    assert run["core"]["data"]["slowMoMs"] == 0
+
+
+def test_explicit_slow_motion_override_wins(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "full-coverage")
+    create_main_skill_coverage_workspace(tmp_path)
+
+    run = run_command.run(tmp_path, "profile-view-unauth", profile_name="debug", slow_mo_override=1200, core_cmd=str(FAKE_CORE), interactive=False)
+
+    assert run["profileSettings"] == {"profile": "debug", "headed": True, "slowMoMs": 1200, "source": "cli-override", "overrides": ["slowMoMs"]}
+    assert run["core"]["data"]["slowMoMs"] == 1200
