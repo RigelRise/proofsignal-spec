@@ -10,6 +10,17 @@ from proofsignal_spec.workspace.repository import load_document, load_registry, 
 from .models import WORKFLOW_MIGRATION_RESULT_SCHEMA, MigrationPlan
 
 
+BROWSER_WORKFLOW_GUARDRAIL_COMPATIBILITY_NOTES = [
+    "Existing browser use cases with empty baseUrl, targetUrl, or url parameters should be clarified before the next executable plan or implementation stage.",
+    "Resolved target environments are stored as stage handoff decisions and merged into later plans or draft run requests when the value is non-secret.",
+    "Selector, flow, data, and coverage repairs from runtime feedback require confirmation; deterministic metadata repairs remain safe to apply after approval.",
+]
+
+
+def compatibility_notes() -> list[str]:
+    return list(BROWSER_WORKFLOW_GUARDRAIL_COMPATIBILITY_NOTES)
+
+
 def migration_plans(project: Path, alias: str | None = None) -> list[MigrationPlan]:
     registry = load_registry(project)
     plans: list[MigrationPlan] = []

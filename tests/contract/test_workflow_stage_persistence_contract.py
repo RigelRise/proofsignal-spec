@@ -6,6 +6,8 @@ from helpers import CliTestCase
 
 from tests.fixtures.workflows.main_skill_run_coverage import HELPER_SKILL_PATH, MAIN_SKILL_PATH, create_main_skill_coverage_workspace
 from tests.fixtures.workflows.guardrails import stage_payload, write_payload
+from tests.fixtures.workflows.prerequisites import create_current_understanding_workspace
+from proofsignal_spec.workspace.repository import load_document
 
 
 class WorkflowStagePersistenceContractTests(CliTestCase):
@@ -159,6 +161,83 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["blockers"][0]["code"], "clarification.unresolved-blocking")
 
+    def test_resolved_browser_target_is_preserved_from_clarify_to_plan(self) -> None:
+        create_current_understanding_workspace(self.project)
+        specify_payload = stage_payload(
+            "specify",
+            payload={
+                "alias": "profile",
+                "surface": "/profile/:id/overview",
+                "behavior": "Validate profile.",
+                "expectedOutcome": "Profile renders.",
+                "customSourceReason": "Stage handoff target fixture.",
+            },
+        )
+        self.cli([
+            "workflow",
+            "persist",
+            "specify",
+            "--alias",
+            "profile",
+            "--project",
+            str(self.project),
+            "--payload",
+            str(write_payload(self.project, "specify-target-handoff", specify_payload)),
+            "--json",
+        ])
+        clarify_payload = stage_payload(
+            "clarify",
+            payload={
+                "alias": "profile",
+                "answers": [
+                    {
+                        "questionId": "browser-target-environment",
+                        "answerSummary": "Use https://app.example.test as the staging target.",
+                    }
+                ],
+            },
+        )
+        self.cli([
+            "workflow",
+            "persist",
+            "clarify",
+            "--alias",
+            "profile",
+            "--project",
+            str(self.project),
+            "--payload",
+            str(write_payload(self.project, "clarify-target-handoff", clarify_payload)),
+            "--json",
+        ])
+        plan_payload = stage_payload(
+            "plan",
+            payload={
+                "alias": "profile",
+                "runRequest": ".proofsignal/run-requests/profile.yaml",
+                "reusableSkills": [".proofsignal/skills/profile.browser.md"],
+                "runtimeInputs": [{"name": "baseUrl", "required": True}],
+            },
+        )
+
+        code, out, err = self.cli([
+            "workflow",
+            "persist",
+            "plan",
+            "--alias",
+            "profile",
+            "--project",
+            str(self.project),
+            "--payload",
+            str(write_payload(self.project, "plan-target-handoff", plan_payload)),
+            "--json",
+        ])
+
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        self.assertEqual(result["status"], "persisted")
+        plan = load_document(self.project / ".proofsignal/workflows/use-cases/profile/plan.yaml")
+        self.assertEqual(plan["runtimeInputs"][0]["value"], "https://app.example.test")
+
     def test_workflow_show_and_status_alias_read_persisted_use_case_context(self) -> None:
         self.cli(["init", str(self.project), "--integration", "codex", "--json"])
         specify_payload = stage_payload(
@@ -244,6 +323,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
                     {
                         "path": MAIN_SKILL_PATH,
                         "kind": "skill",
+                        "intent": {"id": "skill.validate-profile-view-unauth-flow", "version": "3.0.0"},
                         "browser": {
                             "targets": {"profileName": {"css": "h2", "domainSemantics": "Profile name"}},
                             "steps": [],

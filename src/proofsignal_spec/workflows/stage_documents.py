@@ -115,7 +115,7 @@ def write_artifact_plan(project: Path, plan: ArtifactPlan) -> str:
             "Run Request": plan.runRequest,
             "Reusable Skills": skills,
             "Skill Reuse": [str(item) for item in plan.skillReuse],
-            "Runtime Inputs": [item.get("name", str(item)) for item in plan.runtimeInputs],
+            "Runtime Inputs": _render_runtime_inputs(plan.runtimeInputs),
             "Preconditions": plan.preconditions,
             "Validation Gates": plan.validationGates,
         },
@@ -191,6 +191,23 @@ def _render_gate_coverage(coverage: list[dict[str, Any]]) -> list[str]:
             + (f" ({item.get('conditionEvaluation')}: {item.get('condition')})" if item.get("condition") else "")
             + (f" - {item.get('notes')}" if item.get("notes") else "")
         )
+    return rendered
+
+
+def _render_runtime_inputs(runtime_inputs: list[dict[str, Any]]) -> list[str]:
+    if not runtime_inputs:
+        return []
+    rendered: list[str] = []
+    for item in runtime_inputs:
+        if not isinstance(item, dict):
+            rendered.append(str(item))
+            continue
+        name = item.get("name", "runtimeInput")
+        value = item.get("value") or item.get("default") or item.get("valueRef")
+        if value and str(name).lower() in {"baseurl", "targeturl", "url"}:
+            rendered.append(f"{name}: resolved target ({value})")
+        else:
+            rendered.append(str(name))
     return rendered
 
 

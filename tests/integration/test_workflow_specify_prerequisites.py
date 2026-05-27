@@ -3,6 +3,8 @@ from __future__ import annotations
 from helpers import CliTestCase
 
 from proofsignal_spec.workflows.prerequisites import check_prerequisites
+from proofsignal_spec.workflows.stage_persistence import persist_stage
+from proofsignal_spec.workspace.repository import load_use_case
 
 from tests.fixtures.workflows.prerequisites import (
     create_current_understanding_workspace,
@@ -48,3 +50,25 @@ class WorkflowSpecifyPrerequisitesTests(CliTestCase):
         assert declined["canProceed"] is True
         assert declined["requiresConfirmation"] is False
         assert declined["recordedDecision"]["decision"] == "declined"
+
+    def test_browser_spec_without_target_records_blocking_target_question(self) -> None:
+        create_current_understanding_workspace(self.project, candidates=[sample_candidate("profile")])
+
+        persisted = persist_stage(
+            self.project,
+            "specify",
+            alias="profile",
+            payload={
+                "alias": "profile",
+                "surface": "/profile/:id/overview",
+                "behavior": "Validate public profile rendering.",
+                "expectedOutcome": "Profile renders.",
+                "customSourceReason": "Browser target prerequisite integration fixture.",
+            },
+        )
+
+        assert persisted["status"] == "persisted"
+        record = load_use_case(self.project, "profile")
+        assert any(question.id == "browser-target-environment" for question in record.authoringQuestions)
+        plan_check = check_prerequisites(self.project, "plan", alias="profile")
+        assert plan_check["nextCommand"] == "/proofsignal-clarify profile"

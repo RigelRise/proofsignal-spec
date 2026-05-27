@@ -94,3 +94,17 @@ def test_run_summary_shows_missing_required_gates_and_partial_diagnostics(tmp_pa
     assert result["partialCoverage"]
     assert sorted(result["missingRequiredGates"]) == ["overview-profile-query", "projects-tab-content"]
     assert any(item["gateId"] == "overview-data-card" and item["status"] == "exercised" for item in result["gateCoverage"])
+
+
+def test_conditional_gate_not_evaluated_does_not_hard_fail_required_coverage(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "full-coverage")
+    create_main_skill_coverage_workspace(tmp_path)
+
+    result = run_command.run(tmp_path, "profile-view-unauth", interactive=False, core_cmd=str(FAKE_CORE))
+
+    assert result["status"] == "passed"
+    assert result["missingRequiredGates"] == []
+    assert any(item["gateId"] == "about-tab-content" and item["status"] == "not-evaluated" for item in result["gateCoverage"])

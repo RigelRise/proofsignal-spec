@@ -8,6 +8,7 @@ from tests.fixtures.workflows.prerequisites import (
     create_current_understanding_workspace,
     create_stale_understanding_workspace,
 )
+from tests.fixtures.workflows.guardrails import stage_payload, write_payload
 
 
 class WorkflowPrerequisiteCheckContractTests(CliTestCase):
@@ -126,6 +127,48 @@ class WorkflowPrerequisiteCheckContractTests(CliTestCase):
         tasks = json.loads(out)
         self.assertEqual(tasks["status"], "missing")
         self.assertEqual(tasks["nextCommand"], "/proofsignal-plan login")
+
+    def test_unresolved_browser_target_blocks_plan_check(self) -> None:
+        create_current_understanding_workspace(self.project)
+        specify_payload = stage_payload(
+            "specify",
+            payload={
+                "alias": "profile-view-unauth",
+                "surface": "/profile/:id/overview",
+                "behavior": "Validate public profile rendering.",
+                "expectedOutcome": "Profile renders.",
+                "customSourceReason": "Browser target prerequisite contract.",
+            },
+        )
+        self.cli([
+            "workflow",
+            "persist",
+            "specify",
+            "--alias",
+            "profile-view-unauth",
+            "--project",
+            str(self.project),
+            "--payload",
+            str(write_payload(self.project, "specify-browser-target", specify_payload)),
+            "--json",
+        ])
+
+        code, out, err = self.cli([
+            "workflow",
+            "check",
+            "plan",
+            "--alias",
+            "profile-view-unauth",
+            "--project",
+            str(self.project),
+            "--json",
+        ])
+
+        self.assertEqual(code, 0, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["status"], "missing")
+        self.assertEqual(payload["nextCommand"], "/proofsignal-clarify profile-view-unauth")
+        self.assertIn("authoringQuestions", payload["missingArtifacts"][0])
 
     def test_ambiguous_alias_requires_selector(self) -> None:
         self.cli(["init", str(self.project), "--integration", "codex", "--json"])

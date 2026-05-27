@@ -92,3 +92,33 @@ def test_runtime_evidence_and_repair_recommendations_do_not_persist_secret_paylo
     assert validate_no_secret_values(evidence.to_dict()) == []
     assert validate_no_secret_values(recommendation.to_dict()) == []
     assert validate_no_secret_values(result.to_dict()) == []
+
+
+def test_target_environment_handoff_allows_non_secret_url_and_rejects_secret_like_values() -> None:
+    safe = {
+        "workflow": {
+            "stageHandoffDecisions": [
+                {
+                    "key": "browserTargetEnvironment",
+                    "valueSummary": "https://app.example.test",
+                    "sourceStage": "clarify",
+                    "status": "active",
+                }
+            ]
+        }
+    }
+    unsafe = {
+        "workflow": {
+            "stageHandoffDecisions": [
+                {
+                    "key": "browserTargetEnvironment",
+                    "valueSummary": "Bearer abc123abc123abc123abc123",
+                    "sourceStage": "clarify",
+                    "status": "active",
+                }
+            ]
+        }
+    }
+
+    assert validate_no_secret_values(safe) == []
+    assert validate_no_secret_values(unsafe)

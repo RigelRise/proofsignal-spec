@@ -7,6 +7,7 @@ from proofsignal_spec.core.adapter import CoreAdapter
 from proofsignal_spec.workflows.models import WORKFLOW_VALIDATION_READINESS_SCHEMA, CoreReadiness, ReadinessBlocker
 from proofsignal_spec.workflows.authoring_coherence import evaluate_persisted_coherence
 from proofsignal_spec.workflows.readiness import structural_validation, validation_readiness
+from proofsignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
 from proofsignal_spec.workspace.repository import get_core_command, resolve_artifacts, update_validation
 
 
@@ -60,6 +61,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         update_validation(project, alias, result)
         return result
     result = CoreAdapter(executable=core_cmd or get_core_command(project), cwd=project).authoring_check(run_request, main_skill, skills, runtime_readiness=runtime_readiness)
+    runtime_check = evaluate_runtime_readiness(project, alias, authoring_result=result) if runtime_readiness else None
     wrapped = {
         "alias": alias,
         "status": result.get("status", "error"),
@@ -68,5 +70,17 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         "authoringCoherence": coherence.to_dict(),
         "core": result,
     }
+    if runtime_check:
+        wrapped["runtimeReadiness"] = runtime_check.to_dict()
+        if runtime_check.status != "passed":
+            wrapped["status"] = "blocked"
+            wrapped["blockers"] = [
+                ReadinessBlocker(
+                    code=finding,
+                    message=runtime_check.message or "Runtime readiness is blocked.",
+                    recoveryCommand=f"proofsignal-spec workflow check validate --alias {alias} --json",
+                ).to_dict()
+                for finding in runtime_check.findingIds
+            ]
     update_validation(project, alias, wrapped)
     return wrapped

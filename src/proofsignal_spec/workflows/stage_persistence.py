@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -181,6 +182,12 @@ def _persist_specification(project: Path, alias: str, content: dict[str, Any]) -
     record.description = goal
     record.targetSurface = str(content.get("surface") or "browser")
     record.status = "draft"
+    target = _extract_target_environment(content, source_stage="specify")
+    if target:
+        _upsert_stage_handoff_decision(record, target["locator"], source_stage="specify")
+        _resolve_browser_target_questions(record, target["locator"])
+    elif _is_browser_use_case(content):
+        _ensure_browser_target_question(record)
     save_use_case(project, record)
     runtime = [str(item) for item in content.get("runtimeAssumptions", [])]
     write_specification(project, alias, goal, runtime_assumptions=runtime)
@@ -212,6 +219,10 @@ def _persist_clarifications(project: Path, alias: str, content: dict[str, Any]) 
     for answer in content.get("answers", []):
         _apply_answer(questions, answer)
     record.authoringQuestions = questions
+    target = _target_from_questions(questions)
+    if target:
+        _upsert_stage_handoff_decision(record, target, source_stage="clarify")
+        _resolve_browser_target_questions(record, target)
     save_use_case(project, record)
     write_clarifications(project, alias, [question.to_dict() for question in questions])
     save_workflow_state(project, alias, state_document(project, alias, current_stage="plan", status="paused"))
@@ -236,6 +247,16 @@ def _persist_clarifications(project: Path, alias: str, content: dict[str, Any]) 
 def _persist_plan(project: Path, alias: str, content: dict[str, Any]) -> StagePersistenceResult:
     alias = _alias(alias)
     content = _normalize_plan_content(alias, content)
+    record = load_use_case(project, alias)
+    supplied_target = _extract_target_environment(content, source_stage="plan")
+    if supplied_target:
+        _upsert_stage_handoff_decision(record, supplied_target["locator"], source_stage="plan")
+        _resolve_browser_target_questions(record, supplied_target["locator"])
+        save_use_case(project, record)
+    content["runtimeInputs"] = _merge_resolved_target_runtime_input(
+        content.get("runtimeInputs", []),
+        _stage_handoff_target(record),
+    )
     blockers = content.get("unresolvedBlockingClarifications") or unresolved_blocking_questions(project, alias)
     if blockers:
         return StagePersistenceResult(
@@ -353,6 +374,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     record.mainSkill = skills[0]
     record.skills = skills
     runtime_inputs = content.get("runtimeInputs") or _runtime_inputs_from_run_request_payload(content.get("runRequest")) or _planned_runtime_inputs(project, alias)
+    runtime_inputs = _merge_resolved_target_runtime_input(runtime_inputs, _stage_handoff_target(record))
     content["runtimeInputs"] = runtime_inputs
     record.runtimeInputs = [_runtime_input(item) for item in runtime_inputs]
     profiles = _profiles_from_payload(content)
@@ -521,7 +543,13 @@ def _skill_path(value: Any) -> str:
 def _skill_reference(value: Any) -> ArtifactReference:
     path = _skill_path(value)
     name = Path(path).stem.removesuffix(".browser")
-    return ArtifactReference(path=path, kind="skill", generated=True, id=f"skill.{name}", version="1.0.0")
+    skill_id = f"skill.{name}"
+    version = "1.0.0"
+    if isinstance(value, dict):
+        intent = value.get("intent") if isinstance(value.get("intent"), dict) else {}
+        skill_id = str(value.get("id") or intent.get("id") or skill_id)
+        version = str(value.get("version") or intent.get("version") or version)
+    return ArtifactReference(path=path, kind="skill", generated=True, id=skill_id, version=version)
 
 
 def _runtime_input(value: Any) -> RuntimeInputRequirement:
@@ -545,6 +573,162 @@ def _apply_answer(questions: list[AuthoringQuestion], answer: dict[str, Any]) ->
             question.status = "answered"
             question.answerSummary = str(answer.get("answerSummary") or answer.get("summary") or "")
             return
+
+
+TARGET_URL_RE = re.compile(r"https?://[^\s,;\"')]+", re.I)
+
+
+def _is_browser_use_case(content: dict[str, Any]) -> bool:
+    surface = str(content.get("surface") or content.get("targetSurface") or "").lower()
+    target = str(content.get("target") or "").lower()
+    return surface.startswith("/") or "browser" in surface or "browser" in target or bool(surface)
+
+
+def _extract_target_environment(content: dict[str, Any], *, source_stage: str) -> dict[str, str] | None:
+    candidates: list[Any] = [
+        content.get("baseUrl"),
+        content.get("targetUrl"),
+        content.get("url"),
+        content.get("stagingUrl"),
+        content.get("environmentUrl"),
+    ]
+    target_environment = content.get("targetEnvironment")
+    if isinstance(target_environment, dict):
+        candidates.extend(
+            [
+                target_environment.get("locator"),
+                target_environment.get("url"),
+                target_environment.get("value"),
+                target_environment.get("reference"),
+            ]
+        )
+    elif target_environment:
+        candidates.append(target_environment)
+    for item in content.get("runtimeInputs", []) if isinstance(content.get("runtimeInputs"), list) else []:
+        if isinstance(item, dict) and str(item.get("name", "")).lower() in {"baseurl", "targeturl", "url"}:
+            candidates.extend([item.get("value"), item.get("default")])
+    assumptions = content.get("runtimeAssumptions", [])
+    if isinstance(assumptions, str):
+        candidates.append(assumptions)
+    elif isinstance(assumptions, list):
+        candidates.extend(assumptions)
+    for candidate in candidates:
+        value = _target_locator_from_text(candidate)
+        if value:
+            return {"locator": value, "sourceStage": source_stage}
+    return None
+
+
+def _target_locator_from_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    match = TARGET_URL_RE.search(text)
+    if match:
+        return match.group(0).rstrip(".")
+    if text.startswith("${") or text.startswith("<"):
+        return text
+    if text and any(token in text.lower() for token in ["staging", "local", "environment", "target"]):
+        return text
+    return None
+
+
+def _ensure_browser_target_question(record: Any) -> None:
+    if any(question.id == "browser-target-environment" for question in record.authoringQuestions):
+        return
+    record.authoringQuestions.append(
+        AuthoringQuestion(
+            id="browser-target-environment",
+            prompt="Which target application environment should this browser validation run against?",
+            reason="Browser validation requires a resolved target environment before executable planning.",
+            status="pending",
+            affects="runtimeInputs.baseUrl",
+        )
+    )
+
+
+def _resolve_browser_target_questions(record: Any, locator: str) -> None:
+    for question in record.authoringQuestions:
+        if question.id == "browser-target-environment":
+            question.status = "answered"
+            question.answerSummary = locator
+
+
+def _upsert_stage_handoff_decision(record: Any, locator: str, *, source_stage: str) -> None:
+    workflow = dict(record.workflow or {})
+    decisions = [item for item in workflow.get("stageHandoffDecisions", []) if isinstance(item, dict)]
+    decision = {
+        "key": "browserTargetEnvironment",
+        "valueSummary": locator,
+        "sourceStage": source_stage,
+        "appliesTo": record.alias,
+        "status": "active",
+    }
+    updated = False
+    for index, item in enumerate(decisions):
+        if item.get("key") == "browserTargetEnvironment" and item.get("status", "active") == "active":
+            decisions[index] = decision
+            updated = True
+            break
+    if not updated:
+        decisions.append(decision)
+    workflow["stageHandoffDecisions"] = decisions
+    record.workflow = workflow
+
+
+def _target_from_questions(questions: list[AuthoringQuestion]) -> str | None:
+    for question in questions:
+        if question.status != "answered":
+            continue
+        text = f"{question.affects or ''} {question.answerSummary or ''}"
+        if any(term in text.lower() for term in ["baseurl", "target", "environment", "runtime"]):
+            locator = _target_locator_from_text(text)
+            if locator:
+                return locator
+    return None
+
+
+def _stage_handoff_target(record: Any) -> str | None:
+    workflow = record.workflow if isinstance(record.workflow, dict) else {}
+    for decision in workflow.get("stageHandoffDecisions", []):
+        if not isinstance(decision, dict):
+            continue
+        if decision.get("key") == "browserTargetEnvironment" and decision.get("status", "active") == "active":
+            value = str(decision.get("valueSummary") or "").strip()
+            if value:
+                return value
+    return None
+
+
+def _merge_resolved_target_runtime_input(runtime_inputs: Any, locator: str | None) -> list[dict[str, Any]]:
+    inputs: list[dict[str, Any]] = []
+    if isinstance(runtime_inputs, list):
+        for item in runtime_inputs:
+            if isinstance(item, dict):
+                inputs.append(dict(item))
+            elif item:
+                inputs.append({"name": str(item), "kind": "parameter", "required": True})
+    if not locator:
+        return inputs
+    for item in inputs:
+        if str(item.get("name", "")).lower() == "baseurl":
+            if not item.get("value") and not item.get("default"):
+                item["value"] = locator
+                item["source"] = "default"
+            return inputs
+    inputs.append(
+        {
+            "name": "baseUrl",
+            "kind": "parameter",
+            "required": True,
+            "description": "Resolved browser target environment.",
+            "source": "default",
+            "value": locator,
+        }
+    )
+    return inputs
 
 
 def _is_environment_dependent(data: dict[str, Any]) -> bool:

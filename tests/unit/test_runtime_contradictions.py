@@ -29,3 +29,29 @@ def test_weakened_gate_repairs_are_replan_required() -> None:
     assert [item.category for item in recommendations] == ["replan-required", "replan-required"]
     assert all(item.requiresUserDecision for item in recommendations)
     assert all(item.blockedReason for item in recommendations)
+
+
+def test_selector_flow_and_coverage_repairs_require_confirmation() -> None:
+    recommendations = classify_repair_findings(
+        [
+            {"code": "strict-mode-violation", "message": "locator resolved to multiple elements"},
+            {"code": "wait-timeout", "message": "wait strategy timed out after changing the page flow"},
+            {"code": "missing-gateid", "message": "coverage gate mapping is missing"},
+        ]
+    )
+
+    assert [item.safeCategory for item in recommendations] == ["selector-ambiguity", "wait-strategy", "gateid-mapping"]
+    assert all(item.requiresUserDecision for item in recommendations)
+    assert all(item.blockedReason for item in recommendations)
+
+
+def test_deterministic_contract_and_metadata_repairs_remain_auto_repairable() -> None:
+    recommendations = classify_repair_findings(
+        [
+            {"code": "main-skill-ordering", "message": "helper skill executed before main skill"},
+            {"code": "debug-slowmo-default", "message": "debug run has slowMoMs 0"},
+        ]
+    )
+
+    assert [item.safeCategory for item in recommendations] == ["main-skill-ordering", "run-profile-defaults"]
+    assert all(not item.requiresUserDecision for item in recommendations)

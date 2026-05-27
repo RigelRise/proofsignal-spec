@@ -12,6 +12,7 @@ def test_validate_template_mentions_structural_validation_and_core_requirement()
     content = agent_template("validate")
     assert "structuralValidation" in content
     assert "ProofSignal Core is required for the complete ProofSignal validation and browser execution experience" in content
+    assert "runtime readiness verifies target resolution, target reachability, required runtime prerequisites, and Core authoring readiness" in content
     assert "proofsignal-spec workflow migrate --approve <migration-id> --json" in content
 
 
@@ -26,6 +27,14 @@ def test_implement_template_uses_canonical_skill_shape_and_cli_persistence() -> 
     assert "browserAuthoringContract" in content
     assert "`navigate` uses `value`" in content
     assert "intent.browser.targets" in content
+    assert "Run `proofsignal-spec validate <alias> --runtime-readiness` before reporting browser artifacts ready" in content
+
+
+def test_specify_and_plan_templates_require_browser_target_before_executable_planning() -> None:
+    specify = agent_template("specify")
+    plan = agent_template("plan")
+    assert "Browser validation use cases require a resolved target application environment before executable planning" in specify
+    assert "Do not leave `baseUrl` or equivalent target parameters empty after the user has supplied a target" in plan
 
 
 def test_plan_template_makes_main_skill_executable() -> None:

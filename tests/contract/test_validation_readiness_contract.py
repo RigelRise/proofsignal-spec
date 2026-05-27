@@ -30,7 +30,28 @@ class ValidationReadinessContractTests(CliTestCase):
         self.assertEqual(result["schemaVersion"], "proofsignal-spec-validation-readiness/v1")
         self.assertEqual(result["structuralValidation"]["status"], "pass")
         self.assertEqual(result["coreReadiness"]["status"], "missing")
+        self.assertEqual(result["coreReadiness"]["contractVersion"], "proofsignal-public-cli-json/v1")
+        self.assertIn("report.inspect", result["coreReadiness"]["requiredOperationsByName"])
         self.assertIn("complete ProofSignal validation and browser execution experience", result["coreReadiness"]["message"])
+
+    def test_core_compatibility_fields_are_reported_when_core_is_available(self) -> None:
+        create_ready_use_case_workspace(self.project, "login")
+        code, out, err = self.cli([
+            "workflow",
+            "check",
+            "validate",
+            "--alias",
+            "login",
+            "--project",
+            str(self.project),
+            "--json",
+        ])
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        self.assertEqual(result["coreReadiness"]["status"], "available")
+        self.assertEqual(result["coreReadiness"]["contractVersion"], "proofsignal-public-cli-json/v1")
+        self.assertEqual(result["coreReadiness"]["missingOperations"], [])
+        self.assertEqual(result["coreReadiness"]["requiredOperationsByName"]["authoring-check"]["schemaName"], "proofsignal.authoring-check/v1")
 
     def test_malformed_registry_returns_migration_plan(self) -> None:
         create_registry_missing_record_path(self.project, "login")

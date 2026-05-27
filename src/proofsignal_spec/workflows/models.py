@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from proofsignal_spec.core.contracts import PUBLIC_CONTRACT_VERSION, REQUIRED_OPERATIONS
+
 
 WorkflowStatus = Literal["not-started", "running", "paused", "blocked", "failed", "completed"]
 StageStatus = Literal["pending", "running", "completed", "blocked", "skipped", "failed"]
@@ -306,10 +308,146 @@ class CoreReadiness:
     status: Literal["available", "missing", "incompatible", "error"] = "missing"
     coreCommand: str | None = None
     version: str | None = None
+    contractVersion: str = PUBLIC_CONTRACT_VERSION
+    requiredOperations: list[dict[str, Any]] = field(
+        default_factory=lambda: [
+            {"operationName": name, "schemaName": schema, "schemaVersion": version}
+            for name, (schema, version) in REQUIRED_OPERATIONS.items()
+        ]
+    )
+    missingOperations: list[str] = field(default_factory=list)
     message: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["requiredOperationsByName"] = {item["operationName"]: item for item in self.requiredOperations}
+        return clean(data)
+
+
+@dataclass(slots=True)
+class BrowserTargetEnvironment:
+    kind: Literal["staging-url", "local-url", "environment-reference"] = "environment-reference"
+    locator: str = ""
+    sourceStage: Literal["specify", "clarify", "plan", "implement", "validate", "run"] = "specify"
+    sourceText: str | None = None
+    secretClassification: Literal["non-secret", "sensitive", "unknown"] = "non-secret"
+    resolutionStatus: Literal["unresolved", "resolved", "stale", "contradictory"] = "unresolved"
+    availabilityStatus: Literal["unchecked", "available", "unavailable", "blocked"] = "unchecked"
+
+    def to_dict(self) -> dict[str, Any]:
         return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RuntimePrerequisite:
+    id: str
+    type: Literal["target-environment", "credential", "test-data", "application-availability", "external-service"] = "target-environment"
+    required: bool = True
+    status: Literal["unresolved", "resolved", "not-applicable", "blocked"] = "unresolved"
+    valueRef: str | None = None
+    sourceStage: Literal["specify", "clarify", "plan", "implement", "validate", "run"] = "specify"
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RuntimeReadinessCheck:
+    useCaseAlias: str
+    targetResolutionStatus: Literal["resolved", "unresolved", "stale", "contradictory"] = "unresolved"
+    targetReachabilityStatus: Literal["unchecked", "reachable", "unreachable", "blocked"] = "unchecked"
+    requiredPrerequisiteStatus: Literal["complete", "missing", "blocked"] = "missing"
+    authoringReadinessStatus: Literal["passed", "failed", "blocked", "unchecked"] = "unchecked"
+    fullBrowserFlowExecuted: bool = False
+    status: Literal["passed", "blocked", "failed"] = "blocked"
+    findingIds: list[str] = field(default_factory=list)
+    targetLocator: str | None = None
+    message: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class StageHandoffDecision:
+    key: str
+    valueSummary: str
+    sourceStage: Literal["specify", "clarify", "plan", "implement", "validate", "run"] = "specify"
+    appliesTo: str = ""
+    status: Literal["active", "superseded", "stale", "contradictory"] = "active"
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ValidationFinding:
+    id: str
+    category: Literal[
+        "missing-prerequisite",
+        "stage-handoff-defect",
+        "artifact-structure-defect",
+        "selector-or-wait-defect",
+        "evidence-mapping-defect",
+        "conditional-gate-issue",
+        "run-profile-issue",
+        "execution-contract-issue",
+    ]
+    severity: Literal["info", "warning", "blocked", "failed"] = "warning"
+    sourceStage: Literal["specify", "clarify", "plan", "implement", "validate", "run", "repair"] = "validate"
+    evidence: list[str] = field(default_factory=list)
+    recommendedAction: Literal["clarify", "replan", "safe-repair", "confirmed-repair", "rerun", "environment-recovery", "blocked"] = "blocked"
+    autoRepairAllowed: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RepairDecision:
+    findingId: str
+    action: Literal["clarify", "replan", "safe-repair", "confirmed-repair", "rerun", "environment-recovery", "blocked"] = "blocked"
+    requiresUserConfirmation: bool = False
+    reason: str = ""
+    revalidationRequired: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ConditionalGate:
+    gateId: str
+    condition: str = ""
+    conditionStatus: Literal["unknown", "established-true", "established-false", "not-evaluated"] = "unknown"
+    required: bool = False
+    evidenceStatus: Literal["missing", "planned", "captured", "not-evaluated"] = "missing"
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class CorePublicContract:
+    contractVersion: str = PUBLIC_CONTRACT_VERSION
+    requiredOperations: list[dict[str, Any]] = field(
+        default_factory=lambda: [
+            {"operationName": name, "schemaName": schema, "schemaVersion": version}
+            for name, (schema, version) in REQUIRED_OPERATIONS.items()
+        ]
+    )
+    compatibilityStatus: Literal["compatible", "missing", "incompatible"] = "compatible"
+    proofsignalVersion: str | None = None
+    missingOperations: list[str] = field(default_factory=list)
+
+    @classmethod
+    def compatible(cls, proofsignalVersion: str | None = None) -> "CorePublicContract":
+        return cls(compatibilityStatus="compatible", proofsignalVersion=proofsignalVersion)
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["requiredOperationsByName"] = {item["operationName"]: item for item in self.requiredOperations}
+        return clean(data)
 
 
 @dataclass(slots=True)

@@ -57,6 +57,7 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
 
         safe_category = _safe_category(text)
         if safe_category:
+            requires_confirmation = safe_category in {"selector-ambiguity", "wait-strategy", "gateid-mapping"}
             recommendations.append(
                 RepairRecommendation(
                     id=f"repair-{index}-{safe_category}",
@@ -65,7 +66,8 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     summary=message or f"Runtime feedback indicates {safe_category}.",
                     action=_safe_action(safe_category),
                     affectedArtifacts=affected,
-                    requiresUserDecision=False,
+                    blockedReason=_confirmation_reason(safe_category) if requires_confirmation else None,
+                    requiresUserDecision=requires_confirmation,
                     sourceFeedback=source_feedback,
                 )
             )
@@ -118,10 +120,19 @@ def _blocked_category(text: str) -> tuple[str, str] | None:
 
 def _safe_action(safe_category: str) -> str:
     actions = {
-        "selector-ambiguity": "Narrow the target selector to a stable unique element without changing the gate intent.",
-        "wait-strategy": "Replace brittle waits with a DOM/rendered-result wait appropriate for the page lifecycle.",
+        "selector-ambiguity": "Ask for confirmation before changing selectors, then narrow the target selector to a stable unique element if confirmed.",
+        "wait-strategy": "Ask for confirmation before changing flow or wait behavior, then replace brittle waits if confirmed.",
         "main-skill-ordering": "Pass and persist the planned main skill before helper skills.",
         "run-profile-defaults": "Apply observable debug/browser profile defaults without overriding user-specified pacing.",
-        "gateid-mapping": "Map existing rendered-result evidence to the planned gateId or add equivalent evidence.",
+        "gateid-mapping": "Ask for confirmation before changing coverage mapping, then map existing rendered-result evidence to the planned gateId if confirmed.",
     }
     return actions.get(safe_category, "Apply the safe mechanical repair and revalidate.")
+
+
+def _confirmation_reason(safe_category: str) -> str:
+    reasons = {
+        "selector-ambiguity": "Selector changes can alter validation intent and require confirmation.",
+        "wait-strategy": "Flow or wait-strategy changes can alter validation intent and require confirmation.",
+        "gateid-mapping": "Coverage mapping changes can alter validation intent and require confirmation.",
+    }
+    return reasons.get(safe_category, "Repair requires confirmation.")

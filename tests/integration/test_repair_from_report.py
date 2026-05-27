@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
+
 from helpers import CliTestCase
 
 
 class RepairFromReportTests(CliTestCase):
-    def test_report_inspection_repair_can_be_approved(self) -> None:
+    def test_deterministic_report_inspection_repair_can_be_approved(self) -> None:
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "report-main-skill"
         self.cli(["init", str(self.project), "--integration", "codex"])
         self.cli(["author", "login", "Validate login.", "--project", str(self.project)])
         report = self.project / "report.json"
@@ -14,7 +17,7 @@ class RepairFromReportTests(CliTestCase):
         self.assertIn("applied", out)
         self.assertIn("readyForRun", out)
 
-    def test_report_repair_includes_selector_recommendation_and_revalidation(self) -> None:
+    def test_report_selector_repair_requires_confirmation_before_revalidation(self) -> None:
         self.cli(["init", str(self.project), "--integration", "codex"])
         self.cli(["author", "login", "Validate login.", "--project", str(self.project)])
         report = self.project / "report.json"
@@ -24,10 +27,11 @@ class RepairFromReportTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         repair = __import__("json").loads(out)["repair"]
-        self.assertEqual(repair["approvalStatus"], "applied")
-        self.assertTrue(repair["readyForRun"])
-        self.assertEqual(repair["revalidation"]["status"], "passed")
+        self.assertEqual(repair["approvalStatus"], "conflict")
+        self.assertFalse(repair["readyForRun"])
+        self.assertEqual(repair["revalidation"]["status"], "not-run")
         self.assertTrue(any(item.get("safeCategory") == "selector-ambiguity" for item in repair["recommendations"]))
+        self.assertTrue(all(item.get("requiresUserDecision") for item in repair["recommendations"]))
 
     def test_safe_repair_matrix_covers_supported_categories(self) -> None:
         from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings
@@ -49,3 +53,8 @@ class RepairFromReportTests(CliTestCase):
             "run-profile-defaults",
             "gateid-mapping",
         }
+        assert {
+            item.safeCategory
+            for item in recommendations
+            if item.requiresUserDecision
+        } == {"selector-ambiguity", "wait-strategy", "gateid-mapping"}

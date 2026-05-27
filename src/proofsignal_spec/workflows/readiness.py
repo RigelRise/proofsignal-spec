@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.core.contracts import public_contract_summary
 from proofsignal_spec.core.errors import CoreExecutionError, CoreIncompatibleError, CoreMissingError
 from proofsignal_spec.workspace import layout
 from proofsignal_spec.workspace.repository import get_core_command
@@ -82,35 +83,43 @@ def structural_validation(project: Path, alias: str | None = None) -> Structural
 
 def core_readiness(project: Path, core_cmd: str | None = None) -> CoreReadiness:
     configured = core_cmd or get_core_command(project)
+    contract = public_contract_summary()
     try:
         adapter = CoreAdapter(executable=configured, cwd=project)
-        version = adapter.version()
         compatible = adapter.check_compatibility()
         if not compatible.compatible:
             return CoreReadiness(
                 status="incompatible",
                 coreCommand=adapter.executable,
-                version=str(version.get("version") or ""),
+                version=compatible.proofsignalVersion,
+                contractVersion=compatible.contractVersion or contract["contractVersion"],
+                requiredOperations=contract["requiredOperations"],
+                missingOperations=compatible.missingOperations or [],
                 message=compatible.message,
             )
         return CoreReadiness(
             status="available",
             coreCommand=adapter.executable,
-            version=str(version.get("version") or ""),
+            version=compatible.proofsignalVersion,
+            contractVersion=compatible.contractVersion or contract["contractVersion"],
+            requiredOperations=contract["requiredOperations"],
+            missingOperations=[],
             message="ProofSignal Core is available for complete validation and browser execution.",
         )
     except CoreMissingError as exc:
         return CoreReadiness(
             status="missing",
             coreCommand=configured,
+            contractVersion=contract["contractVersion"],
+            requiredOperations=contract["requiredOperations"],
             message=f"{exc} Structural workspace validation can still run, but ProofSignal Core is required for the complete ProofSignal validation and browser execution experience.",
         )
     except CoreIncompatibleError as exc:
-        return CoreReadiness(status="incompatible", coreCommand=configured, message=str(exc))
+        return CoreReadiness(status="incompatible", coreCommand=configured, requiredOperations=contract["requiredOperations"], message=str(exc))
     except CoreExecutionError as exc:
-        return CoreReadiness(status="error", coreCommand=configured, message=str(exc))
+        return CoreReadiness(status="error", coreCommand=configured, requiredOperations=contract["requiredOperations"], message=str(exc))
     except Exception as exc:
-        return CoreReadiness(status="error", coreCommand=configured, message=str(exc))
+        return CoreReadiness(status="error", coreCommand=configured, requiredOperations=contract["requiredOperations"], message=str(exc))
 
 
 def _blockers(structural: StructuralWorkspaceValidation, core: CoreReadiness) -> list[ReadinessBlocker]:

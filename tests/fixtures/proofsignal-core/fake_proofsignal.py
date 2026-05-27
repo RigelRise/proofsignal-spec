@@ -19,6 +19,14 @@ def main() -> int:
                 "data": {"proofsignalVersion": "0.0.0", "contractVersion": "old", "operations": []},
             }
         else:
+            operations = [
+                {"name": "version", "schema": "proofsignal.version/v1", "schemaVersion": 1, "status": "stable"},
+                {"name": "authoring-check", "schema": "proofsignal.authoring-check/v1", "schemaVersion": 1, "status": "stable"},
+                {"name": "run", "schema": "proofsignal.run/v1", "schemaVersion": 1, "status": "stable"},
+                {"name": "report.inspect", "schema": "proofsignal.report-inspection/v1", "schemaVersion": 1, "status": "stable"},
+            ]
+            if mode == "missing-report-inspect":
+                operations = [operation for operation in operations if operation["name"] != "report.inspect"]
             payload = {
                 "schema": "proofsignal.version/v1",
                 "schemaVersion": 1,
@@ -27,12 +35,7 @@ def main() -> int:
                 "data": {
                     "proofsignalVersion": "0.1.0",
                     "contractVersion": "proofsignal-public-cli-json/v1",
-                    "operations": [
-                        {"name": "version", "schema": "proofsignal.version/v1", "schemaVersion": 1, "status": "stable"},
-                        {"name": "authoring-check", "schema": "proofsignal.authoring-check/v1", "schemaVersion": 1, "status": "stable"},
-                        {"name": "run", "schema": "proofsignal.run/v1", "schemaVersion": 1, "status": "stable"},
-                        {"name": "report.inspect", "schema": "proofsignal.report-inspection/v1", "schemaVersion": 1, "status": "stable"},
-                    ],
+                    "operations": operations,
                 },
             }
         print(json.dumps(payload))
@@ -123,6 +126,21 @@ def main() -> int:
         )
         return 0
     if args[:2] == ["report", "inspect"]:
+        if mode == "report-main-skill":
+            finding = {
+                "severity": "error",
+                "artifact": ".proofsignal/run-requests/login.yaml",
+                "path": "skills",
+                "code": "main-skill-ordering",
+                "message": "Helper skill executed before main skill.",
+            }
+        else:
+            finding = {
+                "severity": "error",
+                "artifact": ".proofsignal/skills/login.browser.md",
+                "path": "steps[1]",
+                "message": "Selector did not match.",
+            }
         print(
             json.dumps(
                 {
@@ -136,7 +154,7 @@ def main() -> int:
                         "reproductionSteps": ["Navigate to /login", "Submit login"],
                         "observedFailure": "Dashboard did not appear.",
                         "expectedBehavior": "Dashboard appears.",
-                        "findings": [{"severity": "error", "artifact": ".proofsignal/skills/login.browser.md", "path": "steps[1]", "message": "Selector did not match."}],
+                        "findings": [finding],
                     },
                 }
             )

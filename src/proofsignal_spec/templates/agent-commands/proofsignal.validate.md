@@ -12,6 +12,7 @@ Validate draft artifacts through ProofSignal Spec and Core.
 - If recoverable migration plans are present, ask the developer before invoking `proofsignal-spec workflow migrate --approve <migration-id> --json`.
 - If Core is missing, state that structural validation can still run, but ProofSignal Core is required for the complete ProofSignal validation and browser execution experience. Explain how to configure it with `proofsignal-spec init --core-cmd /path/to/proofsignal` or `PROOFSIGNAL_CORE_CMD`.
 - Delegate Core-dependent behavior through `proofsignal-spec validate <alias> --runtime-readiness`.
+- `runtime readiness verifies target resolution, target reachability, required runtime prerequisites, and Core authoring readiness` without executing the full browser validation flow.
 - Report the selected main skill shown by validation output before discussing Core results.
 - For later browser inspection, remind users that `proofsignal-spec run <alias> --profile debug` uses 900ms slow motion by default unless `--slow-mo` is explicitly set.
 - Review `authoringCoherence`. If it is blocked, treat the artifact as not ready even if individual browser steps look executable.

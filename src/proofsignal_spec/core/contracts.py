@@ -25,13 +25,31 @@ class CompatibilityResult:
     raw: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data = {
             "compatible": self.compatible,
             "proofsignalVersion": self.proofsignalVersion,
             "contractVersion": self.contractVersion,
             "missingOperations": self.missingOperations or [],
             "message": self.message,
         }
+        data.update(public_contract_summary())
+        return data
+
+
+def public_contract_summary() -> dict[str, Any]:
+    operations = [
+        {
+            "operationName": name,
+            "schemaName": schema,
+            "schemaVersion": version,
+        }
+        for name, (schema, version) in REQUIRED_OPERATIONS.items()
+    ]
+    return {
+        "contractVersion": PUBLIC_CONTRACT_VERSION,
+        "requiredOperations": operations,
+        "requiredOperationsByName": {item["operationName"]: item for item in operations},
+    }
 
 
 def validate_version_response(data: dict[str, Any]) -> CompatibilityResult:

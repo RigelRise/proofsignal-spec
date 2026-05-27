@@ -10,6 +10,7 @@ Plan one run request and reusable skills before implementation.
 - Do not perform stage-specific work until the check allows it.
 - Read existing persisted context with `proofsignal-spec workflow show --alias <alias> --json`. Do not invent `workflow show` alternatives or use `workflow status` as a use-case reader.
 - Stop when unresolved runtime, data, credential, permission, or expected-outcome clarifications remain. Route back to `/proofsignal-clarify`.
+- Do not leave `baseUrl` or equivalent target parameters empty after the user has supplied a target. Treat an empty target after clarification as a stage-handoff defect, not as a runtime prompt workaround.
 - Require exactly one planned run request for the use case.
 - Plan skills as decoupled reusable artifacts under `.proofsignal/skills/<name>.browser.md`; one skill may be referenced by multiple run requests.
 - Make the main skill executable by Core for the complete planned validation path. Supporting skills can capture reusable intent, but Core v0.1 may execute only the main browser skill during a run.

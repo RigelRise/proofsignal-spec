@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from proofsignal_spec.templates.agent_guidance import (
+    BROWSER_TARGET_BEFORE_PLANNING,
+    CONFIRMED_REPAIR_BOUNDARY,
+    RUNTIME_READINESS_BOUNDARY,
+)
+
 from .base import AgentIntegration, RenderedFile, render_workflow_skill_files
 
 
@@ -82,7 +88,7 @@ def _workflow_copy(name: str) -> tuple[str, str, str]:
         "author": (
             "create a browser validation use case",
             '<alias> "<description>"',
-            "Gather the target behavior, then run `proofsignal-spec author <alias> \"<description>\"`. Keep one use case mapped to one run request and write reusable skills under `.proofsignal/skills/`.",
+            f"Gather the target behavior and browser target. {BROWSER_TARGET_BEFORE_PLANNING}. Then run `proofsignal-spec author <alias> \"<description>\"`. Keep one use case mapped to one run request and write reusable skills under `.proofsignal/skills/`.",
         ),
         "refine": (
             "improve an existing use case",
@@ -107,7 +113,7 @@ def _workflow_copy(name: str) -> tuple[str, str, str]:
         "validate": (
             "validate a use case through ProofSignal Core",
             "<alias>",
-            "Run `proofsignal-spec validate <alias> --runtime-readiness` when runtime readiness matters, then summarize Core findings without exposing secret values.",
+            f"Run `proofsignal-spec validate <alias> --runtime-readiness` when runtime readiness matters; {RUNTIME_READINESS_BOUNDARY}. Summarize Core findings without exposing secret values.",
         ),
         "run": (
             "run a registered use case",
@@ -117,7 +123,7 @@ def _workflow_copy(name: str) -> tuple[str, str, str]:
         "repair": (
             "repair invalid or failed use cases",
             "<alias> [report path]",
-            "Run `proofsignal-spec repair <alias>` or include `--from-report <path>` when the user provides a report. Present proposed edits for approval before applying changes.",
+            f"Run `proofsignal-spec repair <alias>` or include `--from-report <path>` when the user provides a report. {CONFIRMED_REPAIR_BOUNDARY}. Present proposed edits for approval before applying changes.",
         ),
     }
     return workflows[name]

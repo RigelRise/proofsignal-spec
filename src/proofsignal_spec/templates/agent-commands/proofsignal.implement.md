@@ -28,5 +28,6 @@ Create or update only planned draft artifacts.
 - Do not use `proofsignal-spec author`, `proofsignal-spec schema`, `proofsignal-spec core schema`, or `proofsignal-spec scaffold` as fallbacks inside this staged workflow.
 - Do not change artifacts that are not named by the approved plan and tasks.
 - Keep generated run requests and skills as drafts until validation passes.
+- Run `proofsignal-spec validate <alias> --runtime-readiness` before reporting browser artifacts ready.
 - Never persist credential values.
 - Suggest `/proofsignal-validate` after draft artifacts are created.

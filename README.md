@@ -112,6 +112,22 @@ understanding is stale by age or Git commit distance, the check recommends
 refreshing through `/proofsignal-understand`; declined refresh decisions are
 recorded without persisting credential values.
 
+Browser validation use cases must resolve the target application environment
+before executable planning. A staging URL, local start target, or equivalent
+browser target is treated as a prerequisite, so downstream planning and
+implementation should not emit empty `baseUrl`-style parameters after the target
+has been supplied.
+
+Validation supports a bounded runtime readiness check:
+
+```sh
+proofsignal-spec validate login --runtime-readiness --json
+```
+
+Runtime readiness checks target resolution, syntactic target reachability,
+required runtime prerequisites, Core authoring readiness, and Core public
+contract compatibility without running the full browser flow.
+
 ## ProofSignal Core Configuration
 
 For a published Core executable on `PATH`, no extra configuration is needed:
@@ -165,3 +181,8 @@ ProofSignal Spec does not import private ProofSignal Core packages or inspect
 undocumented report internals. Core-dependent workflows check `proofsignal
 version --json` and require the `proofsignal-public-cli-json/v1` operations:
 `version`, `authoring-check`, `run`, and `report.inspect`.
+
+Repair classifies validation and runtime feedback before proposing edits.
+Deterministic contract or metadata repairs can be auto-applied with approval;
+selector, flow, data, and coverage changes require explicit confirmation and
+must not be used as random rewrites around unclear product state.

@@ -38,6 +38,35 @@ class RepairContractTests(CliTestCase):
             {item["safeCategory"] for item in recommendations},
             {"selector-ambiguity", "wait-strategy", "main-skill-ordering", "run-profile-defaults", "gateid-mapping"},
         )
+        confirmation_required = {
+            item["safeCategory"]
+            for item in recommendations
+            if item.get("requiresUserDecision")
+        }
+        self.assertEqual(confirmation_required, {"selector-ambiguity", "wait-strategy", "gateid-mapping"})
+
+    def test_intent_changing_safe_categories_block_approved_auto_apply(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        record = load_use_case(self.project, "profile-view-unauth")
+        record.validation = {
+            "findings": [
+                {
+                    "code": "missing-gateid",
+                    "message": "assertion lacks gateId",
+                    "artifact": ".proofsignal/skills/profile.browser.md",
+                    "path": "assertions[0]",
+                }
+            ]
+        }
+        save_use_case(self.project, record)
+
+        code, out, err = self.cli(["repair", "profile-view-unauth", "--project", str(self.project), "--approve", "--json"])
+
+        self.assertEqual(code, 0, err)
+        repair = json.loads(out)["repair"]
+        self.assertEqual(repair["approvalStatus"], "conflict")
+        self.assertFalse(repair["readyForRun"])
+        self.assertTrue(repair["recommendations"][0]["requiresUserDecision"])
 
     def test_product_decision_changing_repair_is_blocked_even_when_approved(self) -> None:
         create_main_skill_coverage_workspace(self.project)

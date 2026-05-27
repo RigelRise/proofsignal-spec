@@ -55,7 +55,7 @@ def create_main_skill_coverage_workspace(project: Path, *, alias: str = ALIAS, h
                 {"id": "overview-data-card", "description": "Profile data card renders", "required": True},
                 {"id": "projects-tab-content", "description": "Projects tab renders", "required": True},
                 {"id": "overview-profile-query", "description": "Profile backend query completes", "required": True},
-                {"id": "about-tab-content", "description": "About tab renders", "required": False},
+                {"id": "about-tab-content", "description": "About tab renders", "required": False, "condition": "About tab is visible for this profile."},
             ],
         ),
     )

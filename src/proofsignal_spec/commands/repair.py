@@ -87,7 +87,11 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
                 for proposal in proposals
             ]
         )
-    blocked = [item for item in recommendations if item.category in {"clarification-required", "replan-required", "unsupported"}]
+    blocked = [
+        item
+        for item in recommendations
+        if item.category in {"clarification-required", "replan-required", "unsupported"} or item.requiresUserDecision
+    ]
     applications = [
         SafeRepairApplication(
             recommendationId=item.id,

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from proofsignal_spec.workspace.repository import init_workspace
+from proofsignal_spec.workspace.repository import load_use_case
 from proofsignal_spec.workflows.engine import create_workflow_run, generate_tasks, plan_artifacts, specify
 from proofsignal_spec.workflows.prerequisites import check_prerequisites
+from proofsignal_spec.workflows.stage_persistence import persist_stage
+from tests.fixtures.workflows.prerequisites import create_current_understanding_workspace
 
 
 def test_clarify_missing_spec_points_to_specify(tmp_path) -> None:
@@ -49,3 +52,27 @@ def test_validate_missing_generated_artifacts_points_to_implement(tmp_path) -> N
     result = check_prerequisites(tmp_path, "validate", alias="login")
     assert result["status"] == "missing"
     assert result["nextCommand"] == "/proofsignal-implement login"
+
+
+def test_browser_target_question_blocks_planning_before_executable_artifacts(tmp_path) -> None:
+    create_current_understanding_workspace(tmp_path)
+    result = persist_stage(
+        tmp_path,
+        "specify",
+        alias="profile-view-unauth",
+        payload={
+            "alias": "profile-view-unauth",
+            "surface": "/profile/:id/overview",
+            "behavior": "Validate public profile rendering.",
+            "expectedOutcome": "Profile renders.",
+            "customSourceReason": "Browser target prerequisite fixture.",
+        },
+    )
+    assert result["status"] == "persisted"
+
+    record = load_use_case(tmp_path, "profile-view-unauth")
+    assert any(question.affects == "runtimeInputs.baseUrl" for question in record.authoringQuestions)
+
+    blocked = check_prerequisites(tmp_path, "plan", alias="profile-view-unauth")
+    assert blocked["status"] == "missing"
+    assert blocked["nextCommand"] == "/proofsignal-clarify profile-view-unauth"

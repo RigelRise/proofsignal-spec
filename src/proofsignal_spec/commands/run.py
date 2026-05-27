@@ -221,9 +221,10 @@ def _repair_recommendations_from_gate_coverage(
                 category="safe-artifact-repair",
                 safeCategory="gateid-mapping",
                 summary=f"Required gate {item.gateId} was not proven by runtime evidence.",
-                action="Map a specific rendered-result assertion or supported network check to this gate, or replan if the gate is no longer valid.",
+                action="Ask for confirmation before changing coverage mapping, then map specific rendered-result evidence or replan if confirmed.",
                 affectedArtifacts=[],
-                requiresUserDecision=False,
+                blockedReason="Coverage mapping changes can alter validation intent and require confirmation.",
+                requiresUserDecision=True,
                 sourceFeedback=[source_run_id, item.gateId],
             )
         )
