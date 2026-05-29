@@ -69,3 +69,21 @@ class RunResultCoverageCliContractTests(CliTestCase):
         assert payload["missingRequiredGates"]
         assert "required validation gates" in payload["reason"]
         assert "proofsignal-spec repair profile-view-unauth" in payload["nextAction"]
+
+    def test_failed_core_run_separates_browser_status_from_diagnostic_coverage(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
+
+        code, out, err = self.cli(["run", "profile-view-unauth", "--project", str(self.project), "--json", "--non-interactive"])
+
+        assert err == ""
+        assert code != 0
+        payload = json.loads(out)
+        assert payload["status"] == "failed"
+        assert payload["coreStatus"] == "failed"
+        assert payload["coverageStatus"] == "diagnostic"
+        assert payload["coreBrowserStatus"] == "failed"
+        assert payload["specCoverageStatus"] == "diagnostic"
+        assert payload["runOutcomeSummary"]["coreBrowserStatus"] == "failed"
+        assert payload["runOutcomeSummary"]["specCoverageStatus"] == "diagnostic"
+        assert "diagnostic" in payload["reason"]

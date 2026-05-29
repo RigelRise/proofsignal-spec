@@ -14,6 +14,7 @@ from proofsignal_spec.workspace.repository import load_document, load_use_case, 
 
 from .definitions import load_workflow_definition
 from .browser_authoring import browser_authoring_contract
+from .stage_contracts import stage_contracts_payload
 from .models import WORKFLOW_ID, WORKFLOW_STAGES, ArtifactPlan, WorkflowRun, native_invocation
 from .repository import (
     create_or_load_use_case,
@@ -209,6 +210,7 @@ def workflow_info(project: Path, workflow_id: str = WORKFLOW_ID, integration: st
         "gates": definition.gates,
         "supportedIntegrations": ["codex", "claude"],
         "nativeCommands": {stage: native_invocation(stage, "skill") for stage in [*WORKFLOW_STAGES, "list"]},
+        "stagePayloadContracts": stage_contracts_payload(),
         "browserAuthoringContract": browser_authoring_contract(),
         "integration": integration,
     }

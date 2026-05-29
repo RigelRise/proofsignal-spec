@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
-from proofsignal_spec.workflows.models import WORKFLOW_VALIDATION_READINESS_SCHEMA, CoreReadiness, ReadinessBlocker
+from proofsignal_spec.workflows.models import WORKFLOW_VALIDATION_READINESS_SCHEMA, CoreReadiness, ReadinessBlocker, ValidationReadinessSummary
 from proofsignal_spec.workflows.authoring_coherence import evaluate_persisted_coherence
 from proofsignal_spec.workflows.readiness import structural_validation, validation_readiness
 from proofsignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
@@ -70,8 +70,11 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         "authoringCoherence": coherence.to_dict(),
         "core": result,
     }
+    authored_evidence_status = _authored_evidence_coverage_status(coherence.to_dict().get("gateCoverage", []))
+    runtime_status = "not-run"
     if runtime_check:
         wrapped["runtimeReadiness"] = runtime_check.to_dict()
+        runtime_status = runtime_check.status
         if runtime_check.status != "passed":
             wrapped["status"] = "blocked"
             wrapped["blockers"] = [
@@ -82,5 +85,39 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
                 ).to_dict()
                 for finding in runtime_check.findingIds
             ]
+    summary = ValidationReadinessSummary(
+        alias=alias,
+        status="blocked" if wrapped.get("status") == "blocked" else ("passed" if wrapped.get("status") == "passed" else "failed"),
+        skillSelectionStatus="matched",
+        authoringCoherenceStatus=coherence.status,
+        authoredEvidenceCoverageStatus=authored_evidence_status,
+        runtimeReadinessStatus=runtime_status,
+        fullBrowserFlowExecuted=False,
+        nextAction=f"proofsignal-spec run {alias} --json" if wrapped.get("status") == "passed" else f"proofsignal-spec workflow check validate --alias {alias} --json",
+    )
+    wrapped.update(summary.to_dict())
+    wrapped["readinessSummary"] = _readiness_summary_text(summary)
     update_validation(project, alias, wrapped)
     return wrapped
+
+
+def _authored_evidence_coverage_status(gate_coverage: list[dict[str, Any]]) -> str:
+    if not gate_coverage:
+        return "not-applicable"
+    incomplete = {"missing", "network-only", "screenshot-only", "unmapped", "not-evaluated", "incomplete"}
+    if any(item.get("required", True) and item.get("status") in incomplete for item in gate_coverage):
+        return "incomplete"
+    return "complete"
+
+
+def _readiness_summary_text(summary: ValidationReadinessSummary) -> str:
+    if summary.status == "passed":
+        return (
+            "Validation readiness passed: required gates have mapped authored evidence, "
+            f"runtime readiness is {summary.runtimeReadinessStatus}, and the full browser flow has not executed yet. "
+            f"Next action: {summary.nextAction}."
+        )
+    return (
+        "Validation readiness did not pass. Review structural validation, authoring coherence, "
+        "runtime readiness, and mapped authored evidence before running the browser flow."
+    )

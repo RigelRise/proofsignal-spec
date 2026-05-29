@@ -5,6 +5,7 @@ import re
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit
 
 from . import layout
 from .models import ArtifactReference, UseCaseRecord
@@ -14,6 +15,7 @@ SECRET_FIELD_RE = re.compile(r"(password|secret|token|api[_-]?key|access[_-]?key
 BEARER_RE = re.compile(r"\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}", re.I)
 HIGH_ENTROPY_RE = re.compile(r"^[A-Za-z0-9_./+=-]{32,}$")
 DUMMY_VALUES = {"example", "dummy", "placeholder", "changeme", "test", "sample", "qa@example.com"}
+SECRET_QUERY_PARAM_RE = re.compile(r"(token|secret|api[_-]?key|access[_-]?key|client[_-]?secret|authorization|auth|password|pwd)", re.I)
 
 
 def looks_secret(value: Any, field_name: str = "") -> bool:
@@ -40,12 +42,36 @@ def looks_secret(value: Any, field_name: str = "") -> bool:
         return False
     if any(term in normalized_field for term in ["githash", "gitsha", "commithash", "commitsha", "revision", "sha256"]):
         return False
+    if _url_contains_secret_locator(text):
+        return True
     if SECRET_FIELD_RE.search(field_name) and text.lower() not in DUMMY_VALUES:
         return True
     if BEARER_RE.search(text):
         return True
     if HIGH_ENTROPY_RE.match(text) and not re.search(r"[-/\s]", text) and _entropy(text) > 3.5:
         return True
+    return False
+
+
+def _url_contains_secret_locator(text: str) -> bool:
+    if not re.match(r"^https?://", text, re.I):
+        return False
+    try:
+        parsed = urlsplit(text)
+    except ValueError:
+        return False
+    if parsed.username or parsed.password:
+        return True
+    for key, value in parse_qsl(parsed.query, keep_blank_values=True):
+        if SECRET_QUERY_PARAM_RE.search(key) and value and value.lower() not in DUMMY_VALUES:
+            return True
+    fragment = parsed.fragment or ""
+    if fragment:
+        if SECRET_QUERY_PARAM_RE.search(fragment):
+            return True
+        for key, value in parse_qsl(fragment, keep_blank_values=True):
+            if SECRET_QUERY_PARAM_RE.search(key) and value and value.lower() not in DUMMY_VALUES:
+                return True
     return False
 
 

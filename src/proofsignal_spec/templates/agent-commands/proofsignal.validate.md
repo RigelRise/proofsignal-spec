@@ -13,6 +13,7 @@ Validate draft artifacts through ProofSignal Spec and Core.
 - If Core is missing, state that structural validation can still run, but ProofSignal Core is required for the complete ProofSignal validation and browser execution experience. Explain how to configure it with `proofsignal-spec init --core-cmd /path/to/proofsignal` or `PROOFSIGNAL_CORE_CMD`.
 - Delegate Core-dependent behavior through `proofsignal-spec validate <alias> --runtime-readiness`.
 - `runtime readiness verifies target resolution, target reachability, required runtime prerequisites, and Core authoring readiness` without executing the full browser validation flow.
+- Treat validation output as static readiness: `authoredEvidenceCoverageStatus` means required gates have mapped authored evidence, and `fullBrowserFlowExecuted: false` means the browser flow has not run yet.
 - Report the selected main skill shown by validation output before discussing Core results.
 - For later browser inspection, remind users that `proofsignal-spec run <alias> --profile debug` uses 900ms slow motion by default unless `--slow-mo` is explicitly set.
 - Review `authoringCoherence`. If it is blocked, treat the artifact as not ready even if individual browser steps look executable.
@@ -22,4 +23,4 @@ Validate draft artifacts through ProofSignal Spec and Core.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through ProofSignal Spec CLI operations only.
 - Do not use `proofsignal-spec author`, nonexistent schema/scaffold commands, or manual file edits to repair workflow-managed artifacts. Route schema fixes through `/proofsignal-repair` or `proofsignal-spec workflow persist implement`.
 - Do not parse raw report internals or import private ProofSignal Core packages.
-- Suggest `/proofsignal-run` when validation passes or `/proofsignal-repair` when actionable findings exist.
+- Suggest `/proofsignal-run` when readiness passes or `/proofsignal-repair` when actionable findings exist.

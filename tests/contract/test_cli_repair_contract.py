@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from helpers import CliTestCase
 from proofsignal_spec.workspace.repository import load_use_case, save_use_case
@@ -90,3 +91,15 @@ class RepairContractTests(CliTestCase):
         self.assertEqual(repair["approvalStatus"], "conflict")
         self.assertFalse(repair["readyForRun"])
         self.assertEqual(repair["recommendations"][0]["category"], "clarification-required")
+
+    def test_aborted_run_does_not_generate_required_gate_weakening_recommendations(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
+
+        code, out, err = self.cli(["run", "profile-view-unauth", "--project", str(self.project), "--json", "--non-interactive"])
+
+        self.assertNotEqual(code, 0)
+        payload = json.loads(out)
+        self.assertEqual(payload["specCoverageStatus"], "diagnostic")
+        self.assertEqual(payload["runtimeContradictions"], [])
+        self.assertFalse(any(item.get("action") == "mark-conditional" for item in payload["repairRecommendations"]))

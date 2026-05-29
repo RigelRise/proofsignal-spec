@@ -122,3 +122,16 @@ def test_target_environment_handoff_allows_non_secret_url_and_rejects_secret_lik
 
     assert validate_no_secret_values(safe) == []
     assert validate_no_secret_values(unsafe)
+
+
+def test_target_locator_rejects_credential_bearing_urls_and_token_queries() -> None:
+    assert validate_no_secret_values({"target": "https://user:pass@example.com/app"})
+    assert validate_no_secret_values({"target": "https://example.com/app?token=abc123abc123abc123"})
+    assert validate_no_secret_values({"target": "https://example.com/app?api_key=abc123abc123abc123"})
+    assert validate_no_secret_values({"target": "https://example.com/app#access_token=abc123abc123abc123"})
+
+
+def test_target_locator_allows_safe_staging_and_local_urls() -> None:
+    assert validate_no_secret_values({"target": "https://app.example.test"}) == []
+    assert validate_no_secret_values({"target": "https://app.example.test/profile/jordan-rivera/overview"}) == []
+    assert validate_no_secret_values({"target": "http://localhost:5002"}) == []

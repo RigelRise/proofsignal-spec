@@ -11,9 +11,11 @@ from .models import WORKFLOW_MIGRATION_RESULT_SCHEMA, MigrationPlan
 
 
 BROWSER_WORKFLOW_GUARDRAIL_COMPATIBILITY_NOTES = [
+    "Public stage payload contracts are exposed through workflow info and preserved as portable workflow guidance rather than private source-derived schema hints.",
     "Existing browser use cases with empty baseUrl, targetUrl, or url parameters should be clarified before the next executable plan or implementation stage.",
     "Resolved target environments are stored as stage handoff decisions and merged into later plans or draft run requests when the value is non-secret.",
     "Selector, flow, data, and coverage repairs from runtime feedback require confirmation; deterministic metadata repairs remain safe to apply after approval.",
+    "Gate intent, runtime feedback, and repair confirmation records are portable workflow fields and remain under .proofsignal/ workspace state.",
 ]
 
 

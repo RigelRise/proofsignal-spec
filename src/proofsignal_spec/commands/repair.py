@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
-from proofsignal_spec.workflows.models import SafeRepairApplication
+from proofsignal_spec.workflows.models import RepairConfirmation, SafeRepairApplication
 from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings, proposals_from_contradictions
 from proofsignal_spec.workspace import layout
 from proofsignal_spec.workspace.models import RepairSession
@@ -87,21 +87,41 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
                 for proposal in proposals
             ]
         )
+    approved_confirmable = [
+        item
+        for item in recommendations
+        if approve and item.requiresUserDecision and item.category == "safe-artifact-repair" and item.safeCategory == "wait-strategy"
+    ]
     blocked = [
         item
         for item in recommendations
-        if item.category in {"clarification-required", "replan-required", "unsupported"} or item.requiresUserDecision
+        if item.category in {"clarification-required", "replan-required", "unsupported"}
+        or (item.requiresUserDecision and item not in approved_confirmable)
     ]
     applications = [
         SafeRepairApplication(
             recommendationId=item.id,
             applied=approve and not blocked,
             changedArtifacts=item.affectedArtifacts,
-            validationStatus="passed" if approve and not blocked else "not-run",
-            remainingGaps=[] if approve and not blocked else [item.id],
+            validationStatus="passed" if approve and not blocked and not approved_confirmable else "not-run",
+            remainingGaps=[] if approve and not blocked and not approved_confirmable else [item.id],
         ).to_dict()
         for item in recommendations
         if item.category == "safe-artifact-repair"
+    ]
+    repair_confirmations = [
+        RepairConfirmation(
+            id=f"confirm-{item.id}",
+            findingId=(item.sourceFeedback[0] if item.sourceFeedback else item.id),
+            category=item.runtimeCategory or item.safeCategory or item.category,
+            confirmationSource="explicit-command",
+            confirmationTextSummary="Repair was approved after a classified root cause and scoped recommendation.",
+            approvedScope=item.affectedArtifacts or [item.action],
+            affectedArtifacts=item.affectedArtifacts,
+            revalidationRequired=True,
+            status="pending",
+        ).to_dict()
+        for item in approved_confirmable
     ]
     session = RepairSession(
         repairId=f"{alias}-{now_iso().replace(':', '').replace('-', '')}",
@@ -110,10 +130,11 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
         findings=findings,
         proposals=proposals,
         recommendations=[item.to_dict() for item in recommendations],
+        repairConfirmations=repair_confirmations,
         applications=applications,
         approvalStatus="conflict" if approve and blocked else ("approved" if approve else "pending"),
     )
-    if approve and not blocked:
+    if approve and not blocked and not approved_confirmable:
         session.approvalStatus = "applied"
         session.appliedAt = now_iso()
         session.revalidation = {
@@ -121,6 +142,13 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
             "message": "Safe mechanical repair plan was approved and revalidation is required before trusted rerun.",
         }
         session.readyForRun = True
+    elif approve and approved_confirmable and not blocked:
+        session.approvalStatus = "approved"
+        session.revalidation = {
+            "status": "not-run",
+            "message": "Confirmed repair scope requires artifact update and revalidation before trusted rerun.",
+        }
+        session.readyForRun = False
     elif blocked:
         session.readyForRun = False
         session.revalidation = {

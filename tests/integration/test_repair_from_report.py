@@ -58,3 +58,19 @@ class RepairFromReportTests(CliTestCase):
             for item in recommendations
             if item.requiresUserDecision
         } == {"selector-ambiguity", "wait-strategy", "gateid-mapping"}
+
+    def test_activity_skeleton_report_recommends_wait_flow_fix(self) -> None:
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
+        self.cli(["init", str(self.project), "--integration", "codex"])
+        self.cli(["author", "home-page-unauth", "Validate home page.", "--project", str(self.project)])
+        report = self.project / "report.json"
+        report.write_text("{}", encoding="utf-8")
+
+        code, out, err = self.cli(["repair", "home-page-unauth", "--project", str(self.project), "--from-report", str(report), "--json"])
+
+        self.assertEqual(code, 4, err)
+        recommendations = __import__("json").loads(out)["repair"]["recommendations"]
+        self.assertEqual(recommendations[0]["runtimeCategory"], "wait-flow-issue")
+        self.assertEqual(recommendations[0]["safeCategory"], "wait-strategy")
+        self.assertTrue(recommendations[0]["requiresUserDecision"])
+        self.assertNotIn("mark conditional", str(recommendations).lower())

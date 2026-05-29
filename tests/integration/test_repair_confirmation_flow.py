@@ -31,3 +31,22 @@ class RepairConfirmationFlowTests(CliTestCase):
         self.assertFalse(repair["readyForRun"])
         self.assertTrue(repair["recommendations"][0]["requiresUserDecision"])
         self.assertEqual(repair["recommendations"][0]["safeCategory"], "selector-ambiguity")
+
+    def test_broad_confirmation_is_recorded_after_root_cause_and_scope(self) -> None:
+        import os
+
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
+        self.cli(["init", str(self.project), "--integration", "codex"])
+        self.cli(["author", "home-page-unauth", "Validate home page.", "--project", str(self.project)])
+        report = self.project / "report.json"
+        report.write_text("{}", encoding="utf-8")
+
+        code, out, err = self.cli(["repair", "home-page-unauth", "--project", str(self.project), "--from-report", str(report), "--approve", "--json"])
+
+        self.assertEqual(code, 0, err)
+        repair = json.loads(out)["repair"]
+        self.assertEqual(repair["approvalStatus"], "approved")
+        self.assertEqual(repair["repairConfirmations"][0]["category"], "wait-flow-issue")
+        self.assertEqual(repair["repairConfirmations"][0]["confirmationSource"], "explicit-command")
+        self.assertTrue(repair["repairConfirmations"][0]["revalidationRequired"])
+        self.assertEqual(repair["revalidation"]["status"], "not-run")

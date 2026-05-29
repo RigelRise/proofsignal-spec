@@ -93,6 +93,7 @@ def write_specification(project: Path, alias: str, goal: str, runtime_assumption
             "Runtime Assumptions": runtime_assumptions or [],
             "Acceptance Scenarios": ["To be refined before artifact planning."],
             "Unresolved Questions": ["Confirm target URL, credential group names, and expected success evidence."],
+            "Public Stage Contract": _stage_contract_note("specify"),
         },
     )
 
@@ -102,7 +103,7 @@ def write_clarifications(project: Path, alias: str, questions: list[dict[str, An
     return write_markdown(
         layout.workflow_stage_document_path(project, alias, "clarify"),
         f"Clarifications: {alias}",
-        {"Questions": rendered},
+        {"Questions": rendered, "Public Stage Contract": _stage_contract_note("clarify")},
     )
 
 
@@ -118,6 +119,8 @@ def write_artifact_plan(project: Path, plan: ArtifactPlan) -> str:
             "Runtime Inputs": _render_runtime_inputs(plan.runtimeInputs),
             "Preconditions": plan.preconditions,
             "Validation Gates": plan.validationGates,
+            "Gate Intent Changes": plan.gateIntentChanges,
+            "Public Stage Contract": _stage_contract_note("plan"),
         },
     )
 
@@ -126,7 +129,10 @@ def write_task_set(project: Path, task_set: AuthoringTaskSet) -> str:
     return write_markdown(
         layout.workflow_stage_document_path(project, task_set.useCaseAlias, "tasks"),
         f"Authoring Tasks: {task_set.useCaseAlias}",
-        {"Tasks": [f"[{item.status}] {item.id}: {item.description}" for item in task_set.tasks]},
+        {
+            "Tasks": [f"[{item.status}] {item.id}: {item.description}" for item in task_set.tasks],
+            "Public Stage Contract": _stage_contract_note("tasks"),
+        },
     )
 
 
@@ -134,7 +140,11 @@ def write_handoff(project: Path, alias: str, stage: str, summary: str) -> str:
     return write_markdown(
         layout.workflow_stage_document_path(project, alias, stage),
         f"Workflow Handoff: {alias}",
-        {"Summary": summary, "Workflow Directory": project_relative(project, layout.workflow_use_case_dir(project, alias))},
+        {
+            "Summary": summary,
+            "Workflow Directory": project_relative(project, layout.workflow_use_case_dir(project, alias)),
+            "Public Stage Contract": _stage_contract_note(stage) if stage in {"specify", "clarify", "plan", "tasks", "implement"} else "Not applicable.",
+        },
     )
 
 
@@ -164,6 +174,10 @@ def _render_understanding_metadata(metadata: dict[str, Any]) -> list[str]:
         f"Git Available: {str(metadata.get('gitAvailable', False)).lower()}",
         f"Stale Reasons: {', '.join(metadata.get('staleReasons', [])) or 'None'}",
     ]
+
+
+def _stage_contract_note(stage: str) -> str:
+    return f"See stagePayloadContracts.{stage} from `proofsignal-spec workflow info proofsignal-use-case --json`."
 
 
 def _render_candidate_use_cases(candidates: list[dict[str, Any]]) -> list[str]:

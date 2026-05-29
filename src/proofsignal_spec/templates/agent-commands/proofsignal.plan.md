@@ -3,9 +3,10 @@
 Plan one run request and reusable skills before implementation.
 
 - Start by running `proofsignal-spec workflow check plan --alias <alias> --json`.
+- Before constructing the payload, read the public workflow contract with `proofsignal-spec workflow info proofsignal-use-case --json` and use `stagePayloadContracts.plan` as the source of truth. Do not inspect installed package source to infer payload schemas.
 - Use the installed `proofsignal-spec` executable directly. Do not use `npx proofsignal-spec`.
 - Continue only when the result includes `requiredCapability: workflow.guardrails/v1` and `supported: true`.
-- If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal-spec` and regenerate the agent integration.
+- If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal-spec` and regenerate the agent integration. Regenerate the agent integration after upgrading.
 - If the check does not allow continuation, name the missing artifact or decision, point to `nextCommand`, and stop.
 - Do not perform stage-specific work until the check allows it.
 - Read existing persisted context with `proofsignal-spec workflow show --alias <alias> --json`. Do not invent `workflow show` alternatives or use `workflow status` as a use-case reader.

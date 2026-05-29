@@ -316,6 +316,8 @@ class CoreReadiness:
         ]
     )
     missingOperations: list[str] = field(default_factory=list)
+    incompatibleOperations: list[dict[str, Any]] = field(default_factory=list)
+    recoveryAction: str | None = None
     message: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -427,6 +429,123 @@ class ConditionalGate:
         return clean(asdict(self))
 
 
+WORKFLOW_STAGE_PAYLOAD_CONTRACT_SCHEMA = "proofsignal-spec-stage-payload-contract/v1"
+
+
+@dataclass(slots=True)
+class WorkflowStageContract:
+    stage: Literal["specify", "clarify", "plan", "tasks", "implement"]
+    requiredFields: list[str] = field(default_factory=list)
+    optionalFields: list[str] = field(default_factory=list)
+    defaults: dict[str, Any] = field(default_factory=dict)
+    unsupportedFieldsPolicy: Literal["reject", "warn", "ignore"] = "warn"
+    examples: list[dict[str, Any]] = field(default_factory=list)
+    nextAction: str = ""
+    errors: list[dict[str, str]] = field(default_factory=list)
+    schemaVersion: str = WORKFLOW_STAGE_PAYLOAD_CONTRACT_SCHEMA
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class StagePayloadValidationFinding:
+    id: str
+    stage: str
+    fieldPath: str
+    severity: Literal["info", "warning", "blocked"] = "blocked"
+    message: str = ""
+    expectedContract: str = ""
+    recoveryAction: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ValidationReadinessSummary:
+    alias: str
+    status: Literal["passed", "failed", "blocked"] = "blocked"
+    skillSelectionStatus: Literal["matched", "missing", "ambiguous", "unknown"] = "unknown"
+    authoringCoherenceStatus: Literal["passed", "failed", "blocked", "warning", "unchecked"] = "unchecked"
+    authoredEvidenceCoverageStatus: Literal["complete", "incomplete", "not-applicable"] = "not-applicable"
+    runtimeReadinessStatus: Literal["passed", "failed", "blocked", "not-run"] = "not-run"
+    fullBrowserFlowExecuted: bool = False
+    nextAction: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RunOutcomeSummary:
+    alias: str
+    overallStatus: Literal["passed", "failed", "incomplete", "blocked"]
+    coreBrowserStatus: Literal["passed", "failed", "blocked", "error", "not-run"]
+    specCoverageStatus: Literal["passed", "failed", "incomplete", "diagnostic", "complete", "blocked"]
+    selectedMainSkill: dict[str, Any] | str | None = None
+    profile: str | None = None
+    runId: str | None = None
+    failedStep: str | None = None
+    nextAction: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RuntimeFeedbackFinding:
+    id: str
+    source: Literal["validation", "run", "report-inspection", "screenshot", "workflow-state", "user"] = "run"
+    category: Literal[
+        "missing-prerequisite",
+        "environment-recovery",
+        "wait-flow-issue",
+        "selector-issue",
+        "data-product-state-issue",
+        "coverage-mapping-issue",
+        "unsupported-feedback",
+    ] = "unsupported-feedback"
+    severity: Literal["info", "warning", "failed", "blocked"] = "warning"
+    summary: str = ""
+    evidence: list[str] = field(default_factory=list)
+    affectedGates: list[str] = field(default_factory=list)
+    recommendedAction: Literal["clarify", "plan", "implement-repair", "rerun", "environment-recovery", "blocked"] = "blocked"
+    confidence: Literal["low", "medium", "high"] = "low"
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RepairConfirmation:
+    id: str
+    findingId: str
+    category: str
+    confirmationSource: Literal["direct-user-answer", "clarification", "plan-update", "explicit-command"] = "direct-user-answer"
+    confirmationTextSummary: str = ""
+    approvedScope: list[str] = field(default_factory=list)
+    affectedArtifacts: list[str] = field(default_factory=list)
+    revalidationRequired: bool = True
+    status: Literal["pending", "applied", "revalidated", "rejected"] = "pending"
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class GateIntentState:
+    gateId: str
+    required: bool = True
+    condition: str | None = None
+    conditionStatus: Literal["not-applicable", "unknown", "established-true", "established-false", "not-evaluated"] = "not-applicable"
+    changeSource: Literal["specify", "clarify", "plan", "repair-confirmation", "migration"] = "plan"
+    changeReason: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
 @dataclass(slots=True)
 class CorePublicContract:
     contractVersion: str = PUBLIC_CONTRACT_VERSION
@@ -436,7 +555,11 @@ class CorePublicContract:
             for name, (schema, version) in REQUIRED_OPERATIONS.items()
         ]
     )
+    operationName: str | None = None
+    schemaName: str | None = None
+    schemaVersion: int | None = None
     compatibilityStatus: Literal["compatible", "missing", "incompatible"] = "compatible"
+    incompatibilityBehavior: str = ""
     proofsignalVersion: str | None = None
     missingOperations: list[str] = field(default_factory=list)
 
@@ -615,6 +738,7 @@ class ArtifactPlan:
     runtimeInputs: list[dict[str, Any]] = field(default_factory=list)
     preconditions: list[str] = field(default_factory=list)
     validationGates: list[Any] = field(default_factory=list)
+    gateIntentChanges: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ArtifactPlan":
@@ -627,6 +751,7 @@ class ArtifactPlan:
             runtimeInputs=list(data.get("runtimeInputs", [])),
             preconditions=[str(item) for item in data.get("preconditions", [])],
             validationGates=list(data.get("validationGates", [])),
+            gateIntentChanges=list(data.get("gateIntentChanges", [])),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -767,6 +892,7 @@ class RunProfileSettings:
 class RepairRecommendation:
     id: str
     category: Literal["safe-artifact-repair", "runtime-setup", "replan-required", "clarification-required", "unsupported"]
+    runtimeCategory: str | None = None
     safeCategory: Literal[
         "selector-ambiguity",
         "wait-strategy",

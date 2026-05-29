@@ -34,3 +34,30 @@ def test_core_contract_incompatibility_reports_missing_operation_names() -> None
     assert result.compatible is False
     assert result.missingOperations == ["report.inspect"]
     assert result.to_dict()["requiredOperationsByName"]["run"]["schemaVersion"] == 1
+
+
+def test_core_contract_incompatibility_reports_schema_mismatch_details() -> None:
+    payload = {
+        "data": {
+            "proofsignalVersion": "0.1.0",
+            "contractVersion": PUBLIC_CONTRACT_VERSION,
+            "operations": [
+                {
+                    "name": name,
+                    "schema": ("proofsignal.run/v2" if name == "run" else schema),
+                    "schemaVersion": (2 if name == "run" else version),
+                }
+                for name, (schema, version) in REQUIRED_OPERATIONS.items()
+            ],
+        }
+    }
+
+    result = validate_version_response(payload)
+    data = result.to_dict()
+
+    assert result.compatible is False
+    assert data["compatibilityStatus"] == "incompatible"
+    assert result.incompatibleOperations[0]["operationName"] == "run"
+    assert result.incompatibleOperations[0]["expectedSchema"] == "proofsignal.run/v1"
+    assert result.incompatibleOperations[0]["actualSchema"] == "proofsignal.run/v2"
+    assert data["recoveryAction"] == "Upgrade ProofSignal Core or ProofSignal Spec to compatible public CLI JSON schemas."

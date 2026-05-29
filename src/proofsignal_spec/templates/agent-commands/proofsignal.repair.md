@@ -9,6 +9,8 @@ Repair invalid or failed use cases through the workflow.
 - If the check does not allow continuation, name the missing artifact or decision, point to `nextCommand`, and stop.
 - Do not perform stage-specific work until the check allows it.
 - Use Core validation findings or public report inspection through `proofsignal-spec repair <alias>`.
+- Classify the root cause before proposing edits. Name whether the finding is a missing prerequisite, environment recovery, wait/flow issue, selector issue, data/product-state issue, coverage-mapping issue, or unsupported feedback.
+- Treat missing coverage from an aborted Core/browser run as diagnostic. Required gates remain required unless clarify/plan or an explicit gate-intent confirmation changes product intent.
 - Treat runtime contradictions and incomplete planned gate coverage as repair/replan inputs. Do not silently weaken browser skills when a planned gate is absent in the target product state.
 - Only deterministic contract and metadata categories may be applied directly, such as main-skill ordering and run profile defaults.
 - Selector, flow, data, and coverage changes require confirmation before any artifact edit. Do not auto-apply selector ambiguity, wait strategy, conditional-gate, or gateId mapping changes from runtime feedback.

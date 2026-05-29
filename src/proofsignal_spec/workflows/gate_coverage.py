@@ -34,7 +34,7 @@ def calculate_gate_coverage(gates: list[PlannedValidationGate], evidence: Eviden
 
 def coverage_status(core_status: str, gate_coverage: list[GateCoverageResult]) -> str:
     if core_status in {"failed", "error"}:
-        return "failed"
+        return "diagnostic"
     if core_status == "blocked":
         return "blocked"
     incomplete = {"missing", "network-only", "screenshot-only", "unmapped", "not-evaluated", "incomplete"}

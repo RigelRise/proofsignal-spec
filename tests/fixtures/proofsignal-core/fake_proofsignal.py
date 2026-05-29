@@ -27,6 +27,11 @@ def main() -> int:
             ]
             if mode == "missing-report-inspect":
                 operations = [operation for operation in operations if operation["name"] != "report.inspect"]
+            if mode == "incompatible-run-schema":
+                for operation in operations:
+                    if operation["name"] == "run":
+                        operation["schema"] = "proofsignal.run/v2"
+                        operation["schemaVersion"] = 2
             payload = {
                 "schema": "proofsignal.version/v1",
                 "schemaVersion": 1,
@@ -96,7 +101,7 @@ def main() -> int:
                     "publicMatchKeys": ["urlContains"],
                 },
             ]
-        elif mode == "failed-with-partial":
+        elif mode in {"failed-with-partial", "aborted-activity-wait"}:
             gate_evidence = [{"id": "profile-name", "source": "assertion", "gateId": "overview-data-card", "status": "passed", "target": "profileName"}]
         if "--slow-mo" in args:
             try:
@@ -109,12 +114,19 @@ def main() -> int:
                     "schema": "proofsignal.run/v1",
                     "schemaVersion": 1,
                     "operation": "run",
-                    "status": "failed" if mode in {"failed", "failed-with-partial"} else "passed",
+                    "status": "failed" if mode in {"failed", "failed-with-partial", "aborted-activity-wait"} else "passed",
                     "data": {
                         "runId": "fake-run-1",
                         "reportPath": ".proofsignal/runs/login/fake-run-1/report.json",
                         "evidencePath": ".proofsignal/runs/login/fake-run-1/evidence",
-                        "summary": {"title": "Fake run", "status": "failed" if mode in {"failed", "failed-with-partial"} else "passed"},
+                        "summary": {
+                            "title": "Fake run",
+                            "status": "failed" if mode in {"failed", "failed-with-partial", "aborted-activity-wait"} else "passed",
+                            "failedStepId": "scroll-to-activity" if mode == "aborted-activity-wait" else None,
+                            "error": "Timeout waiting for .chakra-container .swiper-slide while activity skeletons were visible."
+                            if mode == "aborted-activity-wait"
+                            else None,
+                        },
                         "args": args,
                         "headed": headed,
                         "slowMoMs": slow_mo,
@@ -133,6 +145,16 @@ def main() -> int:
                 "path": "skills",
                 "code": "main-skill-ordering",
                 "message": "Helper skill executed before main skill.",
+            }
+        elif mode == "aborted-activity-wait":
+            finding = {
+                "severity": "error",
+                "artifact": ".proofsignal/skills/validate-home-page-unauth-flow.browser.md",
+                "path": "steps.scroll-to-activity",
+                "code": "wait-timeout",
+                "message": "Step scroll-to-activity timed out waiting for .chakra-container .swiper-slide while activity skeletons were visible.",
+                "failedStepId": "scroll-to-activity",
+                "gateId": "home-activity-slider",
             }
         else:
             finding = {

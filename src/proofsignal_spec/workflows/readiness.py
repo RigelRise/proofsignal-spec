@@ -95,6 +95,8 @@ def core_readiness(project: Path, core_cmd: str | None = None) -> CoreReadiness:
                 contractVersion=compatible.contractVersion or contract["contractVersion"],
                 requiredOperations=contract["requiredOperations"],
                 missingOperations=compatible.missingOperations or [],
+                incompatibleOperations=compatible.incompatibleOperations or [],
+                recoveryAction=compatible.recoveryAction,
                 message=compatible.message,
             )
         return CoreReadiness(

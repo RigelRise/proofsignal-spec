@@ -3,9 +3,10 @@
 Define one browser validation use case before artifact planning.
 
 - Start by running `proofsignal-spec workflow check specify --json`.
+- Before constructing the payload, read the public workflow contract with `proofsignal-spec workflow info proofsignal-use-case --json` and use `stagePayloadContracts.specify` as the source of truth. Do not inspect installed package source to infer payload schemas.
 - Use the installed `proofsignal-spec` executable directly. Do not use `npx proofsignal-spec`.
 - Continue only when the result includes `requiredCapability: workflow.guardrails/v1` and `supported: true`.
-- If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal-spec` and regenerate the agent integration. Do not fall back to `proofsignal-spec check`, directory listing, repository inspection, or use-case questions.
+- If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal-spec` and regenerate the agent integration. Regenerate the agent integration after upgrading. Do not fall back to `proofsignal-spec check`, directory listing, repository inspection, or use-case questions.
 - If the check returns `missing`, explain that repository understanding is required before use case specification can be grounded.
 - For missing understanding, state that safe repository understanding will inspect public project structure and non-sensitive context, give an approximate time expectation, and point to `/proofsignal-understand`.
 - Do not ask for alias, target behavior, expected outcome, run request details, or skill details while repository understanding is missing.

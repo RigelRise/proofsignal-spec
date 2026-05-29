@@ -5,6 +5,7 @@ from pathlib import Path
 from proofsignal_spec.templates.agent_guidance import (
     BROWSER_TARGET_BEFORE_PLANNING,
     CONFIRMED_REPAIR_BOUNDARY,
+    PUBLIC_WORKFLOW_CONTRACT_BOUNDARY,
     RUNTIME_READINESS_BOUNDARY,
 )
 
@@ -71,6 +72,7 @@ Work inside the target repository and use the `.proofsignal/` workspace.
 - A use case references exactly one run request; skills may be reused.
 - Avoid sensitive files by default and ask before reading local env or secrets.
 - Validate through `proofsignal-spec validate <alias>` before marking ready.
+- {PUBLIC_WORKFLOW_CONTRACT_BOUNDARY}.
 - Never persist credential values.
 
 ## Slash Command

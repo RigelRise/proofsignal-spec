@@ -3,7 +3,9 @@ from __future__ import annotations
 from proofsignal_spec.workflows.evidence import extract_browser_evidence, extract_core_runtime_evidence, normalize_planned_gates
 from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
 from proofsignal_spec.workflows.models import (
+    EvidenceInventory,
     GateCoverageResult,
+    PlannedValidationGate,
     RepairRecommendation,
     RunProfileSettings,
     RuntimeEvidence,
@@ -149,3 +151,12 @@ def test_public_core_evidence_drives_required_gate_coverage() -> None:
     assert warnings == []
     assert coverage_status("passed", coverage) == "complete"
     assert {item.gateId: item.status for item in coverage}["about-tab-content"] == "missing"
+
+
+def test_conditional_gate_without_established_condition_is_not_evaluated() -> None:
+    gates = [PlannedValidationGate(id="featured-project", required=False, condition="Profile has featured project")]
+    coverage = calculate_gate_coverage(gates, EvidenceInventory())
+
+    assert coverage[0].status == "not-evaluated"
+    assert coverage[0].required is False
+    assert coverage_status("passed", coverage) == "complete"

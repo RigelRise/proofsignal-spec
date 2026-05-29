@@ -25,6 +25,32 @@ def test_persistence_rejects_secret_looking_payload_values(tmp_path) -> None:
     assert result["blockers"][0]["code"] == "payload.secret-looking-value"
 
 
+def test_missing_stage_payload_field_reports_public_contract_recovery(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+
+    result = persist_stage(
+        project,
+        "specify",
+        alias="login",
+        payload={
+            "alias": "login",
+            "surface": "/login",
+            "behavior": "Validate login.",
+            "customSourceReason": "Fixture.",
+            "expectedOucome": "Typo.",
+        },
+    )
+
+    assert result["status"] == "invalid"
+    blocker = result["blockers"][0]
+    assert blocker["code"] == "payload.missing-required-field"
+    assert "stagePayloadContracts.specify.requiredFields" in blocker["documentationRef"]
+    assert "workflow info proofsignal-use-case --json" in blocker["recoveryCommand"]
+    assert any("expectedOucome" in warning for warning in result["warnings"])
+
+
 def test_unknown_persistence_stage_is_invalid(tmp_path) -> None:
     project = tmp_path / "repo"
     project.mkdir()
@@ -119,6 +145,49 @@ def test_plan_accepts_supporting_skills_alias_from_real_agent_payload(tmp_path) 
     plan = load_document(project / ".proofsignal/workflows/use-cases/search-people/plan.yaml")
     assert plan["mainSkill"] == ".proofsignal/skills/validate-search-people-flow.browser.md"
     assert ".proofsignal/skills/navigate-to-search.browser.md" in plan["supportingSkills"]
+
+
+def test_plan_required_gate_intent_change_requires_recorded_reason(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    persist_stage(
+        project,
+        "specify",
+        alias="search-people",
+        payload={
+            "alias": "search-people",
+            "surface": "/search/people",
+            "behavior": "Validate people search.",
+            "expectedOutcome": "People cards appear.",
+            "customSourceReason": "Fixture.",
+        },
+    )
+    base_plan = {
+        "runRequest": ".proofsignal/run-requests/search-people.yaml",
+        "reusableSkills": [".proofsignal/skills/validate-search-people.browser.md"],
+        "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
+        "validationGates": [{"id": "people-results", "description": "People results render.", "required": True}],
+        "unresolvedBlockingClarifications": [],
+    }
+    assert persist_stage(project, "plan", alias="search-people", payload=base_plan)["status"] == "persisted"
+
+    changed_plan = {**base_plan, "validationGates": [{"id": "people-results", "description": "People results render.", "required": False, "condition": "Results exist"}]}
+    blocked = persist_stage(project, "plan", alias="search-people", payload=changed_plan)
+
+    assert blocked["status"] == "blocked"
+    assert blocked["blockers"][0]["code"] == "gate-intent.requiredness-change-unconfirmed"
+
+    confirmed = persist_stage(
+        project,
+        "plan",
+        alias="search-people",
+        payload={
+            **changed_plan,
+            "gateIntentChanges": [{"gateId": "people-results", "source": "plan", "reason": "Developer confirmed this gate is conditional."}],
+        },
+    )
+    assert confirmed["status"] == "persisted"
 
 
 def test_implement_accepts_artifacts_list_and_writes_core_envelopes(tmp_path) -> None:

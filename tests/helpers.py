@@ -56,3 +56,11 @@ def assert_guardrail_template(content: str, stage: str) -> None:
     assert "workflow.guardrails/v1" in content
     assert "Do not use `npx proofsignal-spec`" in content
     assert "Do not write managed `.proofsignal/` artifacts directly" in content
+
+
+def assert_public_workflow_contract_guidance(content: str) -> None:
+    assert "workflow info proofsignal-use-case --json" in content
+    assert "stagePayloadContracts" in content
+    assert "public workflow contract" in content.lower()
+    assert "stage_persistence.py" not in content
+    assert "site-packages" not in content

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .gate_coverage import missing_required_gate_contradictions
 from .models import GateCoverageResult, PlannedValidationGate, RepairRecommendation, RuntimeContradiction
+from .repair_classification import classify_runtime_feedback
 
 
 def recommend_repairs_for_gate_coverage(
@@ -55,6 +56,86 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
             )
             continue
 
+        classified = classify_runtime_feedback(finding)
+        if classified.category == "wait-flow-issue":
+            recommendations.append(
+                RepairRecommendation(
+                    id=f"repair-{index}-wait-strategy",
+                    category="safe-artifact-repair",
+                    runtimeCategory=classified.category,
+                    safeCategory="wait-strategy",
+                    summary=classified.summary,
+                    action=_safe_action("wait-strategy"),
+                    affectedArtifacts=affected,
+                    blockedReason=_confirmation_reason("wait-strategy"),
+                    requiresUserDecision=True,
+                    sourceFeedback=[*source_feedback, *classified.evidence],
+                )
+            )
+            continue
+        if classified.category == "selector-issue":
+            recommendations.append(
+                RepairRecommendation(
+                    id=f"repair-{index}-selector-ambiguity",
+                    category="safe-artifact-repair",
+                    runtimeCategory=classified.category,
+                    safeCategory="selector-ambiguity",
+                    summary=classified.summary,
+                    action=_safe_action("selector-ambiguity"),
+                    affectedArtifacts=affected,
+                    blockedReason=_confirmation_reason("selector-ambiguity"),
+                    requiresUserDecision=True,
+                    sourceFeedback=[*source_feedback, *classified.evidence],
+                )
+            )
+            continue
+        if classified.category == "coverage-mapping-issue":
+            recommendations.append(
+                RepairRecommendation(
+                    id=f"repair-{index}-gateid-mapping",
+                    category="safe-artifact-repair",
+                    runtimeCategory=classified.category,
+                    safeCategory="gateid-mapping",
+                    summary=classified.summary,
+                    action=_safe_action("gateid-mapping"),
+                    affectedArtifacts=affected,
+                    blockedReason=_confirmation_reason("gateid-mapping"),
+                    requiresUserDecision=True,
+                    sourceFeedback=[*source_feedback, *classified.evidence],
+                )
+            )
+            continue
+        if classified.category in {"missing-prerequisite", "environment-recovery"}:
+            recommendations.append(
+                RepairRecommendation(
+                    id=f"repair-{index}-{classified.category}",
+                    category="runtime-setup",
+                    runtimeCategory=classified.category,
+                    summary=classified.summary,
+                    action="Resolve the runtime environment or prerequisite, then rerun validation.",
+                    affectedArtifacts=affected,
+                    blockedReason=classified.summary,
+                    requiresUserDecision=True,
+                    sourceFeedback=[*source_feedback, *classified.evidence],
+                )
+            )
+            continue
+        if classified.category == "data-product-state-issue":
+            recommendations.append(
+                RepairRecommendation(
+                    id=f"repair-{index}-data-product-state",
+                    category="clarification-required",
+                    runtimeCategory=classified.category,
+                    summary=classified.summary,
+                    action="Return to clarification or planning before changing data assumptions or gate intent.",
+                    affectedArtifacts=affected,
+                    blockedReason="Data or product-state changes affect validation intent.",
+                    requiresUserDecision=True,
+                    sourceFeedback=[*source_feedback, *classified.evidence],
+                )
+            )
+            continue
+
         safe_category = _safe_category(text)
         if safe_category:
             requires_confirmation = safe_category in {"selector-ambiguity", "wait-strategy", "gateid-mapping"}
@@ -62,6 +143,7 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                 RepairRecommendation(
                     id=f"repair-{index}-{safe_category}",
                     category="safe-artifact-repair",
+                    runtimeCategory=classified.category if classified.category != "unsupported-feedback" else None,
                     safeCategory=safe_category,  # type: ignore[arg-type]
                     summary=message or f"Runtime feedback indicates {safe_category}.",
                     action=_safe_action(safe_category),

@@ -22,3 +22,16 @@ def test_unreachable_target_blocks_readiness_without_rewriting_artifacts(tmp_pat
     assert result["runtimeReadiness"]["targetReachabilityStatus"] == "unreachable"
     assert "runtime.target-unreachable" in result["runtimeReadiness"]["findingIds"]
     assert run_request_path.read_text(encoding="utf-8") == json.dumps(run_request)
+
+
+def test_runtime_readiness_says_full_browser_flow_has_not_executed(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    create_main_skill_coverage_workspace(tmp_path)
+
+    result = validate_run(tmp_path, "profile-view-unauth", runtime_readiness=True, core_cmd=str(FAKE_CORE))
+
+    assert result["fullBrowserFlowExecuted"] is False
+    assert result["runtimeReadiness"]["fullBrowserFlowExecuted"] is False
+    assert "full browser flow has not executed" in result["readinessSummary"]

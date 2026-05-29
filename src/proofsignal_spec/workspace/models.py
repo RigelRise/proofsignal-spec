@@ -179,6 +179,7 @@ class RepairSession:
     findings: list[dict[str, Any]] = field(default_factory=list)
     proposals: list[dict[str, Any]] = field(default_factory=list)
     recommendations: list[dict[str, Any]] = field(default_factory=list)
+    repairConfirmations: list[dict[str, Any]] = field(default_factory=list)
     applications: list[dict[str, Any]] = field(default_factory=list)
     approvalStatus: Literal["pending", "approved", "rejected", "conflict", "applied"] = "pending"
     appliedAt: str | None = None
@@ -194,6 +195,7 @@ class RepairSession:
             findings=list(data.get("findings", [])),
             proposals=list(data.get("proposals", [])),
             recommendations=list(data.get("recommendations", [])),
+            repairConfirmations=list(data.get("repairConfirmations", [])),
             applications=list(data.get("applications", [])),
             approvalStatus=data.get("approvalStatus", "pending"),
             appliedAt=data.get("appliedAt"),

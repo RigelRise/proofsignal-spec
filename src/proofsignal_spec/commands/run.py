@@ -8,7 +8,7 @@ from proofsignal_spec.core.adapter import CoreAdapter, core_status
 from proofsignal_spec.workflows.browser_authoring import resolve_effective_profile_settings
 from proofsignal_spec.workflows.evidence import extract_core_runtime_evidence, normalize_planned_gates
 from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
-from proofsignal_spec.workflows.models import GateCoverageResult, RepairRecommendation
+from proofsignal_spec.workflows.models import GateCoverageResult, RepairRecommendation, RunOutcomeSummary
 from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
 from proofsignal_spec.workflows.repository import load_artifact_plan
 from proofsignal_spec.workspace.models import ArtifactReference, RunHistoryEntry
@@ -51,10 +51,14 @@ def run(
     gates = _planned_gates(project, alias)
     gate_coverage_results = _runtime_gate_coverage(result, gates)
     gate_coverage = [item.to_dict() for item in gate_coverage_results]
-    contradictions = [
-        item.to_dict()
-        for item in recommend_repairs_for_gate_coverage(gate_coverage_results, gates, source_run_id=str(run_id))
-    ]
+    contradictions = (
+        [
+            item.to_dict()
+            for item in recommend_repairs_for_gate_coverage(gate_coverage_results, gates, source_run_id=str(run_id))
+        ]
+        if core not in {"failed", "error", "blocked"}
+        else []
+    )
     repair_recommendations = [
         item.to_dict()
         for item in _repair_recommendations_from_gate_coverage(gate_coverage_results, core, source_run_id=str(run_id))
@@ -71,6 +75,18 @@ def run(
     partial_coverage = gate_coverage if core in {"failed", "error", "blocked"} else []
     reason = _reason(use_case_status, core, missing_required_gates, skill_selection_status)
     next_action = _next_action(use_case_status, alias)
+    failed_step = _failed_step(result)
+    outcome_summary = RunOutcomeSummary(
+        alias=alias,
+        overallStatus=use_case_status,
+        coreBrowserStatus=core,
+        specCoverageStatus=spec_coverage_status,
+        selectedMainSkill=selected_main_skill,
+        profile=profile_name,
+        runId=str(run_id),
+        failedStep=failed_step,
+        nextAction=next_action,
+    ).to_dict()
     entry = RunHistoryEntry(
         runId=run_id,
         useCaseAlias=alias,
@@ -93,9 +109,12 @@ def run(
             "core": data.get("summary") or result.get("summary"),
             "status": use_case_status,
             "coverageStatus": spec_coverage_status,
+            "coreBrowserStatus": core,
+            "specCoverageStatus": spec_coverage_status,
             "reason": reason,
             "nextAction": next_action,
             "mainSkill": selected_main_skill,
+            "runOutcomeSummary": outcome_summary,
         },
         reportPath=data.get("reportPath"),
         evidenceDir=data.get("evidencePath") or data.get("evidenceDir"),
@@ -106,6 +125,9 @@ def run(
         "status": entry.status,
         "coreStatus": core,
         "coverageStatus": spec_coverage_status,
+        "coreBrowserStatus": core,
+        "specCoverageStatus": spec_coverage_status,
+        "runOutcomeSummary": outcome_summary,
         "selectedMainSkill": selected_main_skill,
         "executedSkill": executed_skill,
         "skillSelectionStatus": skill_selection_status,
@@ -186,7 +208,7 @@ def _reason(status: str, core: str, missing_required_gates: list[str], skill_sel
     if status == "passed":
         return "Core passed and all planned required validation gates were evidenced."
     if status == "failed":
-        return f"Core reported {core}; any gate coverage is diagnostic only."
+        return f"Core/browser execution reported {core}; Spec coverage is diagnostic only because runtime evidence may not have been committed."
     pieces = ["Core passed but required validation gates are missing or incomplete."]
     if missing_required_gates:
         pieces.append(f"Missing required gates: {', '.join(missing_required_gates)}.")
@@ -201,6 +223,12 @@ def _next_action(status: str, alias: str) -> str:
     if status == "incomplete":
         return f"Run `proofsignal-spec repair {alias} --json` or re-run after repairing missing gate evidence."
     return f"Inspect the Core report and run `proofsignal-spec repair {alias} --from-report <report> --json`."
+
+
+def _failed_step(result: dict[str, Any]) -> str | None:
+    data = result.get("data", {}) if isinstance(result.get("data"), dict) else {}
+    summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+    return data.get("failedStep") or data.get("failedStepId") or summary.get("failedStepId")
 
 
 def _repair_recommendations_from_gate_coverage(

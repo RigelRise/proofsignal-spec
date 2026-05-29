@@ -43,7 +43,9 @@ class RunContractTests(CliTestCase):
         payload = json.loads(out)
         self.assertEqual(payload["status"], "failed")
         self.assertEqual(payload["coreStatus"], "failed")
-        self.assertEqual(payload["coverageStatus"], "failed")
+        self.assertEqual(payload["coverageStatus"], "diagnostic")
+        self.assertEqual(payload["coreBrowserStatus"], "failed")
+        self.assertEqual(payload["specCoverageStatus"], "diagnostic")
         self.assertTrue(payload["partialCoverage"])
 
     def test_core_pass_without_public_gate_evidence_keeps_coverage_incomplete(self) -> None:

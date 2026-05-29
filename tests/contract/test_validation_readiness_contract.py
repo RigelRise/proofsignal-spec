@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 
 from helpers import CliTestCase
 
 from tests.fixtures.workflows.guardrails import create_ready_use_case_workspace, create_registry_missing_record_path
+from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 from proofsignal_spec.workspace.repository import load_document, save_document
 
 
@@ -53,6 +55,28 @@ class ValidationReadinessContractTests(CliTestCase):
         self.assertEqual(result["coreReadiness"]["missingOperations"], [])
         self.assertEqual(result["coreReadiness"]["requiredOperationsByName"]["authoring-check"]["schemaName"], "proofsignal.authoring-check/v1")
 
+    def test_core_incompatible_schema_reports_public_operation_details(self) -> None:
+        create_ready_use_case_workspace(self.project, "login")
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "incompatible-run-schema"
+
+        code, out, err = self.cli([
+            "workflow",
+            "check",
+            "validate",
+            "--alias",
+            "login",
+            "--project",
+            str(self.project),
+            "--json",
+        ])
+
+        self.assertEqual(code, 2, err)
+        result = json.loads(out)
+        self.assertEqual(result["coreReadiness"]["status"], "incompatible")
+        self.assertEqual(result["coreReadiness"]["incompatibleOperations"][0]["operationName"], "run")
+        self.assertEqual(result["coreReadiness"]["incompatibleOperations"][0]["actualSchema"], "proofsignal.run/v2")
+        self.assertIn("Upgrade ProofSignal Core", result["coreReadiness"]["recoveryAction"])
+
     def test_malformed_registry_returns_migration_plan(self) -> None:
         create_registry_missing_record_path(self.project, "login")
         code, out, err = self.cli([
@@ -98,3 +122,23 @@ class ValidationReadinessContractTests(CliTestCase):
         ])
         self.assertEqual(code, 2, err)
         self.assertEqual(json.loads(out)["status"], "blocked")
+
+    def test_validate_output_describes_authored_evidence_not_executed_browser_flow(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+
+        code, out, err = self.cli([
+            "validate",
+            "profile-view-unauth",
+            "--project",
+            str(self.project),
+            "--runtime-readiness",
+            "--json",
+        ])
+
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        self.assertEqual(result["authoredEvidenceCoverageStatus"], "complete")
+        self.assertEqual(result["runtimeReadinessStatus"], "passed")
+        self.assertFalse(result["fullBrowserFlowExecuted"])
+        self.assertIn("mapped authored evidence", result["readinessSummary"])
+        self.assertIn("full browser flow has not executed", result["readinessSummary"])

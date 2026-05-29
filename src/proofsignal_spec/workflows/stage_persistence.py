@@ -42,6 +42,7 @@ from .stage_documents import (
     write_specification,
     write_task_set,
 )
+from .stage_contracts import StagePayloadContractError, missing_required_field_error, unsupported_field_warnings
 
 PERSISTABLE_STAGES = {"understand", "specify", "clarify", "plan", "tasks", "implement"}
 BLOCKING_CLARIFICATION_AREAS = {"runtime", "data", "credential", "credentials", "permission", "permissions", "outcome", "expectedOutcome"}
@@ -70,6 +71,7 @@ def persist_stage(
 
     content = _payload_content(payload or {})
     resolved_alias = alias or content.get("alias")
+    public_contract_warnings = unsupported_field_warnings(stage, content)
     findings = validate_no_secret_values(content)
     if findings:
         first = findings[0]
@@ -96,10 +98,24 @@ def persist_stage(
             result = _persist_tasks(project, str(resolved_alias or ""), content)
         else:
             result = _persist_implementation(project, str(resolved_alias or ""), content)
+    except StagePayloadContractError as exc:
+        finding = exc.finding
+        return _blocked(
+            stage,
+            resolved_alias,
+            code="payload.missing-required-field",
+            message=finding.message,
+            invalid=True,
+            recovery_command="proofsignal-spec workflow info proofsignal-use-case --json",
+            documentation_ref=f"stagePayloadContracts.{stage}.requiredFields",
+            warnings=public_contract_warnings,
+        )
     except ValueError as exc:
         return _blocked(stage, resolved_alias, code="payload.invalid", message=str(exc), invalid=True)
     except FileNotFoundError as exc:
         return _blocked(stage, resolved_alias, code="workspace.missing", message=str(exc))
+    if public_contract_warnings:
+        result.warnings.extend(public_contract_warnings)
     return result.to_dict()
 
 
@@ -172,7 +188,7 @@ def _persist_understanding(project: Path, content: dict[str, Any], scope: str) -
 def _persist_specification(project: Path, alias: str, content: dict[str, Any]) -> StagePersistenceResult:
     alias = _alias(alias)
     content = _normalize_specification_content(project, alias, content)
-    _require_fields(content, ["surface", "behavior", "expectedOutcome"])
+    _require_fields(content, ["surface", "behavior", "expectedOutcome"], stage="specify")
     if not (content.get("sourceInventoryItems") or content.get("customSourceReason")):
         raise ValueError("Specification payload requires sourceInventoryItems or customSourceReason.")
     ensure_workflow_workspace(project, alias)
@@ -272,7 +288,16 @@ def _persist_plan(project: Path, alias: str, content: dict[str, Any]) -> StagePe
             ],
             nextCommand=f"/proofsignal-clarify {alias}",
         )
-    _require_fields(content, ["runRequest", "reusableSkills", "runtimeInputs"])
+    _require_fields(content, ["runRequest", "reusableSkills", "runtimeInputs"], stage="plan")
+    gate_intent_blockers = _gate_intent_requiredness_blockers(project, alias, content)
+    if gate_intent_blockers:
+        return StagePersistenceResult(
+            stage="plan",
+            alias=alias,
+            status="blocked",
+            blockers=gate_intent_blockers,
+            nextCommand=f"/proofsignal-plan {alias}",
+        )
     run_request = _artifact_path(content["runRequest"], default=f".proofsignal/run-requests/{alias}.yaml")
     skill_paths = [_skill_path(item) for item in content.get("reusableSkills", [])]
     main_skill = _artifact_path(content.get("mainSkill") or (skill_paths[0] if skill_paths else f".proofsignal/skills/{alias}.browser.md"))
@@ -286,6 +311,7 @@ def _persist_plan(project: Path, alias: str, content: dict[str, Any]) -> StagePe
         runtimeInputs=list(content.get("runtimeInputs", [])),
         preconditions=[str(item) for item in content.get("preconditions", [])],
         validationGates=list(content.get("validationGates", ["authoring-check", "runtime-readiness"])),
+        gateIntentChanges=[item for item in content.get("gateIntentChanges", []) if isinstance(item, dict)],
     )
     save_artifact_plan(project, plan)
     write_artifact_plan(project, plan)
@@ -306,7 +332,7 @@ def _persist_plan(project: Path, alias: str, content: dict[str, Any]) -> StagePe
 
 def _persist_tasks(project: Path, alias: str, content: dict[str, Any]) -> StagePersistenceResult:
     alias = _alias(alias)
-    _require_fields(content, ["tasks"])
+    _require_fields(content, ["tasks"], stage="tasks")
     tasks = [AuthoringTask.from_dict(item if isinstance(item, dict) else {"id": f"T{index + 1:03d}", "description": str(item)}) for index, item in enumerate(content.get("tasks", []))]
     task_set = AuthoringTaskSet(
         taskSetId=f"tasks.{alias}",
@@ -336,7 +362,7 @@ def _persist_tasks(project: Path, alias: str, content: dict[str, Any]) -> StageP
 def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) -> StagePersistenceResult:
     alias = _alias(alias)
     content = _normalize_implementation_content(alias, content)
-    _require_fields(content, ["runRequest", "skills"])
+    _require_fields(content, ["runRequest", "skills"], stage="implement")
     record = load_use_case(project, alias)
     coherence = evaluate_implementation_coherence(project, alias, content, new_artifacts=True)
     if coherence.status == "blocked":
@@ -511,14 +537,53 @@ def _alias(value: str) -> str:
     return layout.ensure_path_safe_alias(value)
 
 
-def _require_fields(data: dict[str, Any], fields: list[str]) -> None:
+def _require_fields(data: dict[str, Any], fields: list[str], *, stage: str | None = None) -> None:
     missing = []
     for field in fields:
         value = data.get(field)
         if field not in data or value is None or value == "":
             missing.append(field)
     if missing:
+        if stage:
+            raise missing_required_field_error(stage, missing[0])
         raise ValueError(f"Payload missing required fields: {', '.join(missing)}.")
+
+
+def _gate_intent_requiredness_blockers(project: Path, alias: str, content: dict[str, Any]) -> list[ReadinessBlocker]:
+    try:
+        existing = load_artifact_plan(project, alias)
+    except Exception:
+        return []
+    previous = {
+        str(item.get("id") or item.get("gateId")): bool(item.get("required", True))
+        for item in existing.validationGates
+        if isinstance(item, dict) and (item.get("id") or item.get("gateId"))
+    }
+    if not previous:
+        return []
+    confirmed = {
+        str(item.get("gateId") or item.get("id"))
+        for item in content.get("gateIntentChanges", [])
+        if isinstance(item, dict) and (item.get("gateId") or item.get("id")) and item.get("reason")
+    }
+    blockers: list[ReadinessBlocker] = []
+    for item in content.get("validationGates", []) if isinstance(content.get("validationGates"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        gate_id = str(item.get("id") or item.get("gateId") or "")
+        if not gate_id or gate_id not in previous:
+            continue
+        required = bool(item.get("required", True))
+        if previous[gate_id] != required and gate_id not in confirmed:
+            blockers.append(
+                ReadinessBlocker(
+                    code="gate-intent.requiredness-change-unconfirmed",
+                    message=f"Gate '{gate_id}' changes requiredness. Record a clarify/plan gateIntentChanges entry with a non-secret reason before persisting.",
+                    recoveryCommand=f"proofsignal-spec workflow persist plan --alias {alias} --payload <payload-with-gateIntentChanges.json> --json",
+                    documentationRef="stagePayloadContracts.plan.optionalFields.gateIntentChanges",
+                )
+            )
+    return blockers
 
 
 def _artifact_path(value: Any, *, default: str | None = None) -> str:
@@ -958,12 +1023,15 @@ def _blocked(
     message: str,
     invalid: bool = False,
     recovery_command: str | None = None,
+    documentation_ref: str | None = None,
+    warnings: list[str] | None = None,
 ) -> dict[str, Any]:
     return StagePersistenceResult(
         stage=stage,
         alias=alias,
         status="invalid" if invalid else "blocked",
-        blockers=[ReadinessBlocker(code=code, message=message, recoveryCommand=recovery_command)],
+        blockers=[ReadinessBlocker(code=code, message=message, recoveryCommand=recovery_command, documentationRef=documentation_ref)],
+        warnings=warnings or [],
     ).to_dict()
 
 
