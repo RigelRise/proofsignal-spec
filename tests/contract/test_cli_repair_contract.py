@@ -44,7 +44,7 @@ class RepairContractTests(CliTestCase):
             for item in recommendations
             if item.get("requiresUserDecision")
         }
-        self.assertEqual(confirmation_required, {"selector-ambiguity", "wait-strategy", "gateid-mapping"})
+        self.assertEqual(confirmation_required, {"gateid-mapping"})
 
     def test_intent_changing_safe_categories_block_approved_auto_apply(self) -> None:
         create_main_skill_coverage_workspace(self.project)
@@ -68,6 +68,26 @@ class RepairContractTests(CliTestCase):
         self.assertEqual(repair["approvalStatus"], "conflict")
         self.assertFalse(repair["readyForRun"])
         self.assertTrue(repair["recommendations"][0]["requiresUserDecision"])
+
+    def test_data_credential_gate_and_expected_behavior_changes_still_require_confirmation(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        record = load_use_case(self.project, "profile-view-unauth")
+        record.validation = {
+            "findings": [
+                {"code": "seeded-data-change", "message": "Change data assumptions.", "artifact": ".proofsignal/use-cases/profile.yaml"},
+                {"code": "credential-reference-change", "message": "Change credential requirements.", "artifact": ".proofsignal/use-cases/profile.yaml"},
+                {"code": "missing-gateid", "message": "assertion lacks gateId", "artifact": ".proofsignal/skills/profile.browser.md"},
+                {"code": "expected-behavior-change", "message": "Expected product behavior is different.", "artifact": ".proofsignal/use-cases/profile.yaml"},
+            ]
+        }
+        save_use_case(self.project, record)
+
+        code, out, _err = self.cli(["repair", "profile-view-unauth", "--project", str(self.project), "--json"])
+
+        self.assertEqual(code, 4)
+        recommendations = json.loads(out)["repair"]["recommendations"]
+        self.assertTrue(all(item["requiresUserDecision"] for item in recommendations))
+        self.assertTrue(all(item["autonomy"] in {"confirmation-required", "blocked"} for item in recommendations))
 
     def test_product_decision_changing_repair_is_blocked_even_when_approved(self) -> None:
         create_main_skill_coverage_workspace(self.project)

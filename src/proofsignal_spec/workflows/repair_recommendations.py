@@ -52,6 +52,9 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     blockedReason=reason,
                     requiresUserDecision=True,
                     sourceFeedback=source_feedback,
+                    autonomy="blocked" if category == "replan-required" else "confirmation-required",
+                    safeMechanical=False,
+                    intentPreserved=False,
                 )
             )
             continue
@@ -67,9 +70,11 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     summary=classified.summary,
                     action=_safe_action("wait-strategy"),
                     affectedArtifacts=affected,
-                    blockedReason=_confirmation_reason("wait-strategy"),
-                    requiresUserDecision=True,
+                    requiresUserDecision=False,
                     sourceFeedback=[*source_feedback, *classified.evidence],
+                    autonomy="auto-applied",
+                    safeMechanical=True,
+                    intentPreserved=True,
                 )
             )
             continue
@@ -83,9 +88,11 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     summary=classified.summary,
                     action=_safe_action("selector-ambiguity"),
                     affectedArtifacts=affected,
-                    blockedReason=_confirmation_reason("selector-ambiguity"),
-                    requiresUserDecision=True,
+                    requiresUserDecision=False,
                     sourceFeedback=[*source_feedback, *classified.evidence],
+                    autonomy="auto-applied",
+                    safeMechanical=True,
+                    intentPreserved=True,
                 )
             )
             continue
@@ -102,6 +109,9 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     blockedReason=_confirmation_reason("gateid-mapping"),
                     requiresUserDecision=True,
                     sourceFeedback=[*source_feedback, *classified.evidence],
+                    autonomy="confirmation-required",
+                    safeMechanical=False,
+                    intentPreserved=False,
                 )
             )
             continue
@@ -117,6 +127,9 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     blockedReason=classified.summary,
                     requiresUserDecision=True,
                     sourceFeedback=[*source_feedback, *classified.evidence],
+                    autonomy="confirmation-required",
+                    safeMechanical=False,
+                    intentPreserved=False,
                 )
             )
             continue
@@ -132,13 +145,16 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     blockedReason="Data or product-state changes affect validation intent.",
                     requiresUserDecision=True,
                     sourceFeedback=[*source_feedback, *classified.evidence],
+                    autonomy="confirmation-required",
+                    safeMechanical=False,
+                    intentPreserved=False,
                 )
             )
             continue
 
         safe_category = _safe_category(text)
         if safe_category:
-            requires_confirmation = safe_category in {"selector-ambiguity", "wait-strategy", "gateid-mapping"}
+            requires_confirmation = safe_category in {"gateid-mapping"}
             recommendations.append(
                 RepairRecommendation(
                     id=f"repair-{index}-{safe_category}",
@@ -151,6 +167,9 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     blockedReason=_confirmation_reason(safe_category) if requires_confirmation else None,
                     requiresUserDecision=requires_confirmation,
                     sourceFeedback=source_feedback,
+                    autonomy="confirmation-required" if requires_confirmation else "auto-applied",
+                    safeMechanical=not requires_confirmation,
+                    intentPreserved=not requires_confirmation,
                 )
             )
             continue
@@ -165,6 +184,9 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                 blockedReason="Unsupported runtime feedback cannot be auto-applied.",
                 requiresUserDecision=True,
                 sourceFeedback=source_feedback,
+                autonomy="blocked",
+                safeMechanical=False,
+                intentPreserved=False,
             )
         )
     return recommendations
@@ -193,6 +215,12 @@ def _safe_category(text: str) -> str | None:
 
 
 def _blocked_category(text: str) -> tuple[str, str] | None:
+    if any(term in text for term in ["expected-behavior", "expected behavior", "product behavior"]):
+        return ("clarification-required", "Repair changes expected product behavior and must be confirmed.")
+    if any(term in text for term in ["credential", "password", "secret", "auth requirement"]):
+        return ("clarification-required", "Repair changes credential requirements and must be confirmed.")
+    if any(term in text for term in ["seeded-data", "data assumption", "data assumptions", "seeded state"]):
+        return ("clarification-required", "Repair changes data assumptions and must be confirmed.")
     if any(term in text for term in ["hardcoded-profile", "fixed profile", "dynamic discovery", "replace dynamic"]):
         return ("clarification-required", "Repair changes a clarified runtime/data decision and must be re-clarified.")
     if any(term in text for term in ["weakened-gate", "tab-label-only", "navigation-only", "weaken required", "replace rendered"]):
@@ -202,8 +230,8 @@ def _blocked_category(text: str) -> tuple[str, str] | None:
 
 def _safe_action(safe_category: str) -> str:
     actions = {
-        "selector-ambiguity": "Ask for confirmation before changing selectors, then narrow the target selector to a stable unique element if confirmed.",
-        "wait-strategy": "Ask for confirmation before changing flow or wait behavior, then replace brittle waits if confirmed.",
+        "selector-ambiguity": "Auto-apply a stable selector specificity fix that preserves the same product behavior, then revalidate and rerun.",
+        "wait-strategy": "Auto-apply a wait strategy adjustment that waits for rendered evidence, then revalidate and rerun.",
         "main-skill-ordering": "Pass and persist the planned main skill before helper skills.",
         "run-profile-defaults": "Apply observable debug/browser profile defaults without overriding user-specified pacing.",
         "gateid-mapping": "Ask for confirmation before changing coverage mapping, then map existing rendered-result evidence to the planned gateId if confirmed.",

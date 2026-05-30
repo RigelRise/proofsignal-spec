@@ -5,8 +5,11 @@ from pathlib import Path
 from proofsignal_spec.templates.agent_guidance import (
     BROWSER_TARGET_BEFORE_PLANNING,
     CONFIRMED_REPAIR_BOUNDARY,
+    FIRST_RUN_STAGE_CARD_GUIDANCE,
     PUBLIC_WORKFLOW_CONTRACT_BOUNDARY,
+    REAL_TARGET_FIRST_RECOMMENDATION,
     RUNTIME_READINESS_BOUNDARY,
+    SAFE_MECHANICAL_REPAIR_GUIDANCE,
 )
 
 from .base import AgentIntegration, RenderedFile, render_workflow_skill_files
@@ -34,7 +37,7 @@ class ClaudeIntegration(AgentIntegration):
 
 
 def _context() -> str:
-    return """# ProofSignal Spec Agent Guidance
+    return f"""# ProofSignal Spec Agent Guidance
 
 Use `/proofsignal-*` workflow skills for staged ProofSignal use case authoring.
 Use `proofsignal-spec` commands from the target repository root for deterministic
@@ -50,6 +53,9 @@ Each use case maps to exactly one run request. Skills are decoupled reusable
 artifacts that may support multiple run requests. Store staged workflow
 documents under `.proofsignal/workflows/` and use structured workflow state for
 status, gates, and resume.
+
+Golden Path first runs are agent-chat first. {REAL_TARGET_FIRST_RECOMMENDATION}.
+{FIRST_RUN_STAGE_CARD_GUIDANCE}.
 """
 
 
@@ -73,6 +79,8 @@ Work inside the target repository and use the `.proofsignal/` workspace.
 - Avoid sensitive files by default and ask before reading local env or secrets.
 - Validate through `proofsignal-spec validate <alias>` before marking ready.
 - {PUBLIC_WORKFLOW_CONTRACT_BOUNDARY}.
+- {FIRST_RUN_STAGE_CARD_GUIDANCE}.
+- {SAFE_MECHANICAL_REPAIR_GUIDANCE}.
 - Never persist credential values.
 
 ## Slash Command
@@ -120,12 +128,12 @@ def _workflow_copy(name: str) -> tuple[str, str, str]:
         "run": (
             "run a registered use case",
             "<alias> [normal|debug]",
-            "Run `proofsignal-spec run <alias> --profile normal` unless the user requests `debug`. If required runtime inputs are missing, ask only for the missing values and never persist credentials.",
+            "Run `proofsignal-spec run <alias> --profile normal` unless the user requests `debug`. For an accepted Golden Path first run, present `firstRunStatus`, `strictPass`, stage cards, primary evidence, and next action. If required runtime inputs are missing, ask only for the missing values and never persist credentials.",
         ),
         "repair": (
             "repair invalid or failed use cases",
             "<alias> [report path]",
-            f"Run `proofsignal-spec repair <alias>` or include `--from-report <path>` when the user provides a report. {CONFIRMED_REPAIR_BOUNDARY}. Present proposed edits for approval before applying changes.",
+            f"Run `proofsignal-spec repair <alias>` or include `--from-report <path>` when the user provides a report. {SAFE_MECHANICAL_REPAIR_GUIDANCE}. Present auto-applied repair feedback clearly and ask before any confirmation-required change.",
         ),
     }
     return workflows[name]

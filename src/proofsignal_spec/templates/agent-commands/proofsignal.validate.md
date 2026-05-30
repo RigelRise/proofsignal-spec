@@ -8,6 +8,7 @@ Validate draft artifacts through ProofSignal Spec and Core.
 - If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal-spec` and regenerate the agent integration.
 - If the check does not allow continuation, name the missing artifact or decision, point to `nextCommand`, and stop.
 - Do not perform stage-specific work until the check allows it.
+- If validation is blocked during the Golden Path first run, present a blocker stage card with category, primary evidence, recovery command, and next action.
 - Review `structuralValidation` before Core validation. If structural validation is blocked, report the exact finding and do not call Core.
 - If recoverable migration plans are present, ask the developer before invoking `proofsignal-spec workflow migrate --approve <migration-id> --json`.
 - If Core is missing, state that structural validation can still run, but ProofSignal Core is required for the complete ProofSignal validation and browser execution experience. Explain how to configure it with `proofsignal-spec init --core-cmd /path/to/proofsignal` or `PROOFSIGNAL_CORE_CMD`.

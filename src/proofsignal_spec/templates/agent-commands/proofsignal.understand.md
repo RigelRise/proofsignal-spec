@@ -19,5 +19,6 @@ Capture repository and product understanding before authoring run requests.
 - Prepare a structured payload with repository summary, start instructions, safe paths, blocked sensitive paths, coverage inventory, candidate use cases, generated time, and git hash or git-unavailable reason.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal-spec workflow persist understand --scope <scope> --payload <payload.json> --json`.
 - Report whether inventory is complete, partial, or stale before recommending scenarios.
+- Treat canonical examples as optional learning aids after the real-target first-run recommendation. Do not use fake/demo examples as a user-facing fallback when target information is missing.
 - Never persist credential values.
 - Suggest `/proofsignal-specify` as the next command when understanding is sufficient.

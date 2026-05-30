@@ -14,6 +14,7 @@ Define one browser validation use case before artifact planning.
 - When stale refresh is accepted, run `proofsignal-spec workflow check specify --refresh-decision accepted --json`, route through `/proofsignal-understand`, then return to candidate selection.
 - When stale refresh is declined, run `proofsignal-spec workflow check specify --refresh-decision declined --json` and continue with the stale-context warning.
 - When the check returns `ready`, present the project overview, candidate validation use cases, and one recommended starting candidate before asking what to specify.
+- Prefer the product-owned real-target first-run recommendation when the developer is new to the project. Canonical examples may be mentioned as learning aids after that recommendation, not as fake/demo fallbacks.
 - If the coverage inventory is `partial`, state that more scenarios may exist and offer `/proofsignal-understand` with `--scope continue` or a focused scope before listing speculative additions.
 - If the coverage inventory is `complete`, list additional scenarios from inventory when the developer asks for more.
 - Let the developer choose a candidate or provide a custom use case.

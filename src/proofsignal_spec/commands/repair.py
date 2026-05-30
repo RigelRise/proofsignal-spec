@@ -4,8 +4,10 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
-from proofsignal_spec.workflows.models import RepairConfirmation, SafeRepairApplication
+from proofsignal_spec.workflows.models import RepairConfirmation, RepairFeedback, SafeRepairApplication
 from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings, proposals_from_contradictions
+from proofsignal_spec.workflows.repository import load_golden_path_state, save_golden_path_state
+from proofsignal_spec.workflows.stage_cards import repair_stage_card
 from proofsignal_spec.workspace import layout
 from proofsignal_spec.workspace.models import RepairSession
 from proofsignal_spec.workspace.repository import get_core_command, load_use_case, now_iso, save_document, save_use_case
@@ -87,24 +89,20 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
                 for proposal in proposals
             ]
         )
-    approved_confirmable = [
-        item
-        for item in recommendations
-        if approve and item.requiresUserDecision and item.category == "safe-artifact-repair" and item.safeCategory == "wait-strategy"
-    ]
+    auto_applicable = [item for item in recommendations if item.category == "safe-artifact-repair" and not item.requiresUserDecision]
     blocked = [
         item
         for item in recommendations
         if item.category in {"clarification-required", "replan-required", "unsupported"}
-        or (item.requiresUserDecision and item not in approved_confirmable)
+        or item.requiresUserDecision
     ]
     applications = [
         SafeRepairApplication(
             recommendationId=item.id,
-            applied=approve and not blocked,
+            applied=item in auto_applicable and not blocked,
             changedArtifacts=item.affectedArtifacts,
-            validationStatus="passed" if approve and not blocked and not approved_confirmable else "not-run",
-            remainingGaps=[] if approve and not blocked and not approved_confirmable else [item.id],
+            validationStatus="not-run",
+            remainingGaps=[] if item in auto_applicable and not blocked else [item.id],
         ).to_dict()
         for item in recommendations
         if item.category == "safe-artifact-repair"
@@ -115,13 +113,41 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
             findingId=(item.sourceFeedback[0] if item.sourceFeedback else item.id),
             category=item.runtimeCategory or item.safeCategory or item.category,
             confirmationSource="explicit-command",
-            confirmationTextSummary="Repair was approved after a classified root cause and scoped recommendation.",
+            confirmationTextSummary="Repair was explicitly approved, but the change still requires scoped artifact work and revalidation.",
             approvedScope=item.affectedArtifacts or [item.action],
             affectedArtifacts=item.affectedArtifacts,
             revalidationRequired=True,
             status="pending",
         ).to_dict()
-        for item in approved_confirmable
+        for item in recommendations
+        if approve and item.requiresUserDecision
+    ]
+    repair_feedback = [
+        RepairFeedback(
+            repairId=item.id,
+            category=item.runtimeCategory or item.safeCategory or item.category,
+            autonomy=item.autonomy,
+            safeMechanical=item.safeMechanical,
+            before=item.summary or "Runtime feedback identified a repairable issue.",
+            after=item.action if item.autonomy == "auto-applied" else None,
+            intentPreserved=item.intentPreserved,
+            confirmationRequired=item.requiresUserDecision,
+            revalidationStatus="not-run",
+            rerunStatus="not-run",
+            nextAction=f"Run `proofsignal-spec validate {alias} --runtime-readiness --json`, then rerun.",
+        ).to_dict()
+        for item in recommendations
+    ]
+    stage_cards = [
+        repair_stage_card(
+            category=item.runtimeCategory or item.safeCategory or item.category,
+            autonomy=item.autonomy,
+            before=item.summary or "Runtime feedback identified a repairable issue.",
+            after=item.action if item.autonomy == "auto-applied" else item.blockedReason or item.action,
+            next_action=f"Run `proofsignal-spec validate {alias} --runtime-readiness --json`, then rerun.",
+        )
+        for item in recommendations
+        if item.autonomy == "auto-applied"
     ]
     session = RepairSession(
         repairId=f"{alias}-{now_iso().replace(':', '').replace('-', '')}",
@@ -132,21 +158,16 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
         recommendations=[item.to_dict() for item in recommendations],
         repairConfirmations=repair_confirmations,
         applications=applications,
-        approvalStatus="conflict" if approve and blocked else ("approved" if approve else "pending"),
+        repairFeedback=repair_feedback,
+        stageCards=stage_cards,
+        approvalStatus="applied" if auto_applicable and not blocked else ("conflict" if approve and blocked else ("approved" if approve else "pending")),
+        nextAction=f"Run `proofsignal-spec validate {alias} --runtime-readiness --json`, then rerun.",
     )
-    if approve and not blocked and not approved_confirmable:
-        session.approvalStatus = "applied"
+    if auto_applicable and not blocked:
         session.appliedAt = now_iso()
         session.revalidation = {
-            "status": "passed",
-            "message": "Safe mechanical repair plan was approved and revalidation is required before trusted rerun.",
-        }
-        session.readyForRun = True
-    elif approve and approved_confirmable and not blocked:
-        session.approvalStatus = "approved"
-        session.revalidation = {
             "status": "not-run",
-            "message": "Confirmed repair scope requires artifact update and revalidation before trusted rerun.",
+            "message": "Safe mechanical repair was auto-applied; revalidation and rerun are required before reporting success.",
         }
         session.readyForRun = False
     elif blocked:
@@ -158,4 +179,15 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
     record.repair = {"repairId": session.repairId, "approvalStatus": session.approvalStatus}
     save_use_case(project, record)
     save_document(layout.repair_path(project, session.repairId), session.to_dict())
+    _update_first_run_repair_state(project, alias, repair_feedback, session.approvalStatus)
     return {"alias": alias, "repair": session.to_dict()}
+
+
+def _update_first_run_repair_state(project: Path, alias: str, repair_feedback: list[dict[str, Any]], approval_status: str) -> None:
+    state = load_golden_path_state(project)
+    if state.get("selectedCandidate") != alias:
+        return
+    state["repairFeedback"] = repair_feedback
+    if approval_status == "applied":
+        state["firstRunStatus"] = "repairing"
+    save_golden_path_state(project, state)

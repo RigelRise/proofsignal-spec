@@ -7,9 +7,11 @@ from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
 from proofsignal_spec.core.adapter import CoreAdapter, core_status
 from proofsignal_spec.workflows.browser_authoring import resolve_effective_profile_settings
 from proofsignal_spec.workflows.evidence import extract_core_runtime_evidence, normalize_planned_gates
+from proofsignal_spec.workflows.first_run import classify_first_run_status, golden_path_state, update_golden_path_run_state
 from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
-from proofsignal_spec.workflows.models import GateCoverageResult, RepairRecommendation, RunOutcomeSummary
+from proofsignal_spec.workflows.models import GateCoverageResult, GoldenPathRunState, RepairRecommendation, RunOutcomeSummary
 from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
+from proofsignal_spec.workflows.stage_cards import run_result_card
 from proofsignal_spec.workflows.repository import load_artifact_plan
 from proofsignal_spec.workspace.models import ArtifactReference, RunHistoryEntry
 from proofsignal_spec.workspace.repository import get_core_command, load_document, load_use_case, now_iso, record_run, resolve_artifacts
@@ -87,6 +89,23 @@ def run(
         failedStep=failed_step,
         nextAction=next_action,
     ).to_dict()
+    first_run_payload = _first_run_payload(
+        project,
+        alias,
+        core,
+        spec_coverage_status,
+        missing_required_gates,
+        next_action,
+        _run_request_parameters(run_request).get("baseUrl", ""),
+    )
+    if first_run_payload:
+        outcome_summary.update(
+            {
+                "firstRunStatus": first_run_payload["firstRunStatus"],
+                "strictPass": first_run_payload["strictPass"],
+                "stageCards": first_run_payload["stageCards"],
+            }
+        )
     entry = RunHistoryEntry(
         runId=run_id,
         useCaseAlias=alias,
@@ -128,6 +147,7 @@ def run(
         "coreBrowserStatus": core,
         "specCoverageStatus": spec_coverage_status,
         "runOutcomeSummary": outcome_summary,
+        **first_run_payload,
         "selectedMainSkill": selected_main_skill,
         "executedSkill": executed_skill,
         "skillSelectionStatus": skill_selection_status,
@@ -143,6 +163,54 @@ def run(
         "reportPath": entry.reportPath,
         "evidenceDir": entry.evidenceDir,
         "core": result,
+    }
+
+
+def _first_run_payload(
+    project: Path,
+    alias: str,
+    core_browser_status: str,
+    spec_coverage_status: str,
+    missing_required_gates: list[str],
+    next_action: str,
+    target: str,
+) -> dict[str, Any]:
+    state = golden_path_state(project)
+    if state.get("selectedCandidate") != alias or state.get("recommendationStatus") != "accepted":
+        return {}
+    repaired = bool(state.get("repairFeedback"))
+    first_run_status, strict_pass = classify_first_run_status(
+        core_browser_status,
+        spec_coverage_status,
+        missing_required_gates,
+        repaired=repaired,
+    )
+    stage_cards = [
+        run_result_card(
+            alias=alias,
+            first_run_status=first_run_status,
+            strict_pass=strict_pass,
+            core_browser_status=core_browser_status,
+            spec_coverage_status=spec_coverage_status,
+            missing_required_gates=missing_required_gates,
+            next_action=next_action,
+        )
+    ]
+    run_state = GoldenPathRunState.from_run_result(
+        use_case_alias=alias,
+        target=str(target or ""),
+        core_browser_status=core_browser_status,
+        spec_coverage_status=spec_coverage_status,
+        missing_required_gates=missing_required_gates,
+        repaired=repaired,
+        repair_feedback=list(state.get("repairFeedback", [])),
+        stage_cards=stage_cards,
+    )
+    update_golden_path_run_state(project, run_state)
+    return {
+        "firstRunStatus": first_run_status,
+        "strictPass": strict_pass,
+        "stageCards": stage_cards,
     }
 
 

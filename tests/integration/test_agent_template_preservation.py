@@ -14,5 +14,6 @@ def test_codex_and_claude_generated_guidance_preserves_browser_guardrails(tmp_pa
         repair = files[f"{root}/proofsignal-spec-repair/SKILL.md"]
         assert "Confirm the browser target environment before planning executable artifacts" in author
         assert "runtime readiness verifies target resolution, target reachability, required runtime prerequisites, and Core authoring readiness" in validate
-        assert "Selector, flow, data, and coverage changes require confirmation" in repair
+        assert "Safe mechanical selector" in repair
+        assert "data, credential, required-gate" in repair
         assert "Never persist credential values" in author

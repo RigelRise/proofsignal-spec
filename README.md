@@ -128,6 +128,14 @@ Runtime readiness checks target resolution, syntactic target reachability,
 required runtime prerequisites, Core authoring readiness, and Core public
 contract compatibility without running the full browser flow.
 
+## Golden Path
+
+The Golden Path guides a new user to accept or skip the simplest stable
+real-target first run, then presents recommendation, run, repair, and result
+steps as agent-chat stage cards. See [docs/golden-path.md](docs/golden-path.md)
+for canonical examples and [docs/release-readiness.md](docs/release-readiness.md)
+for demo and release criteria.
+
 ## ProofSignal Core Configuration
 
 For a published Core executable on `PATH`, no extra configuration is needed:

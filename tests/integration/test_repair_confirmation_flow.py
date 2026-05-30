@@ -8,7 +8,7 @@ from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_c
 
 
 class RepairConfirmationFlowTests(CliTestCase):
-    def test_ambiguous_selector_feedback_requires_confirmation_before_change(self) -> None:
+    def test_ambiguous_selector_feedback_auto_applies_when_intent_is_preserved(self) -> None:
         create_main_skill_coverage_workspace(self.project)
         record = load_use_case(self.project, "profile-view-unauth")
         record.validation = {
@@ -27,12 +27,13 @@ class RepairConfirmationFlowTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         repair = json.loads(out)["repair"]
-        self.assertEqual(repair["approvalStatus"], "conflict")
+        self.assertEqual(repair["approvalStatus"], "applied")
         self.assertFalse(repair["readyForRun"])
-        self.assertTrue(repair["recommendations"][0]["requiresUserDecision"])
+        self.assertFalse(repair["recommendations"][0]["requiresUserDecision"])
         self.assertEqual(repair["recommendations"][0]["safeCategory"], "selector-ambiguity")
+        self.assertEqual(repair["recommendations"][0]["autonomy"], "auto-applied")
 
-    def test_broad_confirmation_is_recorded_after_root_cause_and_scope(self) -> None:
+    def test_auto_repair_feedback_is_recorded_after_root_cause_and_scope(self) -> None:
         import os
 
         os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
@@ -45,8 +46,8 @@ class RepairConfirmationFlowTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         repair = json.loads(out)["repair"]
-        self.assertEqual(repair["approvalStatus"], "approved")
-        self.assertEqual(repair["repairConfirmations"][0]["category"], "wait-flow-issue")
-        self.assertEqual(repair["repairConfirmations"][0]["confirmationSource"], "explicit-command")
-        self.assertTrue(repair["repairConfirmations"][0]["revalidationRequired"])
+        self.assertEqual(repair["approvalStatus"], "applied")
+        self.assertEqual(repair["repairFeedback"][0]["category"], "wait-flow-issue")
+        self.assertEqual(repair["repairFeedback"][0]["autonomy"], "auto-applied")
+        self.assertTrue(repair["repairFeedback"][0]["intentPreserved"])
         self.assertEqual(repair["revalidation"]["status"], "not-run")

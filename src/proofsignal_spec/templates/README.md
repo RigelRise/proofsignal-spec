@@ -33,12 +33,17 @@ must treat `status` as the authoritative use-case verdict and keep
 required gates is `status: incomplete`; a failed Core/browser run makes coverage
 diagnostic and must not be summarized as passed.
 
+Golden Path guidance must recommend a real-target first run before optional
+examples, render recommendation/run/repair/blocker results as stage cards, and
+never use fake/demo targets as a user-facing fallback.
+
 Repair guidance must classify the root cause before edits. Missing prerequisite,
 environment recovery, wait/flow, selector, data/product-state, coverage mapping,
-and unsupported feedback have different next actions. Selector, wait/flow, data,
-and coverage changes require confirmation before any artifact edit. Changes that
-alter clarified data decisions or weaken required gates must return to
-clarification or planning.
+and unsupported feedback have different next actions. Safe mechanical selector,
+wait, ordering, target-specificity, equivalent-flow, and run-profile repairs may
+auto-apply only when validation intent is preserved. Data, credential, required
+gate, target-selection, and expected-behavior changes still require
+confirmation.
 
 Human-observable debug/browser runs default to `slowMoMs: 900`; explicit
 `--slow-mo` values still win.

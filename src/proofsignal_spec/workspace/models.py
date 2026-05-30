@@ -181,10 +181,13 @@ class RepairSession:
     recommendations: list[dict[str, Any]] = field(default_factory=list)
     repairConfirmations: list[dict[str, Any]] = field(default_factory=list)
     applications: list[dict[str, Any]] = field(default_factory=list)
+    repairFeedback: list[dict[str, Any]] = field(default_factory=list)
+    stageCards: list[dict[str, Any]] = field(default_factory=list)
     approvalStatus: Literal["pending", "approved", "rejected", "conflict", "applied"] = "pending"
     appliedAt: str | None = None
     revalidation: dict[str, Any] | None = None
     readyForRun: bool = False
+    nextAction: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RepairSession":
@@ -197,10 +200,13 @@ class RepairSession:
             recommendations=list(data.get("recommendations", [])),
             repairConfirmations=list(data.get("repairConfirmations", [])),
             applications=list(data.get("applications", [])),
+            repairFeedback=list(data.get("repairFeedback", [])),
+            stageCards=list(data.get("stageCards", [])),
             approvalStatus=data.get("approvalStatus", "pending"),
             appliedAt=data.get("appliedAt"),
             revalidation=data.get("revalidation"),
             readyForRun=bool(data.get("readyForRun", False)),
+            nextAction=data.get("nextAction"),
         )
 
     def to_dict(self) -> dict[str, Any]:

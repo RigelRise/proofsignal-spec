@@ -130,6 +130,24 @@ def create_parser() -> argparse.ArgumentParser:
     workflow_migrate.add_argument("--approve", required=True, help="Migration id to apply")
     workflow_migrate.add_argument("--project", default=".")
     workflow_migrate.add_argument("--json", action="store_true")
+    workflow_recommend = workflow_sub.add_parser("recommend-first-run", help="Recommend the first golden-path run")
+    workflow_recommend.add_argument("--project", default=".")
+    workflow_recommend.add_argument("--json", action="store_true")
+    workflow_accept = workflow_sub.add_parser("accept-first-run", help="Accept the recommended first golden-path run")
+    workflow_accept.add_argument("alias")
+    workflow_accept.add_argument("--project", default=".")
+    workflow_accept.add_argument("--json", action="store_true")
+    workflow_skip = workflow_sub.add_parser("skip-first-run", help="Skip the recommended first golden-path run")
+    workflow_skip.add_argument("--project", default=".")
+    workflow_skip.add_argument("--json", action="store_true")
+    workflow_inspect_gp = workflow_sub.add_parser("inspect-golden-path-state", help="Inspect Golden Path workspace state")
+    workflow_inspect_gp.add_argument("--project", default=".")
+    workflow_inspect_gp.add_argument("--json", action="store_true")
+    workflow_reset_gp = workflow_sub.add_parser("reset-golden-path-state", help="Reset Golden Path-owned workspace state")
+    workflow_reset_gp.add_argument("--project", default=".")
+    workflow_reset_gp.add_argument("--preview", action="store_true")
+    workflow_reset_gp.add_argument("--confirm", action="store_true")
+    workflow_reset_gp.add_argument("--json", action="store_true")
     workflow_info = workflow_sub.add_parser("info")
     workflow_info.add_argument("workflow_id", nargs="?", default="proofsignal-use-case")
     workflow_info.add_argument("--project", default=".")
@@ -242,6 +260,16 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
             return workflow_command.persist(project, args.stage, alias=args.alias, scope=args.scope, payload=_load_payload(args)), args.json
         if args.workflow_command == "migrate":
             return workflow_command.migrate(project, args.approve), args.json
+        if args.workflow_command == "recommend-first-run":
+            return workflow_command.recommend_first_run(project), args.json
+        if args.workflow_command == "accept-first-run":
+            return workflow_command.accept_golden_path_first_run(project, args.alias), args.json
+        if args.workflow_command == "skip-first-run":
+            return workflow_command.skip_golden_path_first_run(project), args.json
+        if args.workflow_command == "inspect-golden-path-state":
+            return workflow_command.inspect_golden_path_state(project), args.json
+        if args.workflow_command == "reset-golden-path-state":
+            return workflow_command.reset_golden_path_state(project, preview=args.preview, confirm=args.confirm), args.json
         if args.workflow_command == "info":
             return workflow_command.info(project, args.workflow_id, integration=args.integration), args.json
     if command == "integration":

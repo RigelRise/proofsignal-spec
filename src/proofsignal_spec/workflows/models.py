@@ -34,6 +34,8 @@ WORKFLOW_GUARDRAILS_CAPABILITY = "workflow.guardrails/v1"
 WORKFLOW_STAGE_PERSISTENCE_RESULT_SCHEMA = "proofsignal-spec-workflow-stage-persistence-result/v1"
 WORKFLOW_VALIDATION_READINESS_SCHEMA = "proofsignal-spec-validation-readiness/v1"
 WORKFLOW_MIGRATION_RESULT_SCHEMA = "proofsignal-spec-workflow-migration-result/v1"
+FIRST_RUN_RECOMMENDATION_SCHEMA = "proofsignal-spec-first-run-recommendation/v1"
+GOLDEN_PATH_WORKSPACE_STATE_SCHEMA = "proofsignal-spec-golden-path-workspace-state/v1"
 WORKFLOW_UNDERSTANDING_COMMIT_THRESHOLD = 10
 WORKFLOW_UNDERSTANDING_MAX_AGE_DAYS = 7
 WORKFLOW_STAGES = ["understand", "specify", "clarify", "plan", "tasks", "implement", "validate", "run", "repair"]
@@ -493,6 +495,290 @@ class RunOutcomeSummary:
         return clean(asdict(self))
 
 
+AgentChatStatusMarker = Literal[
+    "[RECOMMENDED]",
+    "[ACCEPTED]",
+    "[RUNNING]",
+    "[PASS]",
+    "[REPAIR]",
+    "[SKIPPED]",
+    "[BLOCKED]",
+    "[FAIL]",
+]
+FirstRunRecommendationStatus = Literal["ready", "blocked", "skipped", "unavailable", "accepted"]
+FirstRunStatus = Literal[
+    "not-started",
+    "skipped",
+    "running",
+    "passed",
+    "repairing",
+    "repaired-passed",
+    "failed",
+    "blocked",
+    "incomplete",
+]
+
+
+def _reject_stage_card_content(data: dict[str, Any]) -> None:
+    from proofsignal_spec.workspace.validation import validate_no_secret_values
+
+    evidence = str(data.get("primaryEvidence", "")).lower()
+    if "raw log" in evidence or "raw logs" in evidence:
+        raise ValueError("Stage cards must summarize product evidence; raw logs are not valid primary evidence.")
+    findings = validate_no_secret_values(data)
+    if findings:
+        first = findings[0]
+        raise ValueError(f"Secret-looking stage-card value at {first.get('path')}: {first.get('message')}")
+
+
+@dataclass(slots=True)
+class AgentChatStageCard:
+    stageId: str
+    title: str
+    statusMarker: AgentChatStatusMarker
+    summary: str
+    whyItMatters: str
+    primaryEvidence: str
+    nextAction: str
+    repairDetails: str | None = None
+    secondaryRefs: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        allowed = {
+            "[RECOMMENDED]",
+            "[ACCEPTED]",
+            "[RUNNING]",
+            "[PASS]",
+            "[REPAIR]",
+            "[SKIPPED]",
+            "[BLOCKED]",
+            "[FAIL]",
+        }
+        if self.statusMarker not in allowed:
+            raise ValueError(f"Unsupported stage-card status marker: {self.statusMarker}")
+        missing = [
+            name
+            for name, value in {
+                "stageId": self.stageId,
+                "title": self.title,
+                "statusMarker": self.statusMarker,
+                "summary": self.summary,
+                "whyItMatters": self.whyItMatters,
+                "primaryEvidence": self.primaryEvidence,
+                "nextAction": self.nextAction,
+            }.items()
+            if not str(value or "").strip()
+        ]
+        if missing:
+            raise ValueError(f"Stage card missing required field(s): {', '.join(missing)}")
+        if self.statusMarker == "[REPAIR]" and not str(self.repairDetails or "").strip():
+            raise ValueError("repairDetails is required for [REPAIR] stage cards.")
+        _reject_stage_card_content(self.to_dict(validate=False))
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AgentChatStageCard":
+        return cls(
+            stageId=str(data.get("stageId", "")),
+            title=str(data.get("title", "")),
+            statusMarker=data.get("statusMarker", "[BLOCKED]"),
+            summary=str(data.get("summary", "")),
+            whyItMatters=str(data.get("whyItMatters", "")),
+            primaryEvidence=str(data.get("primaryEvidence", "")),
+            nextAction=str(data.get("nextAction", "")),
+            repairDetails=data.get("repairDetails"),
+            secondaryRefs=[str(item) for item in data.get("secondaryRefs", [])],
+        )
+
+    def to_dict(self, *, validate: bool = True) -> dict[str, Any]:
+        data = clean(asdict(self))
+        if validate:
+            _reject_stage_card_content(data)
+        return data
+
+
+@dataclass(slots=True)
+class FirstRunCandidate:
+    alias: str
+    surface: str
+    behavior: str
+    sourceInventoryItems: list[str] = field(default_factory=list)
+    priority: Literal["critical", "high", "medium", "low"] = "medium"
+    confidence: Literal["high", "medium", "low"] = "medium"
+    requiresEnvironment: bool = False
+    knownRuntimeRequirements: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_candidate_use_case(cls, candidate: CandidateValidationUseCase) -> "FirstRunCandidate":
+        return cls(
+            alias=candidate.alias,
+            surface=candidate.surface,
+            behavior=candidate.behavior,
+            sourceInventoryItems=list(candidate.sourceInventoryItems),
+            priority=candidate.priority,
+            confidence=candidate.confidence,
+            requiresEnvironment=candidate.requiresEnvironment,
+            knownRuntimeRequirements=list(candidate.knownRuntimeRequirements),
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FirstRunCandidate":
+        return cls(
+            alias=str(data.get("alias", "")),
+            surface=str(data.get("surface", "")),
+            behavior=str(data.get("behavior", "")),
+            sourceInventoryItems=[str(item) for item in data.get("sourceInventoryItems", [])],
+            priority=data.get("priority", "medium"),
+            confidence=data.get("confidence", "medium"),
+            requiresEnvironment=bool(data.get("requiresEnvironment", False)),
+            knownRuntimeRequirements=[str(item) for item in data.get("knownRuntimeRequirements", [])],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class FirstRunCandidateScore:
+    candidateAlias: str
+    rank: int
+    score: int
+    lowSetupRisk: int = 0
+    reachableRealTarget: int = 0
+    credentialRisk: int = 0
+    renderedEvidenceSimplicity: int = 0
+    dataDependencyRisk: int = 0
+    inventoryFreshness: int = 0
+    rationale: str = ""
+    blockers: list[str] = field(default_factory=list)
+    candidate: FirstRunCandidate | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        data = clean(asdict(self))
+        data["alias"] = self.candidateAlias
+        data["scoringSignals"] = {
+            "lowSetupRisk": self.lowSetupRisk,
+            "reachableRealTarget": self.reachableRealTarget,
+            "credentialRisk": self.credentialRisk,
+            "renderedEvidenceSimplicity": self.renderedEvidenceSimplicity,
+            "dataDependencyRisk": self.dataDependencyRisk,
+            "inventoryFreshness": self.inventoryFreshness,
+        }
+        if self.candidate:
+            data["candidate"] = self.candidate.to_dict()
+        return clean(data)
+
+
+@dataclass(slots=True)
+class FirstRunRecommendation:
+    status: FirstRunRecommendationStatus
+    targetStatus: Literal["resolved", "missing", "unreachable", "unknown"] = "unknown"
+    recommendedCandidate: dict[str, Any] | None = None
+    rankedCandidates: list[dict[str, Any]] = field(default_factory=list)
+    recommendationText: str = ""
+    acceptancePrompt: str = ""
+    skipMeaning: str = "Skipping means the golden path was declined; it is not a pass, fail, or inconclusive result."
+    stageCards: list[dict[str, Any]] = field(default_factory=list)
+    nextAction: str = ""
+    schemaVersion: str = FIRST_RUN_RECOMMENDATION_SCHEMA
+
+    def to_dict(self) -> dict[str, Any]:
+        cards = [AgentChatStageCard.from_dict(card).to_dict() for card in self.stageCards]
+        data = asdict(self)
+        data["stageCards"] = cards
+        cleaned = clean(data)
+        cleaned.setdefault("recommendedCandidate", self.recommendedCandidate)
+        cleaned.setdefault("rankedCandidates", [])
+        cleaned.setdefault("stageCards", [])
+        return cleaned
+
+
+@dataclass(slots=True)
+class RepairFeedback:
+    repairId: str
+    category: str
+    autonomy: Literal["auto-applied", "confirmation-required", "blocked"]
+    safeMechanical: bool
+    before: str
+    after: str | None = None
+    intentPreserved: bool = False
+    confirmationRequired: bool = False
+    confirmationRecord: str | None = None
+    revalidationStatus: Literal["passed", "failed", "not-run", "blocked"] = "not-run"
+    rerunStatus: str | None = None
+    nextAction: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class GoldenPathRunState:
+    useCaseAlias: str
+    target: str = ""
+    recommendationStatus: Literal["ready", "accepted", "skipped", "blocked"] = "accepted"
+    firstRunStatus: FirstRunStatus = "not-started"
+    strictPass: bool = False
+    coreBrowserStatus: str | None = None
+    specCoverageStatus: str | None = None
+    missingRequiredGates: list[str] = field(default_factory=list)
+    repairFeedback: list[dict[str, Any]] = field(default_factory=list)
+    stageCards: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def from_run_result(
+        cls,
+        *,
+        use_case_alias: str,
+        target: str = "",
+        core_browser_status: str,
+        spec_coverage_status: str,
+        missing_required_gates: list[str],
+        repaired: bool = False,
+        repair_feedback: list[dict[str, Any]] | None = None,
+        stage_cards: list[dict[str, Any]] | None = None,
+    ) -> "GoldenPathRunState":
+        from proofsignal_spec.workflows.first_run import classify_first_run_status
+
+        first_run_status, strict_pass = classify_first_run_status(
+            core_browser_status,
+            spec_coverage_status,
+            missing_required_gates,
+            repaired=repaired,
+        )
+        return cls(
+            useCaseAlias=use_case_alias,
+            target=target,
+            firstRunStatus=first_run_status,
+            strictPass=strict_pass,
+            coreBrowserStatus=core_browser_status,
+            specCoverageStatus=spec_coverage_status,
+            missingRequiredGates=list(missing_required_gates),
+            repairFeedback=repair_feedback or [],
+            stageCards=stage_cards or [],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class GoldenPathWorkspaceState:
+    status: Literal["ready", "blocked", "empty", "reset"]
+    firstRunStatus: str | None = None
+    ownedArtifacts: list[str] = field(default_factory=list)
+    preservedArtifacts: list[str] = field(default_factory=list)
+    resetPreview: list[str] = field(default_factory=list)
+    resumeHint: str | None = None
+    warnings: list[str] = field(default_factory=list)
+    nextAction: str = ""
+    projectRoot: str | None = None
+    firstRunState: dict[str, Any] | None = None
+    schemaVersion: str = GOLDEN_PATH_WORKSPACE_STATE_SCHEMA
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
 @dataclass(slots=True)
 class RuntimeFeedbackFinding:
     id: str
@@ -906,6 +1192,9 @@ class RepairRecommendation:
     blockedReason: str | None = None
     requiresUserDecision: bool = False
     sourceFeedback: list[str] = field(default_factory=list)
+    autonomy: Literal["auto-applied", "confirmation-required", "blocked"] = "confirmation-required"
+    safeMechanical: bool = False
+    intentPreserved: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return clean(asdict(self))

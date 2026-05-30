@@ -7,6 +7,8 @@ from proofsignal_spec.workflows import engine
 from proofsignal_spec.workflows import migration as workflow_migration
 from proofsignal_spec.workflows import readiness as workflow_readiness
 from proofsignal_spec.workflows import stage_persistence
+from proofsignal_spec.workflows.first_run import accept_first_run, build_first_run_recommendation, skip_first_run
+from proofsignal_spec.workflows.repository import inspect_golden_path_workspace_state, reset_golden_path_workspace_state
 from proofsignal_spec.workflows.models import WORKFLOW_ID
 from proofsignal_spec.workflows.prerequisites import check_prerequisites
 
@@ -62,3 +64,23 @@ def persist(project: Path, stage: str, alias: str | None = None, scope: str | No
 
 def migrate(project: Path, migration_id: str) -> dict[str, Any]:
     return workflow_migration.apply_migration(project, migration_id)
+
+
+def recommend_first_run(project: Path) -> dict[str, Any]:
+    return build_first_run_recommendation(project).to_dict()
+
+
+def accept_golden_path_first_run(project: Path, alias: str) -> dict[str, Any]:
+    return accept_first_run(project, alias)
+
+
+def skip_golden_path_first_run(project: Path) -> dict[str, Any]:
+    return skip_first_run(project)
+
+
+def inspect_golden_path_state(project: Path) -> dict[str, Any]:
+    return inspect_golden_path_workspace_state(project)
+
+
+def reset_golden_path_state(project: Path, *, preview: bool = False, confirm: bool = False) -> dict[str, Any]:
+    return reset_golden_path_workspace_state(project, preview=preview, confirm=confirm)

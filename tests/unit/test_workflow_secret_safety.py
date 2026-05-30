@@ -135,3 +135,14 @@ def test_target_locator_allows_safe_staging_and_local_urls() -> None:
     assert validate_no_secret_values({"target": "https://app.example.test"}) == []
     assert validate_no_secret_values({"target": "https://app.example.test/profile/jordan-rivera/overview"}) == []
     assert validate_no_secret_values({"target": "http://localhost:5002"}) == []
+
+
+def test_golden_path_example_docs_do_not_include_secret_values() -> None:
+    from pathlib import Path
+
+    content = Path("docs/golden-path.md").read_text(encoding="utf-8")
+
+    assert "real-password" not in content.lower()
+    assert "bearer " not in content.lower()
+    assert "api_key=" not in content.lower()
+    assert validate_no_secret_values({"goldenPathDocs": content}) == []

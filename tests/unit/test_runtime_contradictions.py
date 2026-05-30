@@ -31,7 +31,7 @@ def test_weakened_gate_repairs_are_replan_required() -> None:
     assert all(item.blockedReason for item in recommendations)
 
 
-def test_selector_flow_and_coverage_repairs_require_confirmation() -> None:
+def test_selector_and_wait_auto_apply_but_coverage_mapping_requires_confirmation() -> None:
     recommendations = classify_repair_findings(
         [
             {"code": "strict-mode-violation", "message": "locator resolved to multiple elements"},
@@ -41,8 +41,9 @@ def test_selector_flow_and_coverage_repairs_require_confirmation() -> None:
     )
 
     assert [item.safeCategory for item in recommendations] == ["selector-ambiguity", "wait-strategy", "gateid-mapping"]
-    assert all(item.requiresUserDecision for item in recommendations)
-    assert all(item.blockedReason for item in recommendations)
+    assert [item.requiresUserDecision for item in recommendations] == [False, False, True]
+    assert [item.autonomy for item in recommendations] == ["auto-applied", "auto-applied", "confirmation-required"]
+    assert recommendations[-1].blockedReason
 
 
 def test_deterministic_contract_and_metadata_repairs_remain_auto_repairable() -> None:
