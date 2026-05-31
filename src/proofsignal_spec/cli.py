@@ -9,6 +9,7 @@ from typing import Any
 from . import __version__
 from .commands import author as author_command
 from .commands import check as check_command
+from .commands import core_setup as core_setup_command
 from .commands import init as init_command
 from .commands import integration as integration_command
 from .commands import list as list_command
@@ -86,6 +87,15 @@ def create_parser() -> argparse.ArgumentParser:
     core_version.add_argument("--project", default=".")
     core_version.add_argument("--core-cmd", help="ProofSignal Core executable, command string, or local Core repository path")
     core_version.add_argument("--json", action="store_true")
+    core_setup = core_sub.add_parser(
+        "setup",
+        help="Discover, verify, and persist an existing ProofSignal Core command",
+        description="Discover, verify, and persist an existing ProofSignal Core command",
+    )
+    core_setup.add_argument("--project", default=".")
+    core_setup.add_argument("--core-cmd", help="ProofSignal Core executable, command string, or local Core repository path")
+    core_setup.add_argument("--no-persist", action="store_true", help="Use an explicit Core command for this setup invocation without saving it")
+    core_setup.add_argument("--json", action="store_true")
 
     workflow_parser = subparsers.add_parser("workflow", help="Run guided ProofSignal workflows")
     workflow_sub = workflow_parser.add_subparsers(dest="workflow_command", required=True)
@@ -242,6 +252,8 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
         project = Path(args.project).resolve()
         if args.core_command == "version":
             return CoreAdapter(executable=args.core_cmd or get_core_command(project), cwd=project).version(), args.json
+        if args.core_command == "setup":
+            return core_setup_command.run(project, core_cmd=args.core_cmd, persist=not args.no_persist), args.json
     if command == "workflow":
         project = Path(args.project).resolve()
         if args.workflow_command == "run":
@@ -296,6 +308,7 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
         print(guide.get("terminalTitle", "ProofSignal Golden Path"))
         print("=======================")
         print(guide.get("terminalSummary", ""))
+        _emit_core_status(guide.get("coreStatus"))
         print("")
         print("Status markers:")
         for marker in guide.get("stageMarkers", []):
@@ -317,7 +330,9 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
         print("===============================")
         for item in result.get("upgraded", []):
             guide = item.get("onboardingGuide", {})
-            print(f"- {item.get('integration', {}).get('key')}: {guide.get('generatedGuidePath')} | next {guide.get('nextCommand')}")
+            core = guide.get("coreStatus", {})
+            core_marker = f" | Core {core.get('statusMarker')}" if core else ""
+            print(f"- {item.get('integration', {}).get('key')}: {guide.get('generatedGuidePath')} | next {guide.get('nextCommand')}{core_marker}")
         return
     if "useCases" in result:
         for item in result["useCases"]:
@@ -384,6 +399,9 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
         for blocker in result.get("blockers", []):
             print(f"blocker: {blocker.get('code')}: {blocker.get('message')}", file=sys.stderr)
         return
+    if result.get("schemaVersion") == "proofsignal-spec-core-setup/v1":
+        _emit_core_setup_result(result)
+        return
     if result.get("schemaVersion") == "proofsignal-spec-first-run-recommendation/v1":
         print("ProofSignal Golden Path")
         print("=======================")
@@ -420,8 +438,53 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
     print(json.dumps(result, indent=2, sort_keys=False))
 
 
+def _emit_core_status(core_status: dict[str, Any] | None) -> None:
+    if not core_status:
+        return
+    print("")
+    print(f"ProofSignal Core: {core_status.get('statusMarker')}")
+    marker = core_status.get("statusMarker")
+    if marker == "[READY]":
+        print(f"Source: {core_status.get('source')}")
+        print(f"Command: {core_status.get('coreCommand')}")
+    else:
+        print(core_status.get("summary", ""))
+    print(f"Next: {core_status.get('nextAction')}")
+
+
+def _emit_core_setup_result(result: dict[str, Any]) -> None:
+    markers = {
+        "ready": "[READY]",
+        "missing": "[BLOCKED]",
+        "incompatible": "[INCOMPATIBLE]",
+        "error": "[ERROR]",
+    }
+    print("ProofSignal Core setup")
+    print("======================")
+    print(f"Status: {markers.get(result.get('status'), '[ERROR]')}")
+    print(result.get("message", ""))
+    if result.get("source"):
+        print(f"Source: {result.get('source')}")
+    if result.get("coreCommand"):
+        print(f"Command: {result.get('coreCommand')}")
+    if result.get("persisted"):
+        print("Persisted: true")
+    if result.get("oneTime"):
+        print("One-time: true")
+    if result.get("attempts"):
+        print("Attempts:")
+        for attempt in result.get("attempts", []):
+            print(f"- {attempt.get('source')}: {attempt.get('status')} {attempt.get('command')}")
+    next_action = result.get("nextAction")
+    if result.get("status") != "ready":
+        next_action = result.get("recoveryCommand") or next_action
+    print(f"Next: {next_action}")
+
+
 def exit_code_for_result(command: str, result: dict[str, Any]) -> int:
     status = result.get("status")
+    if command == "core" and result.get("schemaVersion") == "proofsignal-spec-core-setup/v1":
+        return EXIT_SUCCESS
     if command == "check" and status != "passed":
         return EXIT_VALIDATION_FAILED
     if command == "repair" and result.get("repair", {}).get("approvalStatus") == "pending":

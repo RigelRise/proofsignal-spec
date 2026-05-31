@@ -138,8 +138,10 @@ def _blockers(structural: StructuralWorkspaceValidation, core: CoreReadiness) ->
         blockers.append(
             ReadinessBlocker(
                 code="core.missing",
-                message="ProofSignal Core is required for complete validation and browser execution.",
-                recoveryCommand="proofsignal-spec init --core-cmd /path/to/proofsignal",
+                category="environment",
+                message="ProofSignal Core is not configured or could not be found. Core setup is required for complete validation and browser execution.",
+                recoveryCommand="proofsignal-spec core setup --json",
+                repairable=False,
             )
         )
     elif core.status == "incompatible":

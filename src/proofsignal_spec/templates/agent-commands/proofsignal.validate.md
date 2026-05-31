@@ -11,7 +11,7 @@ Validate draft artifacts through ProofSignal Spec and Core.
 - If validation is blocked during the Golden Path first run, present a blocker stage card with category, primary evidence, recovery command, and next action.
 - Review `structuralValidation` before Core validation. If structural validation is blocked, report the exact finding and do not call Core.
 - If recoverable migration plans are present, ask the developer before invoking `proofsignal-spec workflow migrate --approve <migration-id> --json`.
-- If Core is missing, state that structural validation can still run, but ProofSignal Core is required for the complete ProofSignal validation and browser execution experience. Explain how to configure it with `proofsignal-spec init --core-cmd /path/to/proofsignal` or `PROOFSIGNAL_CORE_CMD`.
+- If Core is missing, state that structural validation can still run, but ProofSignal Core is required for the complete ProofSignal validation and browser execution experience. Route recovery to `proofsignal-spec core setup --json`; do not suggest artifact repair for this environment issue.
 - Delegate Core-dependent behavior through `proofsignal-spec validate <alias> --runtime-readiness`.
 - `runtime readiness verifies target resolution, target reachability, required runtime prerequisites, and Core authoring readiness` without executing the full browser validation flow.
 - Treat validation output as static readiness: `authoredEvidenceCoverageStatus` means required gates have mapped authored evidence, and `fullBrowserFlowExecuted: false` means the browser flow has not run yet.
@@ -24,4 +24,4 @@ Validate draft artifacts through ProofSignal Spec and Core.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through ProofSignal Spec CLI operations only.
 - Do not use `proofsignal-spec author`, nonexistent schema/scaffold commands, or manual file edits to repair workflow-managed artifacts. Route schema fixes through `/proofsignal-repair` or `proofsignal-spec workflow persist implement`.
 - Do not parse raw report internals or import private ProofSignal Core packages.
-- Suggest `/proofsignal-run` when readiness passes or `/proofsignal-repair` when actionable findings exist.
+- Suggest `/proofsignal-run` when readiness passes or `/proofsignal-repair` only when actionable artifact/runtime findings exist.

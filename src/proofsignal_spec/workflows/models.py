@@ -34,6 +34,7 @@ WORKFLOW_GUARDRAILS_CAPABILITY = "workflow.guardrails/v1"
 WORKFLOW_STAGE_PERSISTENCE_RESULT_SCHEMA = "proofsignal-spec-workflow-stage-persistence-result/v1"
 WORKFLOW_VALIDATION_READINESS_SCHEMA = "proofsignal-spec-validation-readiness/v1"
 WORKFLOW_MIGRATION_RESULT_SCHEMA = "proofsignal-spec-workflow-migration-result/v1"
+CORE_SETUP_SCHEMA = "proofsignal-spec-core-setup/v1"
 FIRST_RUN_RECOMMENDATION_SCHEMA = "proofsignal-spec-first-run-recommendation/v1"
 GUIDED_FIRST_RUN_SCHEMA = "proofsignal-spec-guided-first-run/v1"
 ONBOARDING_GUIDANCE_SCHEMA = "proofsignal-spec-onboarding-guidance/v1"
@@ -57,8 +58,10 @@ def clean(value: Any) -> Any:
 class ReadinessBlocker:
     code: str
     severity: Literal["warning", "error", "blocker"] = "blocker"
+    category: str | None = None
     message: str = ""
     recoveryCommand: str | None = None
+    repairable: bool | None = None
     documentationRef: str | None = None
 
     @classmethod
@@ -66,8 +69,10 @@ class ReadinessBlocker:
         return cls(
             code=str(data.get("code", "")),
             severity=data.get("severity", "blocker"),
+            category=data.get("category"),
             message=str(data.get("message", "")),
             recoveryCommand=data.get("recoveryCommand"),
+            repairable=data.get("repairable"),
             documentationRef=data.get("documentationRef"),
         )
 
@@ -336,6 +341,57 @@ class CoreReadiness:
         data = asdict(self)
         data["requiredOperationsByName"] = {item["operationName"]: item for item in self.requiredOperations}
         return clean(data)
+
+
+CoreCandidateSource = Literal["explicit", "workspace", "env", "path", "ancestor-sibling"]
+CoreCandidateStatus = Literal["missing", "available", "compatible", "incompatible", "error", "skipped"]
+CoreSetupStatus = Literal["ready", "missing", "incompatible", "error"]
+
+
+@dataclass(slots=True)
+class CoreCandidateAttempt:
+    source: CoreCandidateSource
+    command: str
+    status: CoreCandidateStatus
+    displayPath: str | None = None
+    terminal: bool = False
+    version: str | None = None
+    message: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class CoreSetupResult:
+    status: CoreSetupStatus
+    coreCommand: str | None = None
+    source: CoreCandidateSource | None = None
+    selectedCandidate: CoreCandidateAttempt | None = None
+    persisted: bool = False
+    oneTime: bool = False
+    version: str | None = None
+    contractVersion: str = PUBLIC_CONTRACT_VERSION
+    requiredOperations: list[dict[str, Any]] = field(
+        default_factory=lambda: [
+            {"operationName": name, "schemaName": schema, "schemaVersion": version}
+            for name, (schema, version) in REQUIRED_OPERATIONS.items()
+        ]
+    )
+    missingOperations: list[str] = field(default_factory=list)
+    incompatibleOperations: list[dict[str, Any]] = field(default_factory=list)
+    attempts: list[CoreCandidateAttempt] = field(default_factory=list)
+    message: str = ""
+    nextAction: str = ""
+    recoveryCommand: str = "proofsignal-spec core setup --json"
+    schemaVersion: str = CORE_SETUP_SCHEMA
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["selectedCandidate"] = self.selectedCandidate.to_dict() if self.selectedCandidate else None
+        data["attempts"] = [attempt.to_dict() for attempt in self.attempts]
+        data["requiredOperationsByName"] = {item["operationName"]: item for item in self.requiredOperations}
+        return data
 
 
 @dataclass(slots=True)
@@ -803,6 +859,7 @@ class OnboardingGuidance:
     nextCommand: str = "/proofsignal-specify"
     safetyBoundaries: list[str] = field(default_factory=list)
     successSemantics: list[str] = field(default_factory=list)
+    coreStatus: dict[str, Any] | None = None
     schemaVersion: str = ONBOARDING_GUIDANCE_SCHEMA
 
     @classmethod
@@ -818,6 +875,7 @@ class OnboardingGuidance:
             nextCommand=str(data.get("nextCommand", "/proofsignal-specify")),
             safetyBoundaries=[str(item) for item in data.get("safetyBoundaries", [])],
             successSemantics=[str(item) for item in data.get("successSemantics", [])],
+            coreStatus=data.get("coreStatus"),
         )
 
     def to_dict(self) -> dict[str, Any]:

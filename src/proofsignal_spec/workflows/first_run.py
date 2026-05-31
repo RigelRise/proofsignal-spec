@@ -463,7 +463,7 @@ def classify_first_run_blocker(code: str, *, alias: str | None = None) -> dict[s
         "incompatible-core": (
             "incompatible-core",
             "Configured ProofSignal Core does not expose the required public CLI JSON operations.",
-            "proofsignal-spec core version --json",
+            "proofsignal-spec core setup --json",
         ),
     }
     category, summary, next_action = catalog.get(code, ("unknown-blocker", "The first run is blocked.", "/proofsignal-list"))

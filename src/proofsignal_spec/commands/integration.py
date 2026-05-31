@@ -7,6 +7,7 @@ from proofsignal_spec.integrations.claude import ClaudeIntegration
 from proofsignal_spec.integrations.codex import CodexIntegration
 from proofsignal_spec.integrations.base import build_onboarding_guidance
 from proofsignal_spec.integrations.manifests import install_rendered_files, load_all_states, remove_integration, set_default
+from proofsignal_spec.workflows.core_setup import onboarding_core_status, run_core_setup
 
 INTEGRATIONS = {
     "codex": CodexIntegration,
@@ -22,12 +23,15 @@ def get_integration(key: str):
 
 def install(project: Path, key: str, force: bool = False, default: bool = True) -> dict[str, Any]:
     integration = get_integration(key)
+    core_setup_result = run_core_setup(project)
+    core_setup = core_setup_result.to_dict()
+    core_status = onboarding_core_status(core_setup_result)
     state = install_rendered_files(
         project,
         integration.key,
         integration.display_name,
         integration.invoke_style,
-        integration.render_files(project),
+        integration.render_files(project, core_status=core_status),
         force=force,
         default=default,
     )
@@ -36,8 +40,14 @@ def install(project: Path, key: str, force: bool = False, default: bool = True) 
         integration_key=integration.key,
         display_name=integration.display_name,
         generated_guide_path=guide_path,
+        core_status=core_status,
     ).to_dict()
-    return {"integration": state.to_dict(), "installedFiles": [item.path for item in state.managedFiles], "onboardingGuide": guide}
+    return {
+        "integration": state.to_dict(),
+        "installedFiles": [item.path for item in state.managedFiles],
+        "coreSetup": core_setup,
+        "onboardingGuide": guide,
+    }
 
 
 def list_integrations(project: Path) -> dict[str, Any]:

@@ -12,9 +12,9 @@ from .contracts import CompatibilityResult, normalize_status, validate_version_r
 from .errors import CoreExecutionError, CoreIncompatibleError, CoreMissingError
 
 CORE_SETUP_HINT = (
-    "For local development, pass `--core-cmd /path/to/proofsignal` during init "
-    "or export `PROOFSIGNAL_CORE_CMD=/path/to/proofsignal`, then verify with "
-    "`proofsignal-spec core version --json`."
+    "Run `proofsignal-spec core setup --json` to discover and persist an existing "
+    "ProofSignal Core command, or pass `--core-cmd /path/to/proofsignal` for a "
+    "one-off command."
 )
 
 

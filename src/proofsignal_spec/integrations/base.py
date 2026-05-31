@@ -23,7 +23,7 @@ class AgentIntegration:
     display_name: str
     invoke_style: str
 
-    def render_files(self, project: Path) -> list[RenderedFile]:
+    def render_files(self, project: Path, core_status: dict[str, object] | None = None) -> list[RenderedFile]:
         raise NotImplementedError
 
 
@@ -97,6 +97,7 @@ def build_onboarding_guidance(
     integration_key: str,
     display_name: str,
     generated_guide_path: str,
+    core_status: dict[str, object] | None = None,
 ) -> OnboardingGuidance:
     stage_markers = ["[RECOMMENDED]", "[ACCEPTED]", "[RUNNING]", "[REPAIR]", "[PASS]", "[SKIPPED]", "[BLOCKED]", "[FAIL]"]
     safety = [
@@ -130,6 +131,7 @@ def build_onboarding_guidance(
         nextCommand="/proofsignal-specify",
         safetyBoundaries=safety,
         successSemantics=success,
+        coreStatus=core_status,
     )
 
 
@@ -138,11 +140,24 @@ def render_onboarding_guide(guide: OnboardingGuidance) -> str:
     stages = "\n".join(f"- {item}" for item in data.get("stageMarkers", []))
     safety = "\n".join(f"- {item}" for item in data.get("safetyBoundaries", []))
     success = "\n".join(f"- {item}" for item in data.get("successSemantics", []))
+    core = data.get("coreStatus") or {}
+    core_lines = ""
+    if core:
+        source = f"\n- Source: {core.get('source')}" if core.get("source") else ""
+        command = f"\n- Command: `{core.get('coreCommand')}`" if core.get("coreCommand") else ""
+        core_lines = f"""## Core Runtime
+
+{core.get("guideText", core.get("summary", ""))}
+
+- Status: {core.get("statusMarker")} {core.get("summary", "")}{source}{command}
+- Next: {core.get("nextAction")}
+
+"""
     return f"""# ProofSignal Golden Path
 
 {data.get("terminalSummary", "")}
 
-## Next Step
+{core_lines}## Next Step
 
 Run `{data.get("nextCommand", "/proofsignal-specify")}`.
 

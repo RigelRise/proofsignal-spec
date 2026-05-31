@@ -21,7 +21,7 @@ class CodexIntegration(AgentIntegration):
     display_name = "Codex"
     invoke_style = "Codex skills under .agents/skills/proofsignal-*; invoke as /proofsignal-*"
 
-    def render_files(self, project: Path) -> list[RenderedFile]:
+    def render_files(self, project: Path, core_status: dict[str, object] | None = None) -> list[RenderedFile]:
         files = [
             RenderedFile("AGENTS.md", _context("AGENTS.md"), "codex/context", "context"),
         ]
@@ -29,6 +29,7 @@ class CodexIntegration(AgentIntegration):
             integration_key=self.key,
             display_name=self.display_name,
             generated_guide_path=".agents/PROOFSIGNAL_ONBOARDING.md",
+            core_status=core_status,
         )
         files.append(RenderedFile(".agents/PROOFSIGNAL_ONBOARDING.md", render_onboarding_guide(guide), "codex/onboarding-guide", "onboarding-guide"))
         files.extend(render_workflow_skill_files(".agents/skills", "Codex"))

@@ -8,6 +8,7 @@ Run a validated use case by alias.
 - If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal-spec` and regenerate the agent integration.
 - If the check does not allow continuation, name the missing artifact or decision, point to `nextCommand`, and stop.
 - If a Golden Path first run is blocked by target, credential, stale inventory, stale workspace, or Core compatibility, present a blocker stage card with the exact recovery command.
+- If Core is missing, classify it as environment setup and route recovery to `proofsignal-spec core setup --json`; do not suggest `/proofsignal-repair` for a missing Core executable.
 - Do not perform stage-specific work until the check allows it.
 - Resolve the alias to exactly one run request, main skill, and supporting reusable skills.
 - Use parameter values already declared in the run request. Prompt only for runtime values that are still missing.
@@ -23,5 +24,5 @@ Run a validated use case by alias.
 - For an accepted Golden Path first run, present the structured stage cards from output using clear separators, status marker, one-line summary, why it matters, primary evidence, repair details when present, and next action.
 - Treat `firstRunStatus: passed` and `firstRunStatus: repaired-passed` with `strictPass: true` as Golden Path success. Treat `skipped`, `failed`, `blocked`, and `incomplete` as distinct non-success states.
 - Record report and evidence references, not raw report internals.
-- Suggest `/proofsignal-repair` when execution fails or when Spec coverage reports runtime contradictions or incomplete planned gates.
+- Suggest `/proofsignal-repair` when execution fails with deterministic findings or when Spec coverage reports runtime contradictions or incomplete planned gates; missing Core should go to `proofsignal-spec core setup --json`.
 - Use `proofsignal-spec workflow inspect-golden-path-state --json` when the first-run state appears stale or interrupted.

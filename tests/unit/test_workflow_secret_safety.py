@@ -3,8 +3,10 @@ from __future__ import annotations
 import pytest
 
 from proofsignal_spec.workspace.repository import init_workspace
+from proofsignal_spec.workspace.repository import load_document
 from proofsignal_spec.workspace.validation import validate_use_case
 from proofsignal_spec.workspace.validation import validate_no_secret_values
+from proofsignal_spec.workflows.core_setup import run_core_setup
 from proofsignal_spec.workflows.stage_persistence import persist_stage
 from proofsignal_spec.workflows.repository import save_workflow_state
 from proofsignal_spec.workspace.models import RunProfile
@@ -165,3 +167,36 @@ def test_secret_named_fields_still_reject_real_secret_values() -> None:
     unsafe = {"apiToken": "abc123abc123abc123abc123abc123abc123"}
 
     assert validate_no_secret_values(unsafe)
+
+
+def test_core_setup_does_not_read_env_files(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    init_workspace(tmp_path)
+    (tmp_path / ".env.local").write_text(f"PROOFSIGNAL_CORE_CMD={FAKE_CORE}\n", encoding="utf-8")
+    monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
+    monkeypatch.setenv("PATH", "")
+
+    result = run_core_setup(tmp_path)
+
+    payload = result.to_dict()
+    assert payload["status"] == "missing"
+    assert str(FAKE_CORE) not in str(payload)
+    workspace = load_document(tmp_path / ".proofsignal/workspace.yaml")
+    assert "coreCommand" not in workspace
+
+
+def test_core_setup_does_not_persist_or_echo_credential_looking_command(tmp_path) -> None:
+    from tests.helpers import FAKE_CORE
+
+    init_workspace(tmp_path)
+    secret_command = f"{FAKE_CORE} --api-token super-secret-token-value"
+
+    result = run_core_setup(tmp_path, explicit_core_cmd=secret_command)
+
+    serialized = str(result.to_dict())
+    assert result.status == "error"
+    assert "super-secret-token-value" not in serialized
+    assert "[redacted]" in serialized
+    workspace = load_document(tmp_path / ".proofsignal/workspace.yaml")
+    assert "coreCommand" not in workspace

@@ -35,6 +35,10 @@ class ValidationReadinessContractTests(CliTestCase):
         self.assertEqual(result["coreReadiness"]["contractVersion"], "proofsignal-public-cli-json/v1")
         self.assertIn("report.inspect", result["coreReadiness"]["requiredOperationsByName"])
         self.assertIn("complete ProofSignal validation and browser execution experience", result["coreReadiness"]["message"])
+        blocker = next(item for item in result["blockers"] if item["code"] == "core.missing")
+        self.assertEqual(blocker["category"], "environment")
+        self.assertEqual(blocker["recoveryCommand"], "proofsignal-spec core setup --json")
+        self.assertFalse(blocker["repairable"])
 
     def test_core_compatibility_fields_are_reported_when_core_is_available(self) -> None:
         create_ready_use_case_workspace(self.project, "login")

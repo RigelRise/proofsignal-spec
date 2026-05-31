@@ -21,7 +21,7 @@ class ClaudeIntegration(AgentIntegration):
     display_name = "Claude Code"
     invoke_style = "Claude Code slash skills under .claude/skills/proofsignal-*; invoke as /proofsignal-*"
 
-    def render_files(self, project: Path) -> list[RenderedFile]:
+    def render_files(self, project: Path, core_status: dict[str, object] | None = None) -> list[RenderedFile]:
         files = [
             RenderedFile("CLAUDE.md", _context(), "claude/context", "context"),
         ]
@@ -29,6 +29,7 @@ class ClaudeIntegration(AgentIntegration):
             integration_key=self.key,
             display_name=self.display_name,
             generated_guide_path=".claude/PROOFSIGNAL_ONBOARDING.md",
+            core_status=core_status,
         )
         files.append(RenderedFile(".claude/PROOFSIGNAL_ONBOARDING.md", render_onboarding_guide(guide), "claude/onboarding-guide", "onboarding-guide"))
         files.extend(render_workflow_skill_files(".claude/skills", "Claude Code", include_argument_hint=True))

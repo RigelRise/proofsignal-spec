@@ -5,6 +5,7 @@ from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
 from proofsignal_spec.workflows.first_run import advance_guided_first_run_state
+from proofsignal_spec.workflows.readiness import core_readiness
 from proofsignal_spec.workflows.models import RepairConfirmation, RepairFeedback, SafeRepairApplication
 from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings, proposals_from_contradictions
 from proofsignal_spec.workflows.repository import load_golden_path_state, save_golden_path_state
@@ -28,6 +29,18 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
                 record.validation.get("findings", record.validation.get("core", {}).get("data", {}).get("findings", [])),
             )
         )
+    if not from_report and not findings:
+        core = core_readiness(project, core_cmd=core_cmd)
+        if core.status == "missing":
+            payload = {
+                "status": "blocked",
+                "findings": [],
+                "applications": [],
+                "rootCauseCategory": "environment-setup",
+                "message": "No deterministic artifact finding is available; ProofSignal Core setup is required.",
+                "nextCommand": "proofsignal-spec core setup --json",
+            }
+            return {"alias": alias, **payload, "repair": payload}
     contradictions = []
     if record.lastRun and isinstance(record.lastRun.get("runtimeContradictions"), list):
         contradictions = list(record.lastRun.get("runtimeContradictions") or [])

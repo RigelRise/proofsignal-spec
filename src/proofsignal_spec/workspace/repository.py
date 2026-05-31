@@ -158,6 +158,42 @@ def get_core_command(project: Path) -> str | None:
     return workspace.get("coreCommand")
 
 
+def get_core_configuration(project: Path) -> dict[str, Any]:
+    workspace = load_document(layout.workspace_root(project) / layout.WORKSPACE_FILE, default={}) or {}
+    return {
+        key: workspace.get(key)
+        for key in [
+            "coreCommand",
+            "coreCommandSource",
+            "coreConfiguredAt",
+            "coreLastVerifiedAt",
+            "coreVersion",
+        ]
+        if workspace.get(key) is not None
+    }
+
+
+def save_core_configuration(project: Path, core_cmd: str, *, source: str | None = None, version: str | None = None) -> dict[str, Any]:
+    root = layout.workspace_root(project)
+    workspace_path = root / layout.WORKSPACE_FILE
+    if not workspace_path.exists():
+        workspace = init_workspace(project)
+    else:
+        workspace = load_document(workspace_path, default={}) or {}
+    timestamp = now_iso()
+    if workspace.get("coreCommand") != core_cmd or not workspace.get("coreConfiguredAt"):
+        workspace["coreConfiguredAt"] = timestamp
+    workspace["coreCommand"] = core_cmd
+    if source:
+        workspace["coreCommandSource"] = source
+    workspace["coreLastVerifiedAt"] = timestamp
+    if version:
+        workspace["coreVersion"] = version
+    workspace["updatedAt"] = timestamp
+    save_document(workspace_path, workspace)
+    return workspace
+
+
 def load_registry(project: Path) -> dict[str, Any]:
     return load_document(
         layout.registry_path(project),
