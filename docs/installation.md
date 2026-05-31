@@ -1,40 +1,40 @@
 # Installation
 
-ProofSignal Spec follows the same Git-based tool installation model as Spec Kit.
-Install the CLI from the official repository instead of relying on a package with
-the same name on PyPI.
+ProofSignal uses the public `proofsignal` CLI as the user-facing command.
+`proofsignal-spec` remains a backward-compatible alias for existing projects and
+generated guidance.
 
 ## Persistent Installation
 
 Install a tagged release:
 
 ```sh
-uv tool install proofsignal-spec --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
+uv tool install proofsignal --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
 ```
 
 Install the latest commit from the default branch:
 
 ```sh
-uv tool install proofsignal-spec --from git+https://github.com/<ORG>/proofsignal-spec.git
+uv tool install proofsignal --from git+https://github.com/<ORG>/proofsignal-spec.git
 ```
 
 Verify:
 
 ```sh
-proofsignal-spec --version
-proofsignal-spec --help
+proofsignal --version
+proofsignal --help
 ```
 
 Upgrade:
 
 ```sh
-uv tool install proofsignal-spec --force --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
+uv tool install proofsignal --force --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
 ```
 
 Uninstall:
 
 ```sh
-uv tool uninstall proofsignal-spec
+uv tool uninstall proofsignal
 ```
 
 ## One-Time Usage
@@ -42,22 +42,22 @@ uv tool uninstall proofsignal-spec
 Run without installing permanently:
 
 ```sh
-uvx --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z proofsignal-spec init --here --integration codex
+uvx --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z proofsignal init --here --integration codex
 ```
 
 ## Initialize A Real Project
 
 ```sh
 cd /path/to/target-project
-proofsignal-spec init --here --integration codex
-proofsignal-spec check
-proofsignal-spec workflow info proofsignal-use-case --json
+proofsignal init --here --integration codex
+proofsignal check
+proofsignal workflow info proofsignal-use-case --json
 ```
 
 For Claude Code:
 
 ```sh
-proofsignal-spec init --here --integration claude
+proofsignal init --here --integration claude
 ```
 
 After initialization, supported agents expose staged workflow commands using the
@@ -76,68 +76,79 @@ native skill invocation style:
 /proofsignal-repair
 ```
 
-Installed workflow commands use `proofsignal-spec workflow check <stage> --json`
-before stage-specific work. After upgrading ProofSignal Spec, rerun integration
+Installed workflow commands use `proofsignal workflow check <stage> --json`
+before stage-specific work. After upgrading ProofSignal, rerun integration
 installation so regenerated agent skills receive the latest prerequisite
 guidance:
 
 ```sh
-proofsignal-spec integration upgrade codex
-proofsignal-spec integration upgrade claude
+proofsignal integration upgrade codex
+proofsignal integration upgrade claude
 ```
 
 Use the same deterministic check outside an agent conversation:
 
 ```sh
-proofsignal-spec workflow check specify --json
-proofsignal-spec workflow check plan --alias login --json
+proofsignal workflow check specify --json
+proofsignal workflow check plan --alias login --json
 ```
 
 The deterministic runner is available without an active agent conversation:
 
 ```sh
-proofsignal-spec workflow run proofsignal-use-case \
+proofsignal workflow run proofsignal-use-case \
   --goal "Validate that a QA user can sign in." \
   --alias login \
   --integration codex
 
-proofsignal-spec workflow status
-proofsignal-spec workflow resume <run-id>
+proofsignal workflow status
+proofsignal workflow resume <run-id>
 ```
 
 Existing legacy `proofsignal-spec-*` skills may be left in place for projects
 that already installed the earlier thin CLI flow. New installations prefer
 `/proofsignal-*` workflow commands.
 
-## Configure ProofSignal Core
+## Managed Runtime And Development Overrides
 
-If the `proofsignal` executable is already on `PATH`, ProofSignal Spec can use
-it directly. In local development, you do not need a shell command named
-`proofsignal`; pass the Core repository directory during initialization:
+The normal onboarding path automatically ensures a compatible private runtime:
 
 ```sh
-proofsignal-spec init --here --integration codex \
+proofsignal init --here --integration codex
+```
+
+When no override or verified cache exists, ProofSignal asks for the email unlock
+token from the official unlock flow, exchanges it for a signed entitlement
+receipt, verifies the official manifest/artifact, and stores the runtime in the
+user cache. The target project's `.proofsignal/` workspace stays portable and
+does not store raw tokens, signed URLs, credentials, screenshots, browser
+storage, or private runtime contents.
+
+For local development, CI, or offline diagnostics, pass the private Core
+repository directory during initialization:
+
+```sh
+proofsignal init --here --integration codex \
   --core-cmd /path/to/proofsignal
 ```
 
 That value is stored in `.proofsignal/workspace.yaml` and reused by `check`,
-`validate`, `run`, `repair`, and `core version`.
-
-Do not run `proofsignal version --json` unless you have installed a separate
-Core executable with that name. Use ProofSignal Spec's readiness command:
+`validate`, `run`, `repair`, and `core version`. Diagnostic setup remains
+available:
 
 ```sh
-proofsignal-spec core version --json
+proofsignal core setup --core-cmd /path/to/proofsignal --json
+proofsignal core version --json
 ```
 
 You can also configure the command through an environment variable:
 
 ```sh
 export PROOFSIGNAL_CORE_CMD=/path/to/proofsignal
-proofsignal-spec core version --json
+proofsignal core version --json
 ```
 
-When the value points to a directory with `package.json`, ProofSignal Spec runs:
+When the value points to a directory with `package.json`, ProofSignal runs:
 
 ```sh
 npm --silent --prefix <repo> run proofsignal:dev -- <proofsignal-args>
@@ -154,7 +165,7 @@ export PROOFSIGNAL_CORE_CMD="npm --silent --prefix /path/to/proofsignal run proo
 If the repository has not been published yet:
 
 ```sh
-uv tool install proofsignal-spec --from /path/to/proofsignal-spec
+uv tool install proofsignal --from /path/to/proofsignal-spec
 ```
 
 For development inside this repository:

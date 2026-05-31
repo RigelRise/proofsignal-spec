@@ -7,6 +7,7 @@ from proofsignal_spec.integrations.claude import ClaudeIntegration
 from proofsignal_spec.integrations.codex import CodexIntegration
 from proofsignal_spec.integrations.base import build_onboarding_guidance
 from proofsignal_spec.integrations.manifests import install_rendered_files, load_all_states, remove_integration, set_default
+from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.core_setup import onboarding_core_status, run_core_setup
 
 INTEGRATIONS = {
@@ -23,9 +24,10 @@ def get_integration(key: str):
 
 def install(project: Path, key: str, force: bool = False, default: bool = True) -> dict[str, Any]:
     integration = get_integration(key)
-    core_setup_result = run_core_setup(project)
+    runtime = ensure_core_runtime(project, context="integration")
+    core_setup_result = run_core_setup(project, persist=False)
     core_setup = core_setup_result.to_dict()
-    core_status = onboarding_core_status(core_setup_result)
+    core_status = _runtime_onboarding_status(runtime.to_dict()) if runtime.source in {"managed-cache", "managed-download"} else onboarding_core_status(core_setup_result)
     state = install_rendered_files(
         project,
         integration.key,
@@ -46,6 +48,8 @@ def install(project: Path, key: str, force: bool = False, default: bool = True) 
         "integration": state.to_dict(),
         "installedFiles": [item.path for item in state.managedFiles],
         "coreSetup": core_setup,
+        "runtime": runtime.to_dict(),
+        "managedRuntimeReadiness": runtime.to_dict(),
         "onboardingGuide": guide,
     }
 
@@ -75,3 +79,25 @@ def upgrade(project: Path, key: str | None = None, force: bool = False) -> dict[
 def remove(project: Path, key: str, force: bool = False) -> dict[str, Any]:
     preserved = remove_integration(project, key, force=force)
     return {"removed": key, "preserved": preserved}
+
+
+def _runtime_onboarding_status(runtime: dict[str, Any]) -> dict[str, Any]:
+    if runtime.get("status") == "ready":
+        return {
+            "statusMarker": "[READY]",
+            "summary": "ProofSignal runtime is ready.",
+            "source": runtime.get("source"),
+            "coreCommand": runtime.get("runtimeCommand"),
+            "selectedCandidate": None,
+            "nextAction": "Continue with /proofsignal-specify.",
+            "guideText": "ProofSignal runtime is ready. Validation and browser execution can use the verified runtime automatically.",
+        }
+    return {
+        "statusMarker": "[BLOCKED]",
+        "summary": runtime.get("message", "ProofSignal runtime is not ready."),
+        "source": runtime.get("source"),
+        "coreCommand": None,
+        "selectedCandidate": None,
+        "nextAction": runtime.get("nextAction", "Provide an email unlock token or configure an override."),
+        "guideText": "Workspace and integration setup can continue. Full validation and browser execution require a verified ProofSignal runtime.",
+    }

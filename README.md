@@ -1,50 +1,51 @@
 # ProofSignal Spec
 
-ProofSignal Spec is a project-local CLI and coding-agent interface for writing,
-validating, running, and repairing ProofSignal browser use cases.
+ProofSignal Spec is the public/open interface layer for writing, validating,
+running, and repairing ProofSignal browser use cases. The user-facing command is
+`proofsignal`; `proofsignal-spec` remains a backward-compatible alias.
 
 The CLI creates a `.proofsignal/` workspace in a target repository, installs
 Codex or Claude Code agent skills, stores use case records, resolves aliases to
 explicit ProofSignal run requests and reusable skills, and delegates validation,
-run execution, and report inspection to ProofSignal Core through the public
-`proofsignal-public-cli-json/v1` CLI JSON contract.
+run execution, and report inspection to the private ProofSignal runtime through
+the public `proofsignal-public-cli-json/v1` CLI JSON contract.
 
 ## Installation
 
 Install directly from the official Git repository, pinned to a release tag:
 
 ```sh
-uv tool install proofsignal-spec --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
+uv tool install proofsignal --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
 ```
 
 Or install the latest commit from the default branch:
 
 ```sh
-uv tool install proofsignal-spec --from git+https://github.com/<ORG>/proofsignal-spec.git
+uv tool install proofsignal --from git+https://github.com/<ORG>/proofsignal-spec.git
 ```
 
 Then verify the tool:
 
 ```sh
-proofsignal-spec --version
+proofsignal --version
 ```
 
 Upgrade by reinstalling from the desired tag:
 
 ```sh
-uv tool install proofsignal-spec --force --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
+uv tool install proofsignal --force --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
 ```
 
 Run once without a persistent install:
 
 ```sh
-uvx --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z proofsignal-spec init --here --integration codex
+uvx --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z proofsignal init --here --integration codex
 ```
 
 If this repository has not been published yet, install from a local checkout:
 
 ```sh
-uv tool install proofsignal-spec --from /path/to/proofsignal-spec
+uv tool install proofsignal --from /path/to/proofsignal-spec
 ```
 
 For development:
@@ -56,19 +57,19 @@ python -m pip install -e ".[dev]"
 ## Common Commands
 
 ```sh
-proofsignal-spec init --here --integration codex
-proofsignal-spec check
-proofsignal-spec workflow info proofsignal-use-case --json
-proofsignal-spec workflow check specify --json
-proofsignal-spec workflow run proofsignal-use-case --goal "Validate that a QA user can sign in." --alias login
-proofsignal-spec workflow status
-proofsignal-spec author login "Validate that a QA user can sign in."
-proofsignal-spec list
-proofsignal-spec validate login --json
-proofsignal-spec run login --profile normal --json
-proofsignal-spec repair login --json
-proofsignal-spec integration install claude
-proofsignal-spec core version --json
+proofsignal init --here --integration codex
+proofsignal check
+proofsignal workflow info proofsignal-use-case --json
+proofsignal workflow check specify --json
+proofsignal workflow run proofsignal-use-case --goal "Validate that a QA user can sign in." --alias login
+proofsignal workflow status
+proofsignal author login "Validate that a QA user can sign in."
+proofsignal list
+proofsignal validate login --json
+proofsignal run login --profile normal --json
+proofsignal repair login --json
+proofsignal integration install claude
+proofsignal core version --json
 ```
 
 ## Guided Workflow Commands
@@ -101,9 +102,9 @@ Every staged `/proofsignal-*` command starts from the deterministic prerequisite
 check instead of guessing local state:
 
 ```sh
-proofsignal-spec workflow check specify --json
-proofsignal-spec workflow check plan --alias login --json
-proofsignal-spec workflow check run --alias login --json
+proofsignal workflow check specify --json
+proofsignal workflow check plan --alias login --json
+proofsignal workflow check run --alias login --json
 ```
 
 `/proofsignal-specify` requires `.proofsignal/workflows/understanding.md` and
@@ -124,12 +125,14 @@ has been supplied.
 Validation supports a bounded runtime readiness check:
 
 ```sh
-proofsignal-spec validate login --runtime-readiness --json
+proofsignal validate login --runtime-readiness --json
 ```
 
 Runtime readiness checks target resolution, syntactic target reachability,
-required runtime prerequisites, Core authoring readiness, and Core public
-contract compatibility without running the full browser flow.
+required runtime prerequisites, runtime authoring readiness, and public contract
+compatibility without running the full browser flow. If no override is
+configured, ProofSignal attempts to use a verified managed runtime from the user
+cache or acquire one from the official manifest after email-token unlock.
 
 ## Golden Path
 
@@ -147,39 +150,47 @@ See [docs/golden-path.md](docs/golden-path.md) for Golden Path semantics,
 recovery guidance, and [docs/release-readiness.md](docs/release-readiness.md)
 for demo and release criteria.
 
-## ProofSignal Core Configuration
+## Managed Runtime And Development Overrides
 
-For a published Core executable on `PATH`, no extra configuration is needed:
+The happy path does not require a separate Core install:
 
 ```sh
-proofsignal-spec check
+proofsignal init --here --integration codex
+proofsignal check
 ```
 
+During onboarding, ProofSignal may ask for the email unlock token issued by the
+official unlock flow. The raw token is process-local only; it is exchanged for a
+signed entitlement receipt in the user cache and is not written to
+`.proofsignal/`, generated guides, blockers, logs, or cache metadata. Managed
+runtime packages are cached outside the target project, by default under
+`~/.cache/proofsignal/core/<version>/<platform>/`.
+
 For local development with the private ProofSignal Core repository, pass the
-repository directory directly. ProofSignal Spec will run Core through
+repository directory directly. ProofSignal will run Core through
 `npm --silent --prefix <repo> run proofsignal:dev -- ...`.
 
 ```sh
-proofsignal-spec init --here --integration codex \
+proofsignal init --here --integration codex \
   --core-cmd /path/to/proofsignal
 
-proofsignal-spec core version --json
-proofsignal-spec check
+proofsignal core version --json
+proofsignal check
 ```
 
 Do not run `proofsignal version --json` in this setup unless you have installed
-a separate Core executable named `proofsignal`. Use `proofsignal-spec core
-version --json` to verify the configured Core.
+a separate internal runtime executable intentionally named that way. Use
+`proofsignal core version --json` to verify the configured runtime.
 
 You can also use an explicit command string:
 
 ```sh
 export PROOFSIGNAL_CORE_CMD="npm --silent --prefix /path/to/proofsignal run proofsignal:dev --"
-proofsignal-spec check
+proofsignal check
 ```
 
-`PROOFSIGNAL_CORE_CMD` is read by `proofsignal-spec`; it does not create a shell
-command named `proofsignal`.
+`PROOFSIGNAL_CORE_CMD` is read by `proofsignal`; it does not create a shell
+command named `proofsignal-core`.
 
 ## Workspace Rules
 
@@ -197,8 +208,9 @@ command named `proofsignal`.
 ## Core Boundary
 
 ProofSignal Spec does not import private ProofSignal Core packages or inspect
-undocumented report internals. Core-dependent workflows check `proofsignal
-version --json` and require the `proofsignal-public-cli-json/v1` operations:
+undocumented report internals. Runtime-dependent workflows check the selected
+runtime with `proofsignal-core version --json` through the adapter and require
+the `proofsignal-public-cli-json/v1` operations:
 `version`, `authoring-check`, `run`, and `report.inspect`.
 
 Repair classifies validation and runtime feedback before proposing edits.

@@ -20,8 +20,12 @@ evidence, and provide the exact next action without weakening validation intent.
   credential values.
 - Stale inventory or guidance: rerun repository understanding or regenerate the
   agent integration.
-- Incompatible Core: verify `proofsignal-spec core version --json` and upgrade
-  the component that is behind the public CLI JSON contract.
+- Managed runtime blocked: run `proofsignal init --here --integration codex` to
+  complete email-token unlock and managed runtime acquisition. Use `proofsignal
+  core setup --core-cmd <path>` only for diagnostics, offline environments, and
+  development overrides.
+- Incompatible Core: verify `proofsignal core version --json` and upgrade the
+  component that is behind the public CLI JSON contract.
 - Install guidance missing or stale: rerun `proofsignal-spec integration install
   <codex|claude>` or `proofsignal-spec integration upgrade` to regenerate local
   onboarding guidance.
@@ -35,9 +39,9 @@ evidence, and provide the exact next action without weakening validation intent.
 Use read-only inspection before cleanup:
 
 ```sh
-proofsignal-spec workflow inspect-golden-path-state --json
-proofsignal-spec workflow reset-golden-path-state --preview --json
-proofsignal-spec workflow reset-golden-path-state --confirm --json
+proofsignal workflow inspect-golden-path-state --json
+proofsignal workflow reset-golden-path-state --preview --json
+proofsignal workflow reset-golden-path-state --confirm --json
 ```
 
 Reset removes only Golden Path-owned state and preserves unrelated use cases,
@@ -50,7 +54,7 @@ user-authored files.
 - `repaired-passed`: safe repair, revalidation, rerun, and strict pass; also
   first-run success.
 - `skipped`: the user declined Golden Path; manual selection continues.
-- `blocked`: required runtime data, host permission, safety boundary, or Core
+- `blocked`: required runtime data, host permission, safety boundary, or runtime
   compatibility stopped automatic continuation.
 - `failed` or `incomplete`: the first run did not prove all required gates; use
   repair or replan with clear product feedback.

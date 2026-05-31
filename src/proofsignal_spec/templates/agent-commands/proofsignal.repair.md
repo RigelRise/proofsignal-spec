@@ -3,14 +3,14 @@
 Repair invalid or failed use cases through the workflow.
 
 - Start by running `proofsignal-spec workflow check repair --alias <alias> --json`.
-- Use the installed `proofsignal-spec` executable directly. Do not use `npx proofsignal-spec`.
+- Prefer the public `proofsignal` CLI for user-facing commands. The backward-compatible `proofsignal-spec` executable remains valid in generated guardrails. Do not use `npx proofsignal-spec`.
 - Continue only when the result includes `requiredCapability: workflow.guardrails/v1` and `supported: true`.
 - If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal-spec` and regenerate the agent integration.
 - If the check does not allow continuation, name the missing artifact or decision, point to `nextCommand`, and stop.
-- If the only blocker is missing ProofSignal Core, classify it as environment setup, report that repair is not applicable without a deterministic finding, and point to `proofsignal-spec core setup --json`.
+- If the only blocker is missing ProofSignal runtime, classify it as environment setup, report that repair is not applicable without a deterministic finding, and point to `proofsignal init --here --integration codex` for happy-path unlock or `proofsignal core setup --core-cmd <path>` for diagnostics/offline/development overrides.
 - If repair is blocked by stale workspace state or ambiguous ownership, inspect Golden Path state before proposing cleanup.
 - Do not perform stage-specific work until the check allows it.
-- Use Core validation findings or public report inspection through `proofsignal-spec repair <alias>`.
+- Use validation findings or public report inspection through `proofsignal repair <alias>` (or the backward-compatible `proofsignal-spec repair <alias>`).
 - Do not edit artifacts when no deterministic validation/run finding exists; missing Core must remain a no-op repair result.
 - Classify the root cause before proposing edits. Name whether the finding is a missing prerequisite, environment recovery, wait/flow issue, selector issue, data/product-state issue, coverage-mapping issue, or unsupported feedback.
 - Treat missing coverage from an aborted Core/browser run as diagnostic. Required gates remain required unless clarify/plan or an explicit gate-intent confirmation changes product intent.

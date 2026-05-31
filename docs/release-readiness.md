@@ -15,6 +15,8 @@ demo or ready to release.
 - Missing understanding is auto-prepared when safe and resumes recommendation
   without manual restart.
 - Integration install prints next steps and writes local onboarding guidance.
+- First-time onboarding can ensure a compatible private runtime through the
+  public `proofsignal` command without a separate manual Core install.
 - Common blockers provide an exact next action instead of suggesting fake/demo
   fallbacks.
 - Workflow output uses clear pass/fail language and distinguishes skipped,
@@ -38,11 +40,13 @@ demo or ready to release.
   failure, and conditional data examples are covered.
 - Workflow output: recommendation, acceptance, run, repair, blockers, and final
   result can be rendered as stage cards.
-- Troubleshooting: missing target, unreachable target, stale state, credentials,
-  and Core compatibility have recovery actions.
+- Troubleshooting: missing target, unreachable target, stale state,
+  credentials, managed runtime setup, and Core compatibility have recovery
+  actions.
 - Secret safety: no credential values, browser storage, cookies, or raw
   sensitive payloads are persisted or documented.
-- Core compatibility: Core access stays behind public CLI JSON operations.
+- Core compatibility: private runtime access stays behind public CLI JSON
+  operations.
 - Regression coverage: focused tests and the full suite pass before release.
 
 ## 010 Golden Path Onboarding Acceptance

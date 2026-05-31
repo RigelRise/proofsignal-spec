@@ -4,15 +4,15 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.first_run import advance_guided_first_run_state
-from proofsignal_spec.workflows.readiness import core_readiness
 from proofsignal_spec.workflows.models import RepairConfirmation, RepairFeedback, SafeRepairApplication
 from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings, proposals_from_contradictions
 from proofsignal_spec.workflows.repository import load_golden_path_state, save_golden_path_state
 from proofsignal_spec.workflows.stage_cards import repair_stage_card
 from proofsignal_spec.workspace import layout
 from proofsignal_spec.workspace.models import RepairSession
-from proofsignal_spec.workspace.repository import get_core_command, load_use_case, now_iso, save_document, save_use_case
+from proofsignal_spec.workspace.repository import load_use_case, now_iso, save_document, save_use_case
 
 
 def run(project: Path, alias: str, from_report: str | None = None, approve: bool = False, core_cmd: str | None = None) -> dict[str, Any]:
@@ -20,7 +20,11 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
     source = "report-inspection" if from_report else "authoring-validation"
     findings: list[dict[str, Any]]
     if from_report:
-        result = CoreAdapter(executable=core_cmd or get_core_command(project), cwd=project).inspect_report(Path(from_report))
+        managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, context="repair")
+        if managed_runtime.status != "ready":
+            payload = _runtime_setup_blocked_payload(managed_runtime)
+            return {"alias": alias, **payload, "repair": payload}
+        result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).inspect_report(Path(from_report))
         findings = list(result.get("data", {}).get("findings", []))
     else:
         findings = list(
@@ -30,17 +34,11 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
             )
         )
     if not from_report and not findings:
-        core = core_readiness(project, core_cmd=core_cmd)
-        if core.status == "missing":
-            payload = {
-                "status": "blocked",
-                "findings": [],
-                "applications": [],
-                "rootCauseCategory": "environment-setup",
-                "message": "No deterministic artifact finding is available; ProofSignal Core setup is required.",
-                "nextCommand": "proofsignal-spec core setup --json",
-            }
+        managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, context="repair")
+        if managed_runtime.status != "ready":
+            payload = _runtime_setup_blocked_payload(managed_runtime)
             return {"alias": alias, **payload, "repair": payload}
+
     contradictions = []
     if record.lastRun and isinstance(record.lastRun.get("runtimeContradictions"), list):
         contradictions = list(record.lastRun.get("runtimeContradictions") or [])
@@ -148,7 +146,7 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
             confirmationRequired=item.requiresUserDecision,
             revalidationStatus="not-run",
             rerunStatus="not-run",
-            nextAction=f"Run `proofsignal-spec validate {alias} --runtime-readiness --json`, then rerun.",
+            nextAction=f"Run `proofsignal validate {alias} --runtime-readiness --json`, then rerun.",
         ).to_dict()
         for item in recommendations
     ]
@@ -158,7 +156,7 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
             autonomy=item.autonomy,
             before=item.summary or "Runtime feedback identified a repairable issue.",
             after=item.action if item.autonomy == "auto-applied" else item.blockedReason or item.action,
-            next_action=f"Run `proofsignal-spec validate {alias} --runtime-readiness --json`, then rerun.",
+            next_action=f"Run `proofsignal validate {alias} --runtime-readiness --json`, then rerun.",
         )
         for item in recommendations
         if item.autonomy == "auto-applied"
@@ -175,7 +173,7 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
         repairFeedback=repair_feedback,
         stageCards=stage_cards,
         approvalStatus="applied" if auto_applicable and not blocked else ("conflict" if approve and blocked else ("approved" if approve else "pending")),
-        nextAction=f"Run `proofsignal-spec validate {alias} --runtime-readiness --json`, then rerun.",
+        nextAction=f"Run `proofsignal validate {alias} --runtime-readiness --json`, then rerun.",
     )
     if auto_applicable and not blocked:
         session.appliedAt = now_iso()
@@ -197,6 +195,21 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
     return {"alias": alias, "repair": session.to_dict()}
 
 
+def _runtime_setup_blocked_payload(managed_runtime: Any) -> dict[str, Any]:
+    runtime_payload = managed_runtime.to_dict()
+    is_core_missing = any(blocker.get("code") == "core.missing" for blocker in runtime_payload.get("blockers", []))
+    return {
+        "status": "blocked",
+        "findings": [],
+        "applications": [],
+        "rootCauseCategory": "environment-setup",
+        "message": "No deterministic artifact finding is available; Core setup is required." if is_core_missing else "No deterministic artifact finding is available; ProofSignal runtime setup is required.",
+        "managedRuntimeReadiness": runtime_payload,
+        "blockers": runtime_payload.get("blockers", []),
+        "nextCommand": managed_runtime.nextAction,
+    }
+
+
 def _update_first_run_repair_state(project: Path, alias: str, repair_feedback: list[dict[str, Any]], approval_status: str) -> None:
     state = load_golden_path_state(project)
     if state.get("selectedCandidate") != alias:
@@ -206,7 +219,7 @@ def _update_first_run_repair_state(project: Path, alias: str, repair_feedback: l
         state["firstRunStatus"] = "repairing"
         state["stage"] = "repairing"
         state["status"] = "repairing"
-        state["resumeCommand"] = f"proofsignal-spec validate {alias} --runtime-readiness --json"
+        state["resumeCommand"] = f"proofsignal validate {alias} --runtime-readiness --json"
     save_golden_path_state(project, state)
     if approval_status == "applied":
         advance_guided_first_run_state(
@@ -214,7 +227,7 @@ def _update_first_run_repair_state(project: Path, alias: str, repair_feedback: l
             alias,
             stage="repairing",
             first_run_status="repairing",
-            resume_command=f"proofsignal-spec validate {alias} --runtime-readiness --json",
+            resume_command=f"proofsignal validate {alias} --runtime-readiness --json",
             summary="Safe repair was applied; revalidation and rerun are required before reporting success.",
             status_marker="[REPAIR]",
         )

@@ -5,6 +5,8 @@ from typing import Any
 
 from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
 from proofsignal_spec.core.adapter import CoreAdapter, core_status
+from proofsignal_spec.core.errors import CoreMissingError
+from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.browser_authoring import resolve_effective_profile_settings
 from proofsignal_spec.workflows.evidence import extract_core_runtime_evidence, normalize_planned_gates
 from proofsignal_spec.workflows.first_run import classify_first_run_status, golden_path_state, update_golden_path_run_state
@@ -14,7 +16,7 @@ from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_
 from proofsignal_spec.workflows.stage_cards import run_result_card
 from proofsignal_spec.workflows.repository import load_artifact_plan
 from proofsignal_spec.workspace.models import ArtifactReference, RunHistoryEntry
-from proofsignal_spec.workspace.repository import get_core_command, load_document, load_use_case, now_iso, record_run, resolve_artifacts
+from proofsignal_spec.workspace.repository import load_document, load_use_case, now_iso, record_run, resolve_artifacts
 
 
 def run(
@@ -31,6 +33,22 @@ def run(
         available = ", ".join(item.name for item in record.profiles) or "normal"
         raise ValueError(f"Unknown profile for {alias}: {profile_name}. Available profiles: {available}.")
     record, run_request, main_skill, skills = resolve_artifacts(project, alias)
+    managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, context="run")
+    if managed_runtime.status != "ready":
+        if any(blocker.code == "core.missing" for blocker in managed_runtime.blockers):
+            raise CoreMissingError(f"{managed_runtime.message} proofsignal-spec core setup --json")
+        return {
+            "alias": alias,
+            "status": "blocked",
+            "coreStatus": "blocked",
+            "coverageStatus": "not-run",
+            "coreBrowserStatus": "blocked",
+            "specCoverageStatus": "not-run",
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "blockers": [blocker.to_dict() for blocker in managed_runtime.blockers],
+            "reason": managed_runtime.message,
+            "nextAction": managed_runtime.nextAction,
+        }
     profile_settings_model = resolve_effective_profile_settings(profile, slow_mo_override=slow_mo_override)
     runtime_values = resolve_runtime_inputs(
         record.runtimeInputs,
@@ -38,7 +56,7 @@ def run(
         provided=_run_request_parameters(run_request),
     )
     output_dir = project / ".proofsignal" / "runs" / alias
-    result = CoreAdapter(executable=core_cmd or get_core_command(project), cwd=project).run(
+    result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).run(
         run_request,
         main_skill,
         skills,
@@ -153,6 +171,7 @@ def run(
         "skillSelectionStatus": skill_selection_status,
         "profile": profile_name,
         "profileSettings": profile_settings,
+        "managedRuntimeReadiness": managed_runtime.to_dict(),
         "gateCoverage": gate_coverage,
         "missingRequiredGates": missing_required_gates,
         "partialCoverage": partial_coverage,

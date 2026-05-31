@@ -4,12 +4,13 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.first_run import advance_guided_first_run_state
 from proofsignal_spec.workflows.models import WORKFLOW_VALIDATION_READINESS_SCHEMA, CoreReadiness, ReadinessBlocker, ValidationReadinessSummary
 from proofsignal_spec.workflows.authoring_coherence import evaluate_persisted_coherence
 from proofsignal_spec.workflows.readiness import structural_validation, validation_readiness
 from proofsignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
-from proofsignal_spec.workspace.repository import get_core_command, resolve_artifacts, update_validation
+from proofsignal_spec.workspace.repository import resolve_artifacts, update_validation
 
 
 def _selected_main_skill(record_main_skill: Any, main_skill: Path) -> dict[str, Any]:
@@ -38,9 +39,34 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
                 ).to_dict()
             ],
         }
-    readiness = validation_readiness(project, alias=alias, core_cmd=core_cmd)
-    if readiness.get("status") != "ready":
-        return readiness
+    managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, context="validate")
+    if managed_runtime.status != "ready":
+        result = {
+            "schemaVersion": WORKFLOW_VALIDATION_READINESS_SCHEMA,
+            "capabilitySchemaVersion": "proofsignal-spec-workflow-capability/v1",
+            "requiredCapability": "workflow.guardrails/v1",
+            "supported": True,
+            "stage": "validate",
+            "alias": alias,
+            "status": "blocked",
+            "structuralValidation": structural.to_dict(),
+            "coreReadiness": CoreReadiness(
+                status="incompatible" if managed_runtime.status == "incompatible" else "missing",
+                coreCommand=managed_runtime.runtimeCommand,
+                version=managed_runtime.runtimeVersion,
+                contractVersion=managed_runtime.contractVersion or "",
+                missingOperations=managed_runtime.missingOperations,
+                incompatibleOperations=managed_runtime.incompatibleOperations,
+                message=managed_runtime.message,
+            ).to_dict(),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "blockers": [
+                ReadinessBlocker.from_dict(blocker.to_dict()).to_dict()
+                for blocker in managed_runtime.blockers
+            ],
+        }
+        update_validation(project, alias, result)
+        return result
     record, run_request, main_skill, skills = resolve_artifacts(project, alias)
     coherence = evaluate_persisted_coherence(project, alias)
     if coherence.status == "blocked":
@@ -61,7 +87,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         }
         update_validation(project, alias, result)
         return result
-    result = CoreAdapter(executable=core_cmd or get_core_command(project), cwd=project).authoring_check(run_request, main_skill, skills, runtime_readiness=runtime_readiness)
+    result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).authoring_check(run_request, main_skill, skills, runtime_readiness=runtime_readiness)
     runtime_check = evaluate_runtime_readiness(project, alias, authoring_result=result) if runtime_readiness else None
     wrapped = {
         "alias": alias,
@@ -69,6 +95,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
         "skillSelectionStatus": "matched",
         "authoringCoherence": coherence.to_dict(),
+        "managedRuntimeReadiness": managed_runtime.to_dict(),
         "core": result,
     }
     authored_evidence_status = _authored_evidence_coverage_status(coherence.to_dict().get("gateCoverage", []))

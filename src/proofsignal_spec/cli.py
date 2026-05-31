@@ -27,8 +27,8 @@ EXIT_APPROVAL_REQUIRED = 4
 EXIT_INPUT_MISSING = 5
 
 
-def create_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="proofsignal-spec", description="ProofSignal Spec CLI")
+def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog=prog or _program_name(), description="ProofSignal CLI")
     parser.add_argument("--version", action="store_true", help="Show version and exit")
     subparsers = parser.add_subparsers(dest="command")
 
@@ -511,3 +511,10 @@ def _load_payload(args: argparse.Namespace) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Workflow persistence payload must be an object.")
     return payload
+
+
+def _program_name() -> str:
+    name = Path(sys.argv[0]).name
+    if name in {"proofsignal", "proofsignal-spec"}:
+        return name
+    return "proofsignal"

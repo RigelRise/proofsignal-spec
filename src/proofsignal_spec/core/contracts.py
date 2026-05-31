@@ -12,6 +12,15 @@ REQUIRED_OPERATIONS = {
     "report.inspect": ("proofsignal.report-inspection/v1", 1),
 }
 
+REQUIRED_OPERATION_METADATA = [
+    {
+        "operationName": name,
+        "schemaName": schema,
+        "schemaVersion": version,
+    }
+    for name, (schema, version) in REQUIRED_OPERATIONS.items()
+]
+
 ALLOWED_CORE_STATUSES = {"passed", "failed", "blocked", "error"}
 
 
@@ -50,14 +59,7 @@ class CompatibilityResult:
 
 
 def public_contract_summary() -> dict[str, Any]:
-    operations = [
-        {
-            "operationName": name,
-            "schemaName": schema,
-            "schemaVersion": version,
-        }
-        for name, (schema, version) in REQUIRED_OPERATIONS.items()
-    ]
+    operations = list(REQUIRED_OPERATION_METADATA)
     return {
         "contractVersion": PUBLIC_CONTRACT_VERSION,
         "requiredOperations": operations,

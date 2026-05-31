@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proofsignal-spec"
-version = "0.7.0"
+version = "0.8.0"
 description = "Project-local CLI and coding-agent interface for ProofSignal use cases."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,6 +23,7 @@ dependencies = [
 dev = ["pytest>=8"]
 
 [project.scripts]
+proofsignal = "proofsignal_spec.cli:main"
 proofsignal-spec = "proofsignal_spec.cli:main"
 
 [tool.setuptools.packages.find]
