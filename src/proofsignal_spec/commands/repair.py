@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.workflows.first_run import advance_guided_first_run_state
 from proofsignal_spec.workflows.models import RepairConfirmation, RepairFeedback, SafeRepairApplication
 from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings, proposals_from_contradictions
 from proofsignal_spec.workflows.repository import load_golden_path_state, save_golden_path_state
@@ -190,4 +191,17 @@ def _update_first_run_repair_state(project: Path, alias: str, repair_feedback: l
     state["repairFeedback"] = repair_feedback
     if approval_status == "applied":
         state["firstRunStatus"] = "repairing"
+        state["stage"] = "repairing"
+        state["status"] = "repairing"
+        state["resumeCommand"] = f"proofsignal-spec validate {alias} --runtime-readiness --json"
     save_golden_path_state(project, state)
+    if approval_status == "applied":
+        advance_guided_first_run_state(
+            project,
+            alias,
+            stage="repairing",
+            first_run_status="repairing",
+            resume_command=f"proofsignal-spec validate {alias} --runtime-readiness --json",
+            summary="Safe repair was applied; revalidation and rerun are required before reporting success.",
+            status_marker="[REPAIR]",
+        )

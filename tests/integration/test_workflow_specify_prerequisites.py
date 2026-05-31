@@ -34,6 +34,9 @@ class WorkflowSpecifyPrerequisitesTests(CliTestCase):
         result = check_prerequisites(self.project, "specify")
         assert result["status"] == "ready"
         assert result["recommendedCandidate"]["candidateAlias"] == "profile"
+        assert result["candidateSelectionSource"] == "workflow.recommend-first-run"
+        assert result["firstRunRecommendationCommand"] == "proofsignal-spec workflow recommend-first-run --json"
+        assert result["candidateUseCases"][0]["candidateAlias"] == "profile"
 
     def test_specify_stale_refresh_accept_and_decline_paths(self) -> None:
         create_stale_understanding_workspace(self.project)

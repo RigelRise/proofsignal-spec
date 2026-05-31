@@ -291,6 +291,34 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
     if json_output:
         print(json.dumps(result, indent=2, sort_keys=False))
         return
+    if result.get("onboardingGuide"):
+        guide = result["onboardingGuide"]
+        print(guide.get("terminalTitle", "ProofSignal Golden Path"))
+        print("=======================")
+        print(guide.get("terminalSummary", ""))
+        print("")
+        print("Status markers:")
+        for marker in guide.get("stageMarkers", []):
+            print(f"- {marker}")
+        print("")
+        print("Safety:")
+        for item in guide.get("safetyBoundaries", []):
+            print(f"- {item}")
+        print("")
+        print("Success:")
+        for item in guide.get("successSemantics", []):
+            print(f"- {item}")
+        print("")
+        print(f"Guide: {guide.get('generatedGuidePath')}")
+        print(f"Next: {guide.get('nextCommand')}")
+        return
+    if result.get("upgraded") and any(item.get("onboardingGuide") for item in result.get("upgraded", [])):
+        print("ProofSignal integration upgrade")
+        print("===============================")
+        for item in result.get("upgraded", []):
+            guide = item.get("onboardingGuide", {})
+            print(f"- {item.get('integration', {}).get('key')}: {guide.get('generatedGuidePath')} | next {guide.get('nextCommand')}")
+        return
     if "useCases" in result:
         for item in result["useCases"]:
             print(f"{item.get('alias', '-'):<24} {item.get('status', item.get('runnableStatus', '-')):<10} {item.get('title', '')}")
@@ -329,6 +357,15 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
             print(f"warning: {warning}", file=sys.stderr)
         if result.get("nextCommand"):
             print(f"Next: {result['nextCommand']}")
+        if result.get("onboardingPreparation"):
+            prep = result["onboardingPreparation"]
+            print("Onboarding preparation:")
+            print(f"- status: {prep.get('status')}")
+            print(f"- approval required: {str(prep.get('approvalRequired')).lower()}")
+            if prep.get("summary"):
+                print(f"- summary: {prep.get('summary')}")
+            if result.get("resumeCommand"):
+                print(f"Resume: {result['resumeCommand']}")
         return
     if result.get("schemaVersion") == "proofsignal-spec-workflow-stage-persistence-result/v1":
         print(f"Stage: {result['stage']}")
@@ -346,6 +383,39 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
         print(f"Core: {result.get('coreReadiness', {}).get('status')}")
         for blocker in result.get("blockers", []):
             print(f"blocker: {blocker.get('code')}: {blocker.get('message')}", file=sys.stderr)
+        return
+    if result.get("schemaVersion") == "proofsignal-spec-first-run-recommendation/v1":
+        print("ProofSignal Golden Path")
+        print("=======================")
+        print(f"Status: {result.get('status')}")
+        if result.get("recommendedCandidate"):
+            candidate = result["recommendedCandidate"]
+            print(f"[RECOMMENDED] {candidate.get('alias')}")
+            print(result.get("recommendationText", ""))
+            if candidate.get("idealCriteriaMissing"):
+                print(f"Missing ideal criteria: {', '.join(candidate.get('idealCriteriaMissing', []))}")
+        if result.get("branchRelevantCandidates"):
+            print("Branch-relevant candidates:")
+            for item in result["branchRelevantCandidates"]:
+                print(f"- {item.get('candidateAlias')}: {item.get('branchRelevanceReason', 'branch relevant')}")
+        if result.get("acceptancePrompt"):
+            print(result["acceptancePrompt"])
+        if result.get("nextAction"):
+            print(f"Next: {result['nextAction']}")
+        return
+    if result.get("schemaVersion") == "proofsignal-spec-guided-first-run/v1":
+        print("ProofSignal Guided First Run")
+        print("============================")
+        print(f"Status: {result.get('status')}")
+        print(f"Stage: {result.get('stage')}")
+        if result.get("selectedCandidate"):
+            print(f"Selected: {result.get('selectedCandidate')}")
+        for card in result.get("stageCards", []):
+            print(f"{card.get('statusMarker')} {card.get('title')}: {card.get('summary')}")
+        if result.get("resumeCommand"):
+            print(f"Resume: {result['resumeCommand']}")
+        elif result.get("nextAction"):
+            print(f"Next: {result['nextAction']}")
         return
     print(json.dumps(result, indent=2, sort_keys=False))
 

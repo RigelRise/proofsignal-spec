@@ -31,19 +31,22 @@ class FirstRunRecommendationContractTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         data = json.loads(out)
-        self.assertEqual(data["schemaVersion"], "proofsignal-spec-first-run-recommendation/v1")
+        self.assertEqual(data["schemaVersion"], "proofsignal-spec-guided-first-run/v1")
         self.assertEqual(data["status"], "accepted")
-        self.assertEqual(data["selectedCandidate"]["alias"], PUBLIC_ALIAS)
+        self.assertEqual(data["stage"], "accepted")
+        self.assertEqual(data["selectedCandidate"], PUBLIC_ALIAS)
+        self.assertEqual(data["selectedCandidateDetails"]["alias"], PUBLIC_ALIAS)
         self.assertEqual(data["stageCards"][0]["statusMarker"], "[ACCEPTED]")
-        self.assertIn(f"run {PUBLIC_ALIAS}", data["nextAction"])
+        self.assertIn(PUBLIC_ALIAS, data["resumeCommand"])
 
     def test_skip_first_run_json_contract(self) -> None:
         code, out, err = self.cli(["workflow", "skip-first-run", "--project", str(self.project), "--json"])
 
         self.assertEqual(code, 0, err)
         data = json.loads(out)
-        self.assertEqual(data["schemaVersion"], "proofsignal-spec-first-run-recommendation/v1")
+        self.assertEqual(data["schemaVersion"], "proofsignal-spec-guided-first-run/v1")
         self.assertEqual(data["status"], "skipped")
+        self.assertEqual(data["stage"], "skipped")
         self.assertIn("not success", data["skipMeaning"])
         self.assertEqual(data["stageCards"][0]["statusMarker"], "[SKIPPED]")
         self.assertIn("nextAction", data)

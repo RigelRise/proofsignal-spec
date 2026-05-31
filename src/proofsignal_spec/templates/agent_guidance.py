@@ -18,6 +18,10 @@ REAL_TARGET_FIRST_RECOMMENDATION = (
     "Recommend the simplest stable real-target validation as the first run and state that accepting it is highly recommended; "
     "do not use fake/demo targets as a user-facing fallback"
 )
+MISSING_UNDERSTANDING_AUTO_PREPARE = (
+    "When specify reports missing repository understanding with auto-prepare metadata, run safe understanding, avoid sensitive files, "
+    "then resume the original specify flow without requiring the user to manually restart"
+)
 PUBLIC_WORKFLOW_CONTRACT_BOUNDARY = (
     "Use the public workflow contract from `proofsignal-spec workflow info proofsignal-use-case --json` "
     "and `stagePayloadContracts`; Do not inspect installed package source to infer payload schemas"

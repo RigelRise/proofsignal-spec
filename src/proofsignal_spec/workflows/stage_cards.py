@@ -30,7 +30,19 @@ def build_stage_card(
     )
 
 
-def recommendation_card(alias: str, rationale: str, *, next_action: str) -> dict[str, Any]:
+def recommendation_card(
+    alias: str,
+    rationale: str,
+    *,
+    next_action: str,
+    missing_criteria: list[str] | None = None,
+    branch_relevant_candidates: list[str] | None = None,
+) -> dict[str, Any]:
+    refs = []
+    if missing_criteria:
+        refs.append(f"Missing ideal criteria: {', '.join(missing_criteria)}")
+    if branch_relevant_candidates:
+        refs.append(f"Branch-relevant candidates shown separately: {', '.join(branch_relevant_candidates)}")
     return build_stage_card(
         stage_id="first-run-recommendation",
         title="Recommended First Run",
@@ -39,6 +51,7 @@ def recommendation_card(alias: str, rationale: str, *, next_action: str) -> dict
         why_it_matters="Starting with the simplest stable real target lets the user see ProofSignal work end to end.",
         primary_evidence=rationale,
         next_action=next_action,
+        secondary_refs=refs,
     ).to_dict()
 
 

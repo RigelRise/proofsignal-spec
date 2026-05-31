@@ -6,13 +6,14 @@ from proofsignal_spec.templates.agent_guidance import (
     BROWSER_TARGET_BEFORE_PLANNING,
     CONFIRMED_REPAIR_BOUNDARY,
     FIRST_RUN_STAGE_CARD_GUIDANCE,
+    MISSING_UNDERSTANDING_AUTO_PREPARE,
     PUBLIC_WORKFLOW_CONTRACT_BOUNDARY,
     REAL_TARGET_FIRST_RECOMMENDATION,
     RUNTIME_READINESS_BOUNDARY,
     SAFE_MECHANICAL_REPAIR_GUIDANCE,
 )
 
-from .base import AgentIntegration, RenderedFile, render_workflow_skill_files
+from .base import AgentIntegration, RenderedFile, build_onboarding_guidance, render_onboarding_guide, render_workflow_skill_files
 
 
 class ClaudeIntegration(AgentIntegration):
@@ -24,6 +25,12 @@ class ClaudeIntegration(AgentIntegration):
         files = [
             RenderedFile("CLAUDE.md", _context(), "claude/context", "context"),
         ]
+        guide = build_onboarding_guidance(
+            integration_key=self.key,
+            display_name=self.display_name,
+            generated_guide_path=".claude/PROOFSIGNAL_ONBOARDING.md",
+        )
+        files.append(RenderedFile(".claude/PROOFSIGNAL_ONBOARDING.md", render_onboarding_guide(guide), "claude/onboarding-guide", "onboarding-guide"))
         files.extend(render_workflow_skill_files(".claude/skills", "Claude Code", include_argument_hint=True))
         for name in ["author", "refine", "plan", "check", "list", "validate", "run", "repair"]:
             files.append(
@@ -56,6 +63,7 @@ status, gates, and resume.
 
 Golden Path first runs are agent-chat first. {REAL_TARGET_FIRST_RECOMMENDATION}.
 {FIRST_RUN_STAGE_CARD_GUIDANCE}.
+{MISSING_UNDERSTANDING_AUTO_PREPARE}.
 """
 
 
@@ -80,6 +88,7 @@ Work inside the target repository and use the `.proofsignal/` workspace.
 - Validate through `proofsignal-spec validate <alias>` before marking ready.
 - {PUBLIC_WORKFLOW_CONTRACT_BOUNDARY}.
 - {FIRST_RUN_STAGE_CARD_GUIDANCE}.
+- {MISSING_UNDERSTANDING_AUTO_PREPARE}.
 - {SAFE_MECHANICAL_REPAIR_GUIDANCE}.
 - Never persist credential values.
 

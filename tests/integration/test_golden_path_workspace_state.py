@@ -20,6 +20,8 @@ class GoldenPathWorkspaceStateIntegrationTests(CliTestCase):
         payload = json.loads(inspect_out)
         self.assertEqual(payload["status"], "ready")
         self.assertIn(PUBLIC_ALIAS, payload["resumeHint"])
+        self.assertEqual(payload["firstRunState"]["selectedCandidate"], PUBLIC_ALIAS)
+        self.assertEqual(payload["firstRunState"]["stage"], "accepted")
 
         reset_code, reset_out, reset_err = self.cli(["workflow", "reset-golden-path-state", "--project", str(self.project), "--confirm", "--json"])
         self.assertEqual(reset_code, 0, reset_err)

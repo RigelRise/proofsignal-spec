@@ -5,6 +5,7 @@ from typing import Any
 
 from proofsignal_spec.integrations.claude import ClaudeIntegration
 from proofsignal_spec.integrations.codex import CodexIntegration
+from proofsignal_spec.integrations.base import build_onboarding_guidance
 from proofsignal_spec.integrations.manifests import install_rendered_files, load_all_states, remove_integration, set_default
 
 INTEGRATIONS = {
@@ -30,7 +31,13 @@ def install(project: Path, key: str, force: bool = False, default: bool = True) 
         force=force,
         default=default,
     )
-    return {"integration": state.to_dict(), "installedFiles": [item.path for item in state.managedFiles]}
+    guide_path = ".agents/PROOFSIGNAL_ONBOARDING.md" if integration.key == "codex" else ".claude/PROOFSIGNAL_ONBOARDING.md"
+    guide = build_onboarding_guidance(
+        integration_key=integration.key,
+        display_name=integration.display_name,
+        generated_guide_path=guide_path,
+    ).to_dict()
+    return {"integration": state.to_dict(), "installedFiles": [item.path for item in state.managedFiles], "onboardingGuide": guide}
 
 
 def list_integrations(project: Path) -> dict[str, Any]:

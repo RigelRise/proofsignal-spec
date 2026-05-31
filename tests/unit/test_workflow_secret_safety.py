@@ -146,3 +146,22 @@ def test_golden_path_example_docs_do_not_include_secret_values() -> None:
     assert "bearer " not in content.lower()
     assert "api_key=" not in content.lower()
     assert validate_no_secret_values({"goldenPathDocs": content}) == []
+
+
+def test_understanding_public_metadata_values_are_not_secret_looking() -> None:
+    safe = {
+        "git": {"hash": "eb58ef8111e8e6bfd090303ef417ef0a6c7609a6", "branch": "feature/multi-actor"},
+        "generatedGitHash": "eb58ef8111e8e6bfd090303ef417ef0a6c7609a6",
+        "path": "app/(public)/page.tsx",
+        "route": "/project/[path]",
+        "candidateAlias": "project-multi-actor-add-people",
+        "sourceInventoryItems": ["route-project"],
+    }
+
+    assert validate_no_secret_values(safe) == []
+
+
+def test_secret_named_fields_still_reject_real_secret_values() -> None:
+    unsafe = {"apiToken": "abc123abc123abc123abc123abc123abc123"}
+
+    assert validate_no_secret_values(unsafe)

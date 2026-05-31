@@ -172,6 +172,11 @@ def _render_understanding_metadata(metadata: dict[str, Any]) -> list[str]:
         f"Generated At: {metadata.get('generatedAt', 'Not recorded')}",
         f"Generated Git Hash: {metadata.get('generatedGitHash') or 'Unavailable'}",
         f"Git Available: {str(metadata.get('gitAvailable', False)).lower()}",
+        f"Inventory Status: {metadata.get('inventoryStatus', 'Not recorded')}",
+        f"Source Traceability Status: {metadata.get('sourceTraceabilityStatus', 'Not recorded')}",
+        f"Candidate Count: {metadata.get('candidateCount', 'Not recorded')}",
+        f"Trivial Candidate Count: {metadata.get('trivialCandidateCount', 'Not recorded')}",
+        f"Partial Inventory Reasons: {', '.join(metadata.get('partialInventoryReasons', [])) or 'None'}",
         f"Stale Reasons: {', '.join(metadata.get('staleReasons', [])) or 'None'}",
     ]
 

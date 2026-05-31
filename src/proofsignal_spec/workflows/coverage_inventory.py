@@ -76,19 +76,29 @@ def _normalize_inventory_payload(payload: dict[str, Any]) -> dict[str, Any]:
         payload["uncoveredAreas"] = payload["uncovered"]
     items = payload.get("items", [])
     item_ids = [str(item.get("id")) for item in items if isinstance(item, dict) and item.get("id")]
+    normalized_traceability = False
     normalized_candidates: list[dict[str, Any]] = []
     for candidate in payload.get("candidateUseCases", []):
         if not isinstance(candidate, dict):
             continue
         normalized = dict(candidate)
         if not normalized.get("sourceInventoryItems"):
-            normalized["sourceInventoryItems"] = _candidate_sources(normalized, items, item_ids)
+            sources = _candidate_sources(normalized, items, item_ids)
+            normalized["sourceInventoryItems"] = sources
+            normalized_traceability = bool(sources) or normalized_traceability
         if not normalized.get("rationale"):
             normalized["rationale"] = normalized.get("description") or normalized.get("behavior") or "Candidate inferred from repository understanding."
         if not normalized.get("behavior"):
             normalized["behavior"] = normalized.get("description") or normalized.get("title") or normalized.get("alias", "")
         normalized_candidates.append(normalized)
     payload["candidateUseCases"] = normalized_candidates
+    if payload.get("candidateUseCases"):
+        if all(candidate.get("sourceInventoryItems") for candidate in normalized_candidates):
+            payload["sourceTraceabilityStatus"] = "normalized" if normalized_traceability else payload.get("sourceTraceabilityStatus", "complete")
+        else:
+            payload["sourceTraceabilityStatus"] = "missing"
+    else:
+        payload.setdefault("sourceTraceabilityStatus", "complete")
     return payload
 
 
@@ -116,6 +126,9 @@ def merge_inventory(existing: dict[str, Any] | None, incoming: dict[str, Any] | 
         generatedAt=update.generatedAt or current.generatedAt,
         generatedGitHash=update.generatedGitHash or current.generatedGitHash,
         gitAvailable=update.gitAvailable or current.gitAvailable,
+        sourceFilesVisited=update.sourceFilesVisited or current.sourceFilesVisited,
+        sourceTraceabilityStatus=update.sourceTraceabilityStatus or current.sourceTraceabilityStatus,
+        partialInventoryReasons=sorted({*current.partialInventoryReasons, *update.partialInventoryReasons}),
         passes=passes,
         items=list(items_by_id.values()),
         candidateUseCases=list(candidates_by_alias.values()),
@@ -155,13 +168,21 @@ def _validate_inventory(inventory: CoverageInventory) -> None:
         if not candidate.rationale:
             raise ValueError(f"Candidate validation use case {candidate.alias} requires rationale.")
         if not candidate.sourceInventoryItems:
-            raise ValueError(f"Candidate validation use case {candidate.alias} requires sourceInventoryItems.")
+            raise ValueError(
+                f"Candidate validation use case {candidate.alias} requires sourceInventoryItems. "
+                "Add sourceInventoryItems referencing coverageInventory.items[].id, or include a candidate surface/path/sourceRefs that can be normalized."
+            )
         missing = [item for item in candidate.sourceInventoryItems if item not in item_ids]
         if missing:
-            raise ValueError(f"Candidate validation use case {candidate.alias} references unknown inventory items: {', '.join(missing)}.")
+            raise ValueError(
+                f"Candidate validation use case {candidate.alias} references unknown inventory items: {', '.join(missing)}. "
+                "Use values from coverageInventory.items[].id."
+            )
 
 
 def _computed_status(inventory: CoverageInventory) -> str:
+    if inventory.partialInventoryReasons:
+        return "partial"
     if inventory.staleAreas or any(item.inventoryStatus == "stale" for item in inventory.items):
         return "stale"
     if inventory.uncoveredAreas:
@@ -181,14 +202,47 @@ def _priority_rank(priority: str) -> int:
 
 
 def _candidate_sources(candidate: dict[str, Any], items: list[Any], item_ids: list[str]) -> list[str]:
-    surface = str(candidate.get("surface") or candidate.get("targetSurface") or "")
+    explicit_refs = _string_list(candidate.get("sourceRefs") or candidate.get("sourceContext") or candidate.get("sourceFiles"))
+    explicit_refs.extend(_string_list(candidate.get("sourceInventoryItems")))
+    for ref in explicit_refs:
+        if ref in item_ids:
+            return [ref]
+    surface = str(candidate.get("surface") or candidate.get("targetSurface") or candidate.get("route") or candidate.get("path") or "")
+    alias = str(candidate.get("alias") or candidate.get("candidateAlias") or "")
+    text = " ".join([surface, alias, str(candidate.get("behavior") or ""), str(candidate.get("description") or "")]).lower()
     for item in items:
         if not isinstance(item, dict):
             continue
         path = str(item.get("path") or "")
-        if path and surface and (path == surface or path in surface or surface in path):
+        item_id = str(item.get("id") or "")
+        source_refs = _string_list(item.get("sourceRefs"))
+        if item_id and item_id in explicit_refs:
+            return [item_id]
+        if source_refs and any(ref and any(ref == candidate_ref or ref in candidate_ref or candidate_ref in ref for candidate_ref in explicit_refs) for ref in source_refs):
+            return [item_id]
+        if path and surface and (_surface_matches(path, surface) or path in surface or surface in path):
             return [str(item.get("id"))]
-    return item_ids[:1]
+        if item_id and item_id.lower() in text:
+            return [item_id]
+    return item_ids[:1] if len(item_ids) == 1 else []
+
+
+def _surface_matches(item_path: str, candidate_surface: str) -> bool:
+    if item_path == candidate_surface:
+        return True
+    if "[" not in item_path and "]" not in item_path:
+        return False
+    pattern = re.escape(item_path)
+    pattern = re.sub(r"\\\[[^\\]+\\\]", r".+", pattern)
+    return re.match(f"^{pattern}$", candidate_surface) is not None
+
+
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if item]
+    if value:
+        return [str(value)]
+    return []
 
 
 def _slug(value: str) -> str:

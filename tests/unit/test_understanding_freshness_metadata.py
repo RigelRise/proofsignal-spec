@@ -49,13 +49,15 @@ def test_declined_refresh_records_only_reason_codes(tmp_path) -> None:
     assert understanding["refreshDecision"]["decision"] == "declined"
 
 
-def test_current_understanding_returns_candidates_and_recommended_candidate(tmp_path) -> None:
+def test_current_understanding_returns_candidates_and_first_run_recommendation_command(tmp_path) -> None:
     create_current_understanding_workspace(tmp_path, candidates=[sample_candidate("checkout")])
     result = check_prerequisites(tmp_path, "specify")
     assert result["status"] == "ready"
     assert result["canProceed"] is True
     assert result["candidateUseCases"][0]["candidateAlias"] == "checkout"
     assert result["recommendedCandidate"]["candidateAlias"] == "checkout"
+    assert result["candidateSelectionSource"] == "workflow.recommend-first-run"
+    assert result["firstRunRecommendationCommand"] == "proofsignal-spec workflow recommend-first-run --json"
     assert result["projectOverview"]
 
 

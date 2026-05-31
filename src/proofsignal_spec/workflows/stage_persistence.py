@@ -21,6 +21,7 @@ from .models import (
     ManagedWorkspaceArtifact,
     ReadinessBlocker,
     StagePersistenceResult,
+    UnderstandingOnboardingResult,
 )
 from .prerequisites import current_git_hash
 from .repository import (
@@ -144,6 +145,10 @@ def _persist_understanding(project: Path, content: dict[str, Any], scope: str) -
     generated_git_hash = content.get("generatedGitHash") or inventory.generatedGitHash or current_git_hash(project)
     git_available = bool(generated_git_hash) or bool(content.get("gitAvailable"))
 
+    partial_reasons = list(inventory.partialInventoryReasons or content.get("partialInventoryReasons", []))
+    source_traceability_status = inventory.sourceTraceabilityStatus
+    trivial_candidate_count = _trivial_candidate_count(inventory)
+    source_files_visited = inventory.sourceFilesVisited or int(content.get("sourceFilesVisited", 0) or 0)
     context.update(
         {
             "repositorySummary": content["repositorySummary"],
@@ -161,6 +166,11 @@ def _persist_understanding(project: Path, content: dict[str, Any], scope: str) -
                 "staleReasons": [],
                 "inventoryStatus": inventory.status,
                 "inventoryScope": scope,
+                "sourceFilesVisited": source_files_visited,
+                "candidateCount": len(inventory.candidateUseCases),
+                "trivialCandidateCount": trivial_candidate_count,
+                "sourceTraceabilityStatus": source_traceability_status,
+                "partialInventoryReasons": partial_reasons,
                 "recommendedFollowUpScope": _recommended_follow_up_scope(inventory.status, scope),
             },
         }
@@ -172,6 +182,17 @@ def _persist_understanding(project: Path, content: dict[str, Any], scope: str) -
 
     save_product_context(project, context)
     write_global_understanding(project, context)
+    understanding_onboarding = UnderstandingOnboardingResult(
+        status=inventory.status if inventory.status in {"complete", "partial", "stale"} else "partial",
+        scope=scope,
+        generatedGitHash=generated_git_hash,
+        sourceFilesVisited=source_files_visited,
+        candidateCount=len(inventory.candidateUseCases),
+        trivialCandidateCount=trivial_candidate_count,
+        sourceTraceabilityStatus=source_traceability_status,
+        partialInventoryReasons=partial_reasons,
+        nextAction="/proofsignal-specify" if inventory.status == "complete" else "/proofsignal-understand --scope continue",
+    ).to_dict()
     return StagePersistenceResult(
         stage="understand",
         status="persisted",
@@ -180,7 +201,8 @@ def _persist_understanding(project: Path, content: dict[str, Any], scope: str) -
             _artifact(project, layout.workflow_global_understanding_path(project), "understanding"),
         ],
         updatedRecords=["product-context", "coverage-inventory"],
-        warnings=_inventory_warnings(inventory.status),
+        warnings=_inventory_warnings(inventory.status, partial_reasons=partial_reasons),
+        understandingOnboarding=understanding_onboarding,
         nextCommand="/proofsignal-specify",
     )
 
@@ -445,6 +467,12 @@ def _payload_content(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _normalize_understanding_content(content: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(content)
+    git = normalized.get("git") if isinstance(normalized.get("git"), dict) else {}
+    if git:
+        normalized.setdefault("generatedGitHash", git.get("hash") or git.get("sha") or git.get("commit"))
+        normalized.setdefault("gitAvailable", bool(git.get("available", True)))
+        if git.get("branch"):
+            normalized.setdefault("gitBranch", git.get("branch"))
     if "localStartInstructions" not in normalized and "startInstructions" in normalized:
         start = normalized["startInstructions"]
         if isinstance(start, dict):
@@ -460,6 +488,12 @@ def _normalize_understanding_content(content: dict[str, Any]) -> dict[str, Any]:
         inventory["candidateUseCases"] = normalized["candidateUseCases"]
     if normalized.get("generatedGitHash") and not inventory.get("generatedGitHash"):
         inventory["generatedGitHash"] = normalized["generatedGitHash"]
+    if normalized.get("gitAvailable") is not None and "gitAvailable" not in inventory:
+        inventory["gitAvailable"] = normalized["gitAvailable"]
+    if normalized.get("sourceFilesVisited") and not inventory.get("sourceFilesVisited"):
+        inventory["sourceFilesVisited"] = normalized["sourceFilesVisited"]
+    if normalized.get("partialInventoryReasons") and not inventory.get("partialInventoryReasons"):
+        inventory["partialInventoryReasons"] = normalized["partialInventoryReasons"]
     normalized["coverageInventory"] = inventory
     return normalized
 
@@ -1035,9 +1069,10 @@ def _blocked(
     ).to_dict()
 
 
-def _inventory_warnings(status: str) -> list[str]:
+def _inventory_warnings(status: str, *, partial_reasons: list[str] | None = None) -> list[str]:
     if status == "partial":
-        return ["Coverage inventory is partial; candidate scenarios are not exhaustive."]
+        reasons = f" Reasons: {'; '.join(partial_reasons)}." if partial_reasons else ""
+        return [f"Partial inventory: candidate scenarios are not exhaustive.{reasons}"]
     if status == "stale":
         return ["Coverage inventory is stale; refresh affected areas before relying on candidates."]
     return []
@@ -1049,3 +1084,14 @@ def _recommended_follow_up_scope(status: str, current_scope: str) -> str | None:
     if status == "stale":
         return "changed" if current_scope != "all" else "all"
     return None
+
+
+def _trivial_candidate_count(inventory: Any) -> int:
+    from proofsignal_spec.workflows.first_run import evaluate_first_run_ideal_criteria
+    from proofsignal_spec.workflows.models import FirstRunCandidate
+
+    count = 0
+    for candidate in inventory.candidateUseCases:
+        if evaluate_first_run_ideal_criteria(FirstRunCandidate.from_candidate_use_case(candidate)).all_met():
+            count += 1
+    return count

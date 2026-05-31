@@ -35,6 +35,9 @@ WORKFLOW_STAGE_PERSISTENCE_RESULT_SCHEMA = "proofsignal-spec-workflow-stage-pers
 WORKFLOW_VALIDATION_READINESS_SCHEMA = "proofsignal-spec-validation-readiness/v1"
 WORKFLOW_MIGRATION_RESULT_SCHEMA = "proofsignal-spec-workflow-migration-result/v1"
 FIRST_RUN_RECOMMENDATION_SCHEMA = "proofsignal-spec-first-run-recommendation/v1"
+GUIDED_FIRST_RUN_SCHEMA = "proofsignal-spec-guided-first-run/v1"
+ONBOARDING_GUIDANCE_SCHEMA = "proofsignal-spec-onboarding-guidance/v1"
+UNDERSTANDING_ONBOARDING_RESULT_SCHEMA = "proofsignal-spec-understanding-onboarding-result/v1"
 GOLDEN_PATH_WORKSPACE_STATE_SCHEMA = "proofsignal-spec-golden-path-workspace-state/v1"
 WORKFLOW_UNDERSTANDING_COMMIT_THRESHOLD = 10
 WORKFLOW_UNDERSTANDING_MAX_AGE_DAYS = 7
@@ -131,6 +134,7 @@ class StagePersistenceResult:
     blockers: list[ReadinessBlocker] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     nextCommand: str | None = None
+    understandingOnboarding: dict[str, Any] | None = None
     schemaVersion: str = WORKFLOW_STAGE_PERSISTENCE_RESULT_SCHEMA
 
     def to_dict(self) -> dict[str, Any]:
@@ -239,6 +243,9 @@ class CoverageInventory:
     generatedAt: str = ""
     generatedGitHash: str | None = None
     gitAvailable: bool = False
+    sourceFilesVisited: int = 0
+    sourceTraceabilityStatus: Literal["complete", "normalized", "missing"] = "missing"
+    partialInventoryReasons: list[str] = field(default_factory=list)
     passes: list[InventoryPass] = field(default_factory=list)
     items: list[CoverageInventoryItem] = field(default_factory=list)
     candidateUseCases: list[CandidateValidationUseCase] = field(default_factory=list)
@@ -253,6 +260,9 @@ class CoverageInventory:
             generatedAt=str(data.get("generatedAt", "")),
             generatedGitHash=data.get("generatedGitHash"),
             gitAvailable=bool(data.get("gitAvailable", False)),
+            sourceFilesVisited=int(data.get("sourceFilesVisited", 0) or 0),
+            sourceTraceabilityStatus=data.get("sourceTraceabilityStatus", "missing"),
+            partialInventoryReasons=[str(item) for item in data.get("partialInventoryReasons", [])],
             passes=[InventoryPass.from_dict(item) for item in data.get("passes", [])],
             items=[CoverageInventoryItem.from_dict(item) for item in data.get("items", [])],
             candidateUseCases=[CandidateValidationUseCase.from_dict(item, status) for item in data.get("candidateUseCases", [])],
@@ -516,6 +526,7 @@ FirstRunStatus = Literal[
     "failed",
     "blocked",
     "incomplete",
+    "abandoned",
 ]
 
 
@@ -637,6 +648,213 @@ class FirstRunCandidate:
         return clean(asdict(self))
 
 
+IDEAL_FIRST_RUN_CRITERIA = [
+    "publicOrUnauthenticated",
+    "readOnly",
+    "singleVisibleSurface",
+    "stableRenderedEvidence",
+    "noCredentials",
+    "lowExternalDependency",
+    "safeToAutoGuide",
+]
+
+
+@dataclass(slots=True)
+class FirstRunIdealCriteria:
+    publicOrUnauthenticated: bool = False
+    readOnly: bool = False
+    singleVisibleSurface: bool = False
+    stableRenderedEvidence: bool = False
+    noCredentials: bool = False
+    lowExternalDependency: bool = False
+    safeToAutoGuide: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FirstRunIdealCriteria":
+        return cls(
+            publicOrUnauthenticated=bool(data.get("publicOrUnauthenticated", False)),
+            readOnly=bool(data.get("readOnly", False)),
+            singleVisibleSurface=bool(data.get("singleVisibleSurface", False)),
+            stableRenderedEvidence=bool(data.get("stableRenderedEvidence", False)),
+            noCredentials=bool(data.get("noCredentials", False)),
+            lowExternalDependency=bool(data.get("lowExternalDependency", False)),
+            safeToAutoGuide=bool(data.get("safeToAutoGuide", False)),
+        )
+
+    def met(self) -> list[str]:
+        data = asdict(self)
+        return [name for name in IDEAL_FIRST_RUN_CRITERIA if bool(data.get(name))]
+
+    def missing(self) -> list[str]:
+        data = asdict(self)
+        return [name for name in IDEAL_FIRST_RUN_CRITERIA if not bool(data.get(name))]
+
+    def all_met(self) -> bool:
+        return not self.missing()
+
+    def to_dict(self) -> dict[str, Any]:
+        data = clean(asdict(self))
+        data["met"] = self.met()
+        data["missing"] = self.missing()
+        return data
+
+
+@dataclass(slots=True)
+class FirstRunSuitabilityScore:
+    candidateAlias: str
+    rank: int
+    score: int
+    idealCriteriaMet: list[str] = field(default_factory=list)
+    idealCriteriaMissing: list[str] = field(default_factory=list)
+    requiresExplicitAcceptance: bool = False
+    branchRelevant: bool = False
+    branchRelevanceReason: str | None = None
+    suitabilityRationale: str = ""
+    blockers: list[str] = field(default_factory=list)
+    sourceInventoryItems: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FirstRunSuitabilityScore":
+        return cls(
+            candidateAlias=str(data.get("candidateAlias") or data.get("alias") or ""),
+            rank=int(data.get("rank", 0) or 0),
+            score=int(data.get("score", 0) or 0),
+            idealCriteriaMet=[str(item) for item in data.get("idealCriteriaMet", [])],
+            idealCriteriaMissing=[str(item) for item in data.get("idealCriteriaMissing", [])],
+            requiresExplicitAcceptance=bool(data.get("requiresExplicitAcceptance", False)),
+            branchRelevant=bool(data.get("branchRelevant", False)),
+            branchRelevanceReason=data.get("branchRelevanceReason"),
+            suitabilityRationale=str(data.get("suitabilityRationale") or data.get("rationale") or ""),
+            blockers=[str(item) for item in data.get("blockers", [])],
+            sourceInventoryItems=[str(item) for item in data.get("sourceInventoryItems", [])],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        data = clean(asdict(self))
+        data["alias"] = self.candidateAlias
+        return data
+
+
+GuidedFirstRunStage = Literal[
+    "recommended",
+    "accepted",
+    "authoring",
+    "validating",
+    "running",
+    "repairing",
+    "passed",
+    "repaired-passed",
+    "failed",
+    "blocked",
+    "skipped",
+]
+
+
+@dataclass(slots=True)
+class GuidedFirstRunState:
+    selectedCandidate: str
+    stage: GuidedFirstRunStage = "recommended"
+    stageStartedAt: str = ""
+    firstRunStatus: FirstRunStatus = "not-started"
+    strictPass: bool = False
+    blocker: dict[str, Any] | None = None
+    resumeCommand: str = ""
+    stageCards: list[dict[str, Any]] = field(default_factory=list)
+    ownedArtifacts: list[str] = field(default_factory=list)
+    status: Literal["recommended", "accepted", "running", "passed", "skipped", "failed", "blocked"] | None = None
+    schemaVersion: str = GUIDED_FIRST_RUN_SCHEMA
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "GuidedFirstRunState":
+        return cls(
+            selectedCandidate=str(data.get("selectedCandidate") or data.get("useCaseAlias") or ""),
+            stage=data.get("stage", "recommended"),
+            stageStartedAt=str(data.get("stageStartedAt", "")),
+            firstRunStatus=data.get("firstRunStatus", "not-started"),
+            strictPass=bool(data.get("strictPass", False)),
+            blocker=data.get("blocker"),
+            resumeCommand=str(data.get("resumeCommand") or data.get("nextAction") or ""),
+            stageCards=list(data.get("stageCards", [])),
+            ownedArtifacts=[str(item) for item in data.get("ownedArtifacts", [])],
+            status=data.get("status"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        allowed_stages = set(GuidedFirstRunStage.__args__)  # type: ignore[attr-defined]
+        if self.stage not in allowed_stages:
+            raise ValueError(f"Unsupported guided first-run stage: {self.stage}")
+        cards = [AgentChatStageCard.from_dict(card).to_dict() for card in self.stageCards]
+        data = asdict(self)
+        data["stageCards"] = cards
+        if not data.get("status"):
+            data["status"] = self.stage
+        return clean(data)
+
+
+@dataclass(slots=True)
+class OnboardingGuidance:
+    integrationKey: str
+    terminalTitle: str
+    terminalSummary: str
+    generatedGuidePath: str
+    stageMarkers: list[str] = field(default_factory=list)
+    usesColor: bool = True
+    plainTextFallback: str = ""
+    nextCommand: str = "/proofsignal-specify"
+    safetyBoundaries: list[str] = field(default_factory=list)
+    successSemantics: list[str] = field(default_factory=list)
+    schemaVersion: str = ONBOARDING_GUIDANCE_SCHEMA
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "OnboardingGuidance":
+        return cls(
+            integrationKey=str(data.get("integrationKey", "")),
+            terminalTitle=str(data.get("terminalTitle", "")),
+            terminalSummary=str(data.get("terminalSummary", "")),
+            generatedGuidePath=str(data.get("generatedGuidePath", "")),
+            stageMarkers=[str(item) for item in data.get("stageMarkers", [])],
+            usesColor=bool(data.get("usesColor", True)),
+            plainTextFallback=str(data.get("plainTextFallback", "")),
+            nextCommand=str(data.get("nextCommand", "/proofsignal-specify")),
+            safetyBoundaries=[str(item) for item in data.get("safetyBoundaries", [])],
+            successSemantics=[str(item) for item in data.get("successSemantics", [])],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
+@dataclass(slots=True)
+class UnderstandingOnboardingResult:
+    status: Literal["complete", "partial", "stale", "blocked", "failed"] = "partial"
+    scope: str = "all"
+    generatedGitHash: str | None = None
+    sourceFilesVisited: int = 0
+    candidateCount: int = 0
+    trivialCandidateCount: int = 0
+    sourceTraceabilityStatus: Literal["complete", "normalized", "missing"] = "missing"
+    partialInventoryReasons: list[str] = field(default_factory=list)
+    nextAction: str = ""
+    schemaVersion: str = UNDERSTANDING_ONBOARDING_RESULT_SCHEMA
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "UnderstandingOnboardingResult":
+        return cls(
+            status=data.get("status", "partial"),
+            scope=str(data.get("scope", "all")),
+            generatedGitHash=data.get("generatedGitHash"),
+            sourceFilesVisited=int(data.get("sourceFilesVisited", 0) or 0),
+            candidateCount=int(data.get("candidateCount", 0) or 0),
+            trivialCandidateCount=int(data.get("trivialCandidateCount", 0) or 0),
+            sourceTraceabilityStatus=data.get("sourceTraceabilityStatus", "missing"),
+            partialInventoryReasons=[str(item) for item in data.get("partialInventoryReasons", [])],
+            nextAction=str(data.get("nextAction", "")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return clean(asdict(self))
+
+
 @dataclass(slots=True)
 class FirstRunCandidateScore:
     candidateAlias: str
@@ -651,6 +869,13 @@ class FirstRunCandidateScore:
     rationale: str = ""
     blockers: list[str] = field(default_factory=list)
     candidate: FirstRunCandidate | None = None
+    idealCriteriaMet: list[str] = field(default_factory=list)
+    idealCriteriaMissing: list[str] = field(default_factory=list)
+    requiresExplicitAcceptance: bool = False
+    branchRelevant: bool = False
+    branchRelevanceReason: str | None = None
+    suitabilityRationale: str = ""
+    sourceInventoryItems: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         data = clean(asdict(self))
@@ -674,6 +899,9 @@ class FirstRunRecommendation:
     targetStatus: Literal["resolved", "missing", "unreachable", "unknown"] = "unknown"
     recommendedCandidate: dict[str, Any] | None = None
     rankedCandidates: list[dict[str, Any]] = field(default_factory=list)
+    branchRelevantCandidates: list[dict[str, Any]] = field(default_factory=list)
+    idealCriteria: dict[str, Any] | None = None
+    explicitAcceptanceRequired: bool = False
     recommendationText: str = ""
     acceptancePrompt: str = ""
     skipMeaning: str = "Skipping means the golden path was declined; it is not a pass, fail, or inconclusive result."
@@ -688,6 +916,7 @@ class FirstRunRecommendation:
         cleaned = clean(data)
         cleaned.setdefault("recommendedCandidate", self.recommendedCandidate)
         cleaned.setdefault("rankedCandidates", [])
+        cleaned.setdefault("branchRelevantCandidates", [])
         cleaned.setdefault("stageCards", [])
         return cleaned
 

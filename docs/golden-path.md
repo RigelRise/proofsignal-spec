@@ -5,11 +5,23 @@ guides the user toward the simplest stable validation candidate on a real target
 they care about, asks them to accept or skip that recommendation, and presents
 each step with clear agent-chat stage cards.
 
+Golden Path is scoped to the first run only. After the first run is accepted,
+skipped, blocked, failed, passed, or repaired-passed, ordinary understand,
+specify, plan, validate, run, and repair workflows continue as normal.
+
 ## Product Principles
 
 - Recommend a real project validation first; deterministic fixtures are for
   tests and examples only.
+- Rank first-run suitability separately from product priority, branch relevance,
+  and recent Git activity. Prefer unauthenticated, read-only, single-surface,
+  stable rendered evidence with no credentials and low external dependency.
+- Keep active-branch or high-priority work visible as secondary context, but do
+  not let branch relevance outrank a lower-risk first-run candidate.
+- If no candidate meets the ideal criteria, recommend the lowest-risk existing
+  candidate only with explicit risk labels and explicit user acceptance.
 - Treat a skipped recommendation as skipped, not as pass, fail, or inconclusive.
+- After skip, manual use-case selection remains available immediately.
 - Count success only when the first run reaches strict pass directly or reaches
   strict pass after a transparent safe repair cycle.
 - Preserve validation intent during repair. Required gates and rendered-result
@@ -23,6 +35,27 @@ each step with clear agent-chat stage cards.
 Golden Path output is agent-chat first. Every major step should be displayable as
 a structured card with a status marker, summary, why-it-matters text, primary
 evidence, optional repair details, and next action.
+
+Expected guided stages:
+
+- `[RECOMMENDED]`: the product-owned first-run recommendation is shown.
+- `[ACCEPTED]`: the user accepted the recommended first run.
+- `[RUNNING]`: authoring, validation, or execution is in progress.
+- `[REPAIR]`: safe repair feedback is visible before revalidation/rerun.
+- `[PASS]`: direct strict pass or repaired strict pass.
+- `[SKIPPED]`: the user declined Golden Path and can choose manually.
+- `[BLOCKED]`: runtime data, host permission, safety, or Core compatibility is
+  required before continuing.
+- `[FAIL]`: the first run did not reach strict pass.
+
+## Missing Understanding
+
+When `/proofsignal-specify` starts in a clean repository, the prerequisite check
+returns auto-prepare metadata. The integration should inspect safe public
+project structure, persist repository understanding, and resume first-run
+recommendation without requiring the user to invoke `/proofsignal-specify`
+again. Sensitive files and credential-bearing configuration remain out of scope
+unless the user explicitly approves access.
 
 ## Canonical Examples
 

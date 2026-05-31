@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.workflows.first_run import advance_guided_first_run_state
 from proofsignal_spec.workflows.models import WORKFLOW_VALIDATION_READINESS_SCHEMA, CoreReadiness, ReadinessBlocker, ValidationReadinessSummary
 from proofsignal_spec.workflows.authoring_coherence import evaluate_persisted_coherence
 from proofsignal_spec.workflows.readiness import structural_validation, validation_readiness
@@ -98,6 +99,29 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
     wrapped.update(summary.to_dict())
     wrapped["readinessSummary"] = _readiness_summary_text(summary)
     update_validation(project, alias, wrapped)
+    guided_stage = None
+    if summary.status == "passed":
+        guided_stage = advance_guided_first_run_state(
+            project,
+            alias,
+            stage="running",
+            first_run_status="running",
+            resume_command=f"proofsignal-spec run {alias} --json",
+            summary=f"{alias} validation readiness passed; the first browser run is ready.",
+        )
+    elif summary.status == "blocked":
+        guided_stage = advance_guided_first_run_state(
+            project,
+            alias,
+            stage="blocked",
+            first_run_status="blocked",
+            resume_command=summary.nextAction,
+            summary=f"{alias} validation readiness is blocked.",
+            status_marker="[BLOCKED]",
+            blocker={"category": "validation-readiness", "requiredAction": summary.nextAction, "resumeCommand": summary.nextAction},
+        )
+    if guided_stage:
+        wrapped["guidedFirstRunState"] = guided_stage
     return wrapped
 
 

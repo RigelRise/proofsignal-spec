@@ -107,10 +107,13 @@ proofsignal-spec workflow check run --alias login --json
 ```
 
 `/proofsignal-specify` requires `.proofsignal/workflows/understanding.md` and
-`.proofsignal/product-context.yaml` before collecting use-case details. If the
-understanding is stale by age or Git commit distance, the check recommends
-refreshing through `/proofsignal-understand`; declined refresh decisions are
-recorded without persisting credential values.
+`.proofsignal/product-context.yaml` before collecting use-case details. On a new
+workspace, the check returns Golden Path onboarding metadata so the integration
+can prepare safe repository understanding and resume first-run recommendation
+without asking the user to manually restart. If the understanding is stale by
+age or Git commit distance, the check recommends refreshing through
+`/proofsignal-understand`; declined refresh decisions are recorded without
+persisting credential values.
 
 Browser validation use cases must resolve the target application environment
 before executable planning. A staging URL, local start target, or equivalent
@@ -130,10 +133,18 @@ contract compatibility without running the full browser flow.
 
 ## Golden Path
 
-The Golden Path guides a new user to accept or skip the simplest stable
-real-target first run, then presents recommendation, run, repair, and result
-steps as agent-chat stage cards. See [docs/golden-path.md](docs/golden-path.md)
-for canonical examples and [docs/release-readiness.md](docs/release-readiness.md)
+The Golden Path applies to the first run only. It recommends the simplest stable
+real-target validation first, keeps branch-relevant or setup-heavy candidates as
+secondary choices, and strongly recommends accepting the first run before
+choosing deeper validations. Accepting starts a guided flow through authoring,
+validation, run, safe repair when needed, and final outcome. Direct strict pass
+and repaired strict pass both count as first-run success; skip returns the user
+to ordinary manual use-case selection. Integration install also prints next
+steps and writes local onboarding guidance.
+
+See [docs/golden-path.md](docs/golden-path.md) for Golden Path semantics,
+[docs/golden-path-troubleshooting.md](docs/golden-path-troubleshooting.md) for
+recovery guidance, and [docs/release-readiness.md](docs/release-readiness.md)
 for demo and release criteria.
 
 ## ProofSignal Core Configuration

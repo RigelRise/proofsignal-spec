@@ -14,6 +14,7 @@ from proofsignal_spec.workspace.product_context import (
 )
 from proofsignal_spec.workspace.repository import load_registry, load_use_case
 
+from .first_run import build_understanding_onboarding_preparation
 from .models import (
     COMMAND_STAGES,
     WORKFLOW_CAPABILITY_SCHEMA,
@@ -69,6 +70,7 @@ def check_prerequisites(
         understanding = _evaluate_understanding(project)
         understanding_payload = _understanding_payload(understanding.context)
         if understanding.status in {"missing", "blocked"}:
+            preparation = build_understanding_onboarding_preparation(stage=stage) if understanding.status == "missing" and stage == "specify" else None
             return _result(
                 stage,
                 resolved_alias,
@@ -76,8 +78,11 @@ def check_prerequisites(
                 can_proceed=False,
                 missing_artifacts=understanding.missing_artifacts,
                 warnings=understanding.warnings,
-                recommended_action="run-understand" if understanding.status == "missing" else "upgrade-workspace",
+                recommended_action="auto-prepare-understanding" if preparation else ("run-understand" if understanding.status == "missing" else "upgrade-workspace"),
                 next_command=native_invocation("understand"),
+                onboardingPreparation=preparation,
+                resumeCommand=preparation.get("resumeCommand") if preparation else None,
+                stageCards=preparation.get("stageCards", []) if preparation else [],
                 **understanding_payload,
             )
         if understanding.stale_reasons:
@@ -417,12 +422,21 @@ def _exists(project: Path, rel_path: str) -> bool:
 
 def _understanding_payload(context: dict[str, Any]) -> dict[str, Any]:
     if not context:
-        return {"projectOverview": "", "candidateUseCases": [], "recommendedCandidate": None, "understanding": {}}
+        return {
+            "projectOverview": "",
+            "candidateUseCases": [],
+            "recommendedCandidate": None,
+            "candidateSelectionSource": "workflow.recommend-first-run",
+            "firstRunRecommendationCommand": "proofsignal-spec workflow recommend-first-run --json",
+            "understanding": {},
+        }
     candidates = list(context.get("candidateUseCases", []))
     return {
         "projectOverview": context.get("productSummary") or context.get("repositorySummary") or context.get("productName", ""),
         "candidateUseCases": candidates,
         "recommendedCandidate": _recommended_candidate(candidates),
+        "candidateSelectionSource": "workflow.recommend-first-run",
+        "firstRunRecommendationCommand": "proofsignal-spec workflow recommend-first-run --json",
         "understanding": context.get("understanding", {}),
     }
 
@@ -468,7 +482,12 @@ def _result(
     projectOverview: str = "",
     candidateUseCases: list[dict[str, Any]] | None = None,
     recommendedCandidate: dict[str, Any] | None = None,
+    candidateSelectionSource: str = "",
+    firstRunRecommendationCommand: str = "",
     understanding: dict[str, Any] | None = None,
+    onboardingPreparation: dict[str, Any] | None = None,
+    resumeCommand: str | None = None,
+    stageCards: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "schemaVersion": WORKFLOW_CAPABILITY_SCHEMA,
@@ -489,7 +508,12 @@ def _result(
         "projectOverview": projectOverview,
         "candidateUseCases": candidateUseCases or [],
         "recommendedCandidate": recommendedCandidate,
+        "candidateSelectionSource": candidateSelectionSource,
+        "firstRunRecommendationCommand": firstRunRecommendationCommand,
         "understanding": understanding or {},
+        "onboardingPreparation": onboardingPreparation,
+        "resumeCommand": resumeCommand,
+        "stageCards": stageCards or [],
     }
     if available_aliases is not None:
         result["availableAliases"] = available_aliases

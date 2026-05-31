@@ -35,7 +35,9 @@ def test_first_run_ranking_prefers_real_public_no_credential_candidate() -> None
 
     assert ranked[0].candidateAlias == PUBLIC_ALIAS
     assert ranked[0].blockers == []
-    assert "Unresolved credentials" in " ".join(ranked[1].blockers)
+    assert ranked[1].blockers == []
+    assert ranked[1].requiresExplicitAcceptance is True
+    assert "noCredentials" in ranked[1].idealCriteriaMissing
 
 
 def test_recommendation_blocks_fake_or_demo_target(tmp_path) -> None:

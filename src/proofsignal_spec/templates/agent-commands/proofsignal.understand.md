@@ -14,8 +14,9 @@ Capture repository and product understanding before authoring run requests.
 - Use `.proofsignal/` as the workspace.
 - Avoid sensitive files by default and ask before reading local environment or secret-bearing configuration.
 - Build a systematic coverage inventory when feasible. Cover user-facing routes and pages first, then flows, forms, actions, permissions, loading/empty/error states, integrations, and supporting modules.
+- Always attempt the full discoverable use-case inventory for the requested scope. Enumerate trivial public/read-only candidates before branch-heavy, authenticated, write-heavy, tokenized, billing, upload, or rare-data flows so Golden Path can select the simplest reliable first run.
 - Support scoped passes with `--scope all`, `--scope changed`, `--scope continue`, `--scope route:<path>`, or `--scope area:<name>`.
-- Mark the inventory as `complete` only when every discoverable user-facing surface is covered or explicitly excluded with a reason. Otherwise mark it `partial`; mark changed areas `stale` when repository changes affect them.
+- Mark the inventory as `complete` only when every discoverable user-facing surface is covered or explicitly excluded with a reason. Otherwise mark it as partial inventory with explicit partialInventoryReasons; mark changed areas `stale` when repository changes affect them.
 - Prepare a structured payload with repository summary, start instructions, safe paths, blocked sensitive paths, coverage inventory, candidate use cases, generated time, and git hash or git-unavailable reason.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal-spec workflow persist understand --scope <scope> --payload <payload.json> --json`.
 - Report whether inventory is complete, partial, or stale before recommending scenarios.

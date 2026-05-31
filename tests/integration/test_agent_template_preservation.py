@@ -17,3 +17,19 @@ def test_codex_and_claude_generated_guidance_preserves_browser_guardrails(tmp_pa
         assert "Safe mechanical selector" in repair
         assert "data, credential, required-gate" in repair
         assert "Never persist credential values" in author
+
+
+def test_specify_and_understand_templates_describe_auto_prepare_without_manual_restart() -> None:
+    from helpers import agent_template
+
+    specify = agent_template("specify")
+    understand = agent_template("understand")
+
+    assert "auto-prepare" in specify.lower()
+    assert "resume" in specify.lower()
+    assert "proofsignal-spec workflow recommend-first-run --json" in specify
+    assert "Do not present candidateUseCases or recommendedCandidate from workflow check as the product-owned first-run recommendation" in specify
+    assert "without requiring the user to manually restart" in specify
+    assert "trivial public/read-only" in understand.lower()
+    assert "before branch-heavy" in understand.lower()
+    assert "partial inventory" in understand.lower()

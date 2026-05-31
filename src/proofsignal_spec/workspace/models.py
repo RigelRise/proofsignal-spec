@@ -277,7 +277,7 @@ class ManagedFileRecord:
     path: str
     sha256: str
     source: str
-    kind: Literal["agent-skill", "context", "workspace-template", "manifest"]
+    kind: Literal["agent-skill", "context", "workspace-template", "manifest", "onboarding-guide"]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ManagedFileRecord":

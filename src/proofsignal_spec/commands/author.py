@@ -7,6 +7,7 @@ from proofsignal_spec.workspace import artifacts, layout
 from proofsignal_spec.workspace.models import ArtifactReference, AuthoringQuestion
 from proofsignal_spec.workspace.product_context import append_validation_goal
 from proofsignal_spec.workspace.repository import create_default_use_case, save_use_case
+from proofsignal_spec.workflows.first_run import advance_guided_first_run_state
 
 
 def run(project: Path, alias: str, description: str, run_request: str | None = None, skills: list[str] | None = None) -> dict[str, Any]:
@@ -30,6 +31,19 @@ def run(project: Path, alias: str, description: str, run_request: str | None = N
         artifacts.write_generated_artifacts(project, record)
     save_use_case(project, record)
     append_validation_goal(project, description)
+    owned_artifacts = []
+    if record.runRequest:
+        owned_artifacts.append(record.runRequest.path)
+    owned_artifacts.extend(skill.path for skill in record.skills)
+    guided_state = advance_guided_first_run_state(
+        project,
+        alias,
+        stage="validating",
+        first_run_status="not-started",
+        resume_command=f"proofsignal-spec validate {alias} --runtime-readiness --json",
+        summary=f"{alias} artifacts are authored and ready for validation.",
+        owned_artifacts=owned_artifacts,
+    )
     return {
         "alias": record.alias,
         "status": record.status,
@@ -37,4 +51,5 @@ def run(project: Path, alias: str, description: str, run_request: str | None = N
         "runRequest": record.runRequest.to_dict() if record.runRequest else None,
         "skills": [skill.to_dict() for skill in record.skills],
         "questions": [question.to_dict() for question in record.authoringQuestions],
+        "guidedFirstRunState": guided_state or None,
     }

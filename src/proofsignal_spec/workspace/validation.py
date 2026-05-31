@@ -14,6 +14,7 @@ from .repository import load_document, load_registry, load_use_case
 SECRET_FIELD_RE = re.compile(r"(password|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|authorization)", re.I)
 BEARER_RE = re.compile(r"\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}", re.I)
 HIGH_ENTROPY_RE = re.compile(r"^[A-Za-z0-9_./+=-]{32,}$")
+HEX_IDENTIFIER_RE = re.compile(r"^[a-f0-9]{7,64}$", re.I)
 DUMMY_VALUES = {"example", "dummy", "placeholder", "changeme", "test", "sample", "qa@example.com"}
 SECRET_QUERY_PARAM_RE = re.compile(r"(token|secret|api[_-]?key|access[_-]?key|client[_-]?secret|authorization|auth|password|pwd)", re.I)
 
@@ -32,6 +33,12 @@ def looks_secret(value: Any, field_name: str = "") -> bool:
         "version",
         "id",
         "path",
+        "file",
+        "route",
+        "surface",
+        "branch",
+        "candidateAlias",
+        "sourceInventoryItems",
         "recordPath",
         "reportPath",
         "evidenceDir",
@@ -39,6 +46,8 @@ def looks_secret(value: Any, field_name: str = "") -> bool:
         "sha256",
         "generatedGitHash",
     }:
+        return False
+    if normalized_field == "hash" and HEX_IDENTIFIER_RE.match(text):
         return False
     if any(term in normalized_field for term in ["githash", "gitsha", "commithash", "commitsha", "revision", "sha256"]):
         return False

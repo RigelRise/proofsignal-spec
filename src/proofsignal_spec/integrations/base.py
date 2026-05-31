@@ -3,6 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from proofsignal_spec.templates.agent_guidance import (
+    MISSING_UNDERSTANDING_AUTO_PREPARE,
+    REAL_TARGET_FIRST_RECOMMENDATION,
+)
+from proofsignal_spec.workflows.models import OnboardingGuidance
+
 
 @dataclass(slots=True)
 class RenderedFile:
@@ -84,3 +90,83 @@ def render_workflow_skill_files(root: str, agent: str, include_argument_hint: bo
         )
         for spec in WORKFLOW_COMMANDS
     ]
+
+
+def build_onboarding_guidance(
+    *,
+    integration_key: str,
+    display_name: str,
+    generated_guide_path: str,
+) -> OnboardingGuidance:
+    stage_markers = ["[RECOMMENDED]", "[ACCEPTED]", "[RUNNING]", "[REPAIR]", "[PASS]", "[SKIPPED]", "[BLOCKED]", "[FAIL]"]
+    safety = [
+        "Sensitive files, local env files, cookies, browser storage, and credential values are not inspected or persisted by default.",
+        "Safe understanding inspects public project structure and non-sensitive source context before recommending the first run.",
+    ]
+    success = [
+        "Direct strict pass counts as first-run success.",
+        "Repaired strict pass also counts as first-run success when the repair was safe, revalidated, rerun, and strict.",
+        "Skip means the user declined the Golden Path; it is not pass, fail, or inconclusive.",
+        "Blocked means required runtime data, host permission, safety boundary, or Core compatibility stopped automatic continuation.",
+        "Failed means the first run did not reach strict pass and needs clear feedback or repair.",
+    ]
+    fallback = (
+        "ProofSignal Golden Path\n"
+        "Next: /proofsignal-specify\n"
+        "Expected first run: recommended -> accepted -> running -> pass or repaired-pass.\n"
+        "Safety: sensitive files and credential values require explicit approval and are never persisted."
+    )
+    return OnboardingGuidance(
+        integrationKey=integration_key,
+        terminalTitle="ProofSignal Golden Path",
+        terminalSummary=(
+            f"{display_name} integration installed. Run /proofsignal-specify next; accepting the recommended first run is highly recommended "
+            "so a new user sees the full workflow before choosing deeper validations."
+        ),
+        generatedGuidePath=generated_guide_path,
+        stageMarkers=stage_markers,
+        usesColor=True,
+        plainTextFallback=fallback,
+        nextCommand="/proofsignal-specify",
+        safetyBoundaries=safety,
+        successSemantics=success,
+    )
+
+
+def render_onboarding_guide(guide: OnboardingGuidance) -> str:
+    data = guide.to_dict()
+    stages = "\n".join(f"- {item}" for item in data.get("stageMarkers", []))
+    safety = "\n".join(f"- {item}" for item in data.get("safetyBoundaries", []))
+    success = "\n".join(f"- {item}" for item in data.get("successSemantics", []))
+    return f"""# ProofSignal Golden Path
+
+{data.get("terminalSummary", "")}
+
+## Next Step
+
+Run `{data.get("nextCommand", "/proofsignal-specify")}`.
+
+## Stage Markers
+
+{stages}
+
+## Safety Boundaries
+
+{safety}
+
+## Success Semantics
+
+{success}
+
+## First-Run Policy
+
+- {REAL_TARGET_FIRST_RECOMMENDATION}.
+- {MISSING_UNDERSTANDING_AUTO_PREPARE}.
+- Repaired strict pass is a success only after safe repair, revalidation, rerun, and strict pass.
+
+## Plain Text Fallback
+
+```text
+{data.get("plainTextFallback", "")}
+```
+"""
