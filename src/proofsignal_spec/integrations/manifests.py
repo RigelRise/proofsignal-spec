@@ -53,7 +53,18 @@ def update_integration_state(project: Path, state: AgentIntegrationState) -> Non
 def install_rendered_files(project: Path, key: str, display_name: str, invoke_style: str, files: list[RenderedFile], force: bool = False, default: bool = True) -> AgentIntegrationState:
     previous = load_manifest(project, key)
     previous_hashes = {item.path: item.sha256 for item in previous.managedFiles} if previous else {}
+    rendered_paths = {item.path for item in files}
     records: list[ManagedFileRecord] = []
+    if previous:
+        for item in previous.managedFiles:
+            if item.path in rendered_paths:
+                continue
+            target = project / item.path
+            if not target.exists():
+                continue
+            current_hash = sha256_bytes(target.read_bytes())
+            if current_hash == item.sha256 or force:
+                target.unlink()
     for item in files:
         target = project / item.path
         content_hash = sha256_text(item.content)

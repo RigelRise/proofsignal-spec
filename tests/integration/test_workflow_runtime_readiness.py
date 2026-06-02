@@ -51,7 +51,7 @@ def test_validate_missing_core_blocker_routes_to_setup(tmp_path, monkeypatch) ->
     assert result["status"] == "blocked"
     assert blocker["category"] == "environment"
     assert blocker["repairable"] is False
-    assert blocker["recoveryCommand"] == "proofsignal-spec core setup --json"
+    assert blocker["recoveryCommand"] == "proofsignal core setup --json"
 
 
 def test_core_setup_success_clears_previous_missing_core_readiness(tmp_path, monkeypatch) -> None:
@@ -87,7 +87,7 @@ def test_run_missing_core_stderr_points_to_setup(tmp_path, monkeypatch) -> None:
     ])
 
     assert code == 3
-    assert "proofsignal-spec core setup --json" in err
+    assert "proofsignal core setup --json" in err
 
 
 def _cli(args: list[str]) -> tuple[int, str, str]:

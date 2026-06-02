@@ -12,7 +12,7 @@ from .contracts import CompatibilityResult, normalize_status, validate_version_r
 from .errors import CoreExecutionError, CoreIncompatibleError, CoreMissingError
 
 CORE_SETUP_HINT = (
-    "Run `proofsignal-spec core setup --json` to discover and persist an existing "
+    "Run `proofsignal core setup --json` to discover and persist an existing "
     "ProofSignal Core command, or pass `--core-cmd /path/to/proofsignal` for a "
     "one-off command."
 )
@@ -82,7 +82,14 @@ class CoreAdapter:
             raise CoreIncompatibleError(result.message)
         return result
 
-    def authoring_check(self, run_request: Path, main_skill: Path, skills: list[Path], runtime_readiness: bool = False) -> dict[str, Any]:
+    def authoring_check(
+        self,
+        run_request: Path,
+        main_skill: Path,
+        skills: list[Path],
+        runtime_readiness: bool = False,
+        entitlement_receipt: Path | str | None = None,
+    ) -> dict[str, Any]:
         self.require_compatible()
         args = ["authoring-check", "run-request", str(run_request), "--skill", str(main_skill)]
         for skill in skills:
@@ -91,9 +98,19 @@ class CoreAdapter:
         if runtime_readiness:
             args.append("--runtime-readiness")
         args.append("--json")
-        return self._run(args)
+        return self._run(args, env=_receipt_env(entitlement_receipt))
 
-    def run(self, run_request: Path, main_skill: Path, skills: list[Path], output_dir: Path | None = None, headed: bool = False, slow_mo_ms: int = 0, env: dict[str, str] | None = None) -> dict[str, Any]:
+    def run(
+        self,
+        run_request: Path,
+        main_skill: Path,
+        skills: list[Path],
+        output_dir: Path | None = None,
+        headed: bool = False,
+        slow_mo_ms: int = 0,
+        env: dict[str, str] | None = None,
+        entitlement_receipt: Path | str | None = None,
+    ) -> dict[str, Any]:
         self.require_compatible()
         args = ["run", str(run_request), "--skill", str(main_skill)]
         for skill in skills:
@@ -106,11 +123,28 @@ class CoreAdapter:
         if slow_mo_ms:
             args.extend(["--slow-mo", str(slow_mo_ms)])
         args.append("--json")
-        return self._run(args, env=env)
+        return self._run(args, env={**(env or {}), **_receipt_env(entitlement_receipt)})
 
-    def inspect_report(self, report_path: Path) -> dict[str, Any]:
+    def inspect_report(self, report_path: Path, entitlement_receipt: Path | str | None = None) -> dict[str, Any]:
         self.require_compatible()
-        return self._run(["report", "inspect", str(report_path), "--json"])
+        return self._run(["report", "inspect", str(report_path), "--json"], env=_receipt_env(entitlement_receipt))
+
+
+def _receipt_env(entitlement_receipt: Path | str | None) -> dict[str, str]:
+    env: dict[str, str] = {}
+    if entitlement_receipt:
+        env["PROOFSIGNAL_ENTITLEMENT_RECEIPT"] = str(entitlement_receipt)
+    if not os.environ.get("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON"):
+        try:
+            from proofsignal_spec.runtime.distribution import load_verification_keys
+
+            cached = load_verification_keys()
+            keys = cached.get("keys") if isinstance(cached, dict) else None
+            if isinstance(keys, list):
+                env["PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON"] = json.dumps(keys, separators=(",", ":"))
+        except Exception:
+            pass
+    return env
 
 
 def readiness(executable: str | None = None, cwd: Path | None = None) -> dict[str, Any]:

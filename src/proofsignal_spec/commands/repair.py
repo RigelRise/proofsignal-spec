@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.runtime.entitlement import load_receipt, receipt_status
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.first_run import advance_guided_first_run_state
 from proofsignal_spec.workflows.models import RepairConfirmation, RepairFeedback, SafeRepairApplication
@@ -15,16 +16,16 @@ from proofsignal_spec.workspace.models import RepairSession
 from proofsignal_spec.workspace.repository import load_use_case, now_iso, save_document, save_use_case
 
 
-def run(project: Path, alias: str, from_report: str | None = None, approve: bool = False, core_cmd: str | None = None) -> dict[str, Any]:
+def run(project: Path, alias: str, from_report: str | None = None, approve: bool = False, core_cmd: str | None = None, api_base_url: str | None = None) -> dict[str, Any]:
     record = load_use_case(project, alias)
     source = "report-inspection" if from_report else "authoring-validation"
     findings: list[dict[str, Any]]
     if from_report:
-        managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, context="repair")
+        managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="repair")
         if managed_runtime.status != "ready":
             payload = _runtime_setup_blocked_payload(managed_runtime)
             return {"alias": alias, **payload, "repair": payload}
-        result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).inspect_report(Path(from_report))
+        result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).inspect_report(Path(from_report), entitlement_receipt=_valid_receipt_path())
         findings = list(result.get("data", {}).get("findings", []))
     else:
         findings = list(
@@ -34,7 +35,7 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
             )
         )
     if not from_report and not findings:
-        managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, context="repair")
+        managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="repair")
         if managed_runtime.status != "ready":
             payload = _runtime_setup_blocked_payload(managed_runtime)
             return {"alias": alias, **payload, "repair": payload}
@@ -231,3 +232,11 @@ def _update_first_run_repair_state(project: Path, alias: str, repair_feedback: l
             summary="Safe repair was applied; revalidation and rerun are required before reporting success.",
             status_marker="[REPAIR]",
         )
+
+
+def _valid_receipt_path() -> str | None:
+    receipt = load_receipt()
+    if not receipt:
+        return None
+    status = receipt_status(receipt)
+    return status.receiptPath if status.status == "valid" else None

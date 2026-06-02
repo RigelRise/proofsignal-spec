@@ -36,11 +36,11 @@ def test_shared_onboarding_model_round_trips() -> None:
         selectedCandidate="home-page-unauth",
         stage="accepted",
         firstRunStatus="not-started",
-        resumeCommand="proofsignal-spec validate home-page-unauth --runtime-readiness --json",
+        resumeCommand="proofsignal validate home-page-unauth --runtime-readiness --json",
     ).to_dict()
     assert state["schemaVersion"] == "proofsignal-spec-guided-first-run/v1"
     assert state["stage"] == "accepted"
-    assert state["resumeCommand"].startswith("proofsignal-spec validate")
+    assert state["resumeCommand"].startswith("proofsignal validate")
 
     guide = OnboardingGuidance(
         integrationKey="codex",

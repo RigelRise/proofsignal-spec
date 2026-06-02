@@ -23,6 +23,24 @@ REQUIRED_OPERATION_METADATA = [
 
 ALLOWED_CORE_STATUSES = {"passed", "failed", "blocked", "error"}
 
+CORE_ENTITLEMENT_ERROR_MAP = {
+    "entitlement.missing": "entitlement.unlock-required",
+    "entitlement.unreadable": "entitlement.malformed",
+    "entitlement.raw-token": "entitlement.rejected",
+    "entitlement.malformed": "entitlement.malformed",
+    "entitlement.signature-invalid": "entitlement.unverifiable",
+    "entitlement.key-unknown": "entitlement.unverifiable",
+    "entitlement.expired": "entitlement.expired",
+    "entitlement.issuer-mismatch": "entitlement.rejected",
+    "entitlement.audience-mismatch": "entitlement.rejected",
+    "entitlement.scope-missing": "entitlement.rejected",
+    "entitlement.policy-denied": "entitlement.rejected",
+    "entitlement.contract-mismatch": "core.incompatible",
+    "entitlement.runtime-mismatch": "core.incompatible",
+    "entitlement.version-mismatch": "core.incompatible",
+    "entitlement.subject-invalid": "entitlement.rejected",
+}
+
 
 @dataclass(slots=True)
 class CompatibilityResult:
@@ -129,3 +147,16 @@ def normalize_status(data: dict[str, Any]) -> str:
     if nested in ALLOWED_CORE_STATUSES:
         return nested
     return "error"
+
+
+def core_entitlement_blocker_code(data: dict[str, Any]) -> str | None:
+    findings = data.get("data", {}).get("findings", [])
+    if not isinstance(findings, list):
+        return None
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        code = str(finding.get("code") or "")
+        if code in CORE_ENTITLEMENT_ERROR_MAP:
+            return CORE_ENTITLEMENT_ERROR_MAP[code]
+    return None

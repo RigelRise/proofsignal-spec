@@ -383,7 +383,7 @@ class CoreSetupResult:
     attempts: list[CoreCandidateAttempt] = field(default_factory=list)
     message: str = ""
     nextAction: str = ""
-    recoveryCommand: str = "proofsignal-spec core setup --json"
+    recoveryCommand: str = "proofsignal core setup --json"
     schemaVersion: str = CORE_SETUP_SCHEMA
 
     def to_dict(self) -> dict[str, Any]:

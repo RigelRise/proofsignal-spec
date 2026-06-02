@@ -57,7 +57,7 @@ def test_first_run_recommendation_schema_and_stage_cards() -> None:
                 "nextAction": "Accept or skip.",
             }
         ],
-        nextAction="proofsignal-spec workflow accept-first-run home-page-unauth --json",
+        nextAction="proofsignal workflow accept-first-run home-page-unauth --json",
     )
 
     data = recommendation.to_dict()

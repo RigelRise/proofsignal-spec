@@ -80,7 +80,7 @@ def create_workflow_run(project: Path, goal: str, alias: str | None = None, inte
         workflowDir=workflow_dir_rel(project, alias),
         stageStates=create_stage_states(project, alias),
         nextCommand=next_command("understand", alias, integration),
-        resumeCommand=f"proofsignal-spec workflow resume {run_id}",
+        resumeCommand=f"proofsignal workflow resume {run_id}",
     )
     run.stageStates[0].status = "completed"
     run.stageStates[0].completedAt = now_iso()
@@ -96,7 +96,7 @@ def resume_workflow(project: Path, run_id: str) -> WorkflowRun:
     if run.status in {"completed", "failed"}:
         return run
     run.status = "paused"
-    run.resumeCommand = f"proofsignal-spec workflow resume {run.runId}"
+    run.resumeCommand = f"proofsignal workflow resume {run.runId}"
     if not run.nextCommand:
         run.nextCommand = next_command(run.currentStage, run.useCaseAlias, run.integration)
     save_workflow_run(project, run)

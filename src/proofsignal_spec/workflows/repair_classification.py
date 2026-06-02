@@ -12,6 +12,18 @@ def classify_runtime_feedback(finding: dict[str, Any], *, source: str = "report-
     gate_id = str(finding.get("gateId") or finding.get("path") or "").strip()
     evidence = [item for item in [code, message] if item]
 
+    if code.startswith("entitlement.") or code in {"api.unavailable", "distribution.unauthorized", "distribution.unavailable", "core.incompatible"}:
+        return RuntimeFeedbackFinding(
+            id=_id("runtime-entitlement", code),
+            source=source,  # type: ignore[arg-type]
+            category="environment-recovery",
+            severity="blocked",
+            summary=message or "ProofSignal runtime entitlement must be resolved before artifact repair.",
+            evidence=evidence,
+            affectedGates=[gate_id] if gate_id else [],
+            recommendedAction="environment-recovery",
+            confidence="high",
+        )
     if any(term in text for term in ["unreachable", "redirected unexpectedly", "environment blocked", "target blocked"]):
         return RuntimeFeedbackFinding(
             id=_id("environment", code),

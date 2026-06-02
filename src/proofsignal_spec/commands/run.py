@@ -6,6 +6,7 @@ from typing import Any
 from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
 from proofsignal_spec.core.adapter import CoreAdapter, core_status
 from proofsignal_spec.core.errors import CoreMissingError
+from proofsignal_spec.runtime.entitlement import load_receipt, receipt_status
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.browser_authoring import resolve_effective_profile_settings
 from proofsignal_spec.workflows.evidence import extract_core_runtime_evidence, normalize_planned_gates
@@ -25,6 +26,7 @@ def run(
     profile_name: str = "normal",
     interactive: bool = True,
     core_cmd: str | None = None,
+    api_base_url: str | None = None,
     slow_mo_override: int | None = None,
 ) -> dict[str, Any]:
     record = load_use_case(project, alias)
@@ -33,10 +35,10 @@ def run(
         available = ", ".join(item.name for item in record.profiles) or "normal"
         raise ValueError(f"Unknown profile for {alias}: {profile_name}. Available profiles: {available}.")
     record, run_request, main_skill, skills = resolve_artifacts(project, alias)
-    managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, context="run")
+    managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="run")
     if managed_runtime.status != "ready":
         if any(blocker.code == "core.missing" for blocker in managed_runtime.blockers):
-            raise CoreMissingError(f"{managed_runtime.message} proofsignal-spec core setup --json")
+            raise CoreMissingError(f"{managed_runtime.message} proofsignal core setup --json")
         return {
             "alias": alias,
             "status": "blocked",
@@ -64,6 +66,7 @@ def run(
         headed=profile_settings_model.headed,
         slow_mo_ms=profile_settings_model.slowMoMs,
         env=runtime_values,
+        entitlement_receipt=_valid_receipt_path(),
     )
     data = result.get("data", {})
     run_id = data.get("runId") or f"{alias}-{now_iso().replace(':', '').replace('-', '')}"
@@ -308,8 +311,8 @@ def _next_action(status: str, alias: str) -> str:
     if status == "passed":
         return "No repair needed."
     if status == "incomplete":
-        return f"Run `proofsignal-spec repair {alias} --json` or re-run after repairing missing gate evidence."
-    return f"Inspect the Core report and run `proofsignal-spec repair {alias} --from-report <report> --json`."
+        return f"Run `proofsignal repair {alias} --json` or re-run after repairing missing gate evidence."
+    return f"Inspect the Core report and run `proofsignal repair {alias} --from-report <report> --json`."
 
 
 def _failed_step(result: dict[str, Any]) -> str | None:
@@ -364,3 +367,11 @@ def _run_request_parameters(run_request: Path) -> dict[str, Any]:
             if value is not None and value != ""
         }
     return {}
+
+
+def _valid_receipt_path() -> str | None:
+    receipt = load_receipt()
+    if not receipt:
+        return None
+    status = receipt_status(receipt)
+    return status.receiptPath if status.status == "valid" else None

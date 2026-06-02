@@ -136,7 +136,7 @@ def detect_branch_relevance(candidate: FirstRunCandidate) -> tuple[bool, str | N
 
 def build_understanding_onboarding_preparation(*, stage: str = "specify") -> dict[str, Any]:
     next_command = "/proofsignal-understand"
-    resume_command = f"/proofsignal-{stage} (resume after `proofsignal-spec workflow check {stage} --json` passes)"
+    resume_command = f"/proofsignal-{stage} (resume after `proofsignal workflow check {stage} --json` passes)"
     summary = (
         "Safe repository understanding is required before ProofSignal can recommend a reliable first run. "
         "The agent should inspect public project structure and non-sensitive context, persist understanding, then resume this stage."
@@ -210,7 +210,7 @@ def build_first_run_recommendation(project: Path) -> FirstRunRecommendation:
         "branchRelevant": top.branchRelevant,
         "branchRelevanceReason": top.branchRelevanceReason,
     }
-    next_action = f"proofsignal-spec workflow accept-first-run {candidate.alias} --json"
+    next_action = f"proofsignal workflow accept-first-run {candidate.alias} --json"
     inventory_status = str(inventory.get("status", "partial"))
     inventory_note = ""
     if inventory_status in {"partial", "stale"}:
@@ -259,7 +259,7 @@ def build_first_run_recommendation(project: Path) -> FirstRunRecommendation:
 
 def accept_first_run(project: Path, alias: str) -> dict[str, Any]:
     record = load_use_case(project, alias)
-    next_action = f"proofsignal-spec author {alias} --json"
+    next_action = f"proofsignal author {alias} --json"
     state = GuidedFirstRunState(
         selectedCandidate=alias,
         stage="accepted",
@@ -458,12 +458,12 @@ def classify_first_run_blocker(code: str, *, alias: str | None = None) -> dict[s
         "stale-workspace": (
             "stale-workspace",
             "Golden Path workspace state is older than the supported schema.",
-            "proofsignal-spec workflow inspect-golden-path-state --json",
+            "proofsignal workflow inspect-golden-path-state --json",
         ),
         "incompatible-core": (
             "incompatible-core",
             "Configured ProofSignal Core does not expose the required public CLI JSON operations.",
-            "proofsignal-spec core setup --json",
+            "proofsignal core setup --json",
         ),
     }
     category, summary, next_action = catalog.get(code, ("unknown-blocker", "The first run is blocked.", "/proofsignal-list"))
@@ -625,21 +625,21 @@ def _stage_from_first_run_status(first_run_status: str) -> str:
 
 def _resume_command_for_status(alias: str, first_run_status: str) -> str:
     if first_run_status in {"passed", "repaired-passed"}:
-        return f"proofsignal-spec workflow inspect-golden-path-state --json"
+        return f"proofsignal workflow inspect-golden-path-state --json"
     if first_run_status == "repairing":
-        return f"proofsignal-spec repair {alias} --json"
+        return f"proofsignal repair {alias} --json"
     if first_run_status in {"failed", "incomplete"}:
-        return f"proofsignal-spec repair {alias} --json"
+        return f"proofsignal repair {alias} --json"
     if first_run_status == "blocked":
-        return f"proofsignal-spec workflow check run --alias {alias} --json"
-    return f"proofsignal-spec run {alias} --json"
+        return f"proofsignal workflow check run --alias {alias} --json"
+    return f"proofsignal run {alias} --json"
 
 
 def _resume_command_for_stage(alias: str, stage: str) -> str:
     return {
-        "authoring": f"proofsignal-spec author {alias} --json",
-        "validating": f"proofsignal-spec validate {alias} --runtime-readiness --json",
-        "running": f"proofsignal-spec run {alias} --json",
-        "repairing": f"proofsignal-spec repair {alias} --json",
-        "blocked": f"proofsignal-spec workflow check run --alias {alias} --json",
-    }.get(stage, f"proofsignal-spec workflow inspect-golden-path-state --json")
+        "authoring": f"proofsignal author {alias} --json",
+        "validating": f"proofsignal validate {alias} --runtime-readiness --json",
+        "running": f"proofsignal run {alias} --json",
+        "repairing": f"proofsignal repair {alias} --json",
+        "blocked": f"proofsignal workflow check run --alias {alias} --json",
+    }.get(stage, f"proofsignal workflow inspect-golden-path-state --json")

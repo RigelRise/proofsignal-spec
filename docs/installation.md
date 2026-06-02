@@ -119,10 +119,30 @@ proofsignal init --here --integration codex
 
 When no override or verified cache exists, ProofSignal asks for the email unlock
 token from the official unlock flow, exchanges it for a signed entitlement
-receipt, verifies the official manifest/artifact, and stores the runtime in the
-user cache. The target project's `.proofsignal/` workspace stays portable and
-does not store raw tokens, signed URLs, credentials, screenshots, browser
-storage, or private runtime contents.
+receipt through `https://proofsignal.io/api`, requests authorized runtime
+metadata/download from the backend, verifies the package, and stores the runtime
+in the user cache. The backend owns email delivery, token expiry, exchange
+limits, refresh policy, throttling, receipt signing, and runtime download
+authorization. The current public/free token policy allows up to 3 exchanges,
+at most 3 exchanges per hour, with a 30-day default token TTL. The target
+project's `.proofsignal/` workspace stays portable and does not store raw
+emails, raw tokens, receipt payloads, signed URLs, credentials, screenshots,
+browser storage, or private runtime contents.
+
+For staging, local backend development, and tests, use an explicit API override:
+
+```sh
+proofsignal init --here --integration codex --api-base-url http://localhost:3000/api
+```
+
+or:
+
+```sh
+export PROOFSIGNAL_API_BASE_URL=http://localhost:3000/api
+```
+
+Do not put credentials, tokens, signed URLs, or query secrets in the API base
+URL.
 
 For local development, CI, or offline diagnostics, pass the private Core
 repository directory during initialization:
@@ -159,6 +179,12 @@ Use an explicit command string if needed:
 ```sh
 export PROOFSIGNAL_CORE_CMD="npm --silent --prefix /path/to/proofsignal run proofsignal:dev --"
 ```
+
+Overrides are not entitlement success. They only select a Core executable for
+development, CI, diagnostics, or offline environments. If the selected runtime
+requires entitlement for `authoring-check`, `run`, or `report.inspect`,
+ProofSignal provides the cached receipt reference when available or reports the
+runtime's public entitlement rejection as a non-repairable blocker.
 
 ## Local Checkout Before Publishing
 

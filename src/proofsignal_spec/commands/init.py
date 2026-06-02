@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,9 +12,32 @@ from proofsignal_spec.workflows.core_setup import run_core_setup
 from proofsignal_spec.workspace.repository import init_workspace
 
 
-def run(project: Path, integration: str, force: bool = False, core_cmd: str | None = None) -> dict[str, Any]:
+def run(project: Path, integration: str, force: bool = False, core_cmd: str | None = None, api_base_url: str | None = None) -> dict[str, Any]:
     workspace = init_workspace(project, force=False)
-    runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, context="init")
+    email = os.environ.get("PROOFSIGNAL_EMAIL")
+    token = os.environ.get("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN")
+    if not token and not email and sys.stdin.isatty():
+        email = input("ProofSignal email for runtime unlock: ").strip() or None
+    runtime = ensure_core_runtime(
+        project,
+        explicit_core_cmd=core_cmd,
+        api_base_url=api_base_url,
+        email=email,
+        token=token,
+        integration=integration,
+        context="init",
+    )
+    if runtime.status != "ready" and email and not token and sys.stdin.isatty():
+        token = input("ProofSignal email unlock token: ").strip() or None
+        if token:
+            runtime = ensure_core_runtime(
+                project,
+                explicit_core_cmd=core_cmd,
+                api_base_url=api_base_url,
+                token=token,
+                integration=integration,
+                context="init",
+            )
     core_setup = run_core_setup(project, explicit_core_cmd=core_cmd, persist=False) if core_cmd else run_core_setup(project, persist=False)
     workspace = init_workspace(project, force=False)
     installed = install_integration(project, integration, force=force, default=True)

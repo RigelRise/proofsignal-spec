@@ -13,4 +13,4 @@ class WorkflowCodexInstallationTests(CliTestCase):
         assert run.exists()
         assert_guardrail_template(understand.read_text(encoding="utf-8"), "understand")
         assert_guardrail_template(run.read_text(encoding="utf-8"), "run")
-        assert (self.project / ".agents" / "skills" / "proofsignal-spec-author" / "SKILL.md").exists()
+        assert not (self.project / ".agents" / "skills" / "proofsignal-spec-author" / "SKILL.md").exists()

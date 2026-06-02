@@ -40,7 +40,7 @@ def run(project: Path, alias: str, description: str, run_request: str | None = N
         alias,
         stage="validating",
         first_run_status="not-started",
-        resume_command=f"proofsignal-spec validate {alias} --runtime-readiness --json",
+        resume_command=f"proofsignal validate {alias} --runtime-readiness --json",
         summary=f"{alias} artifacts are authored and ready for validation.",
         owned_artifacts=owned_artifacts,
     )

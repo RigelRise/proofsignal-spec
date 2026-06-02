@@ -18,7 +18,7 @@ def generate_authoring_tasks(project: Path, plan: ArtifactPlan) -> AuthoringTask
     ]
     for index, skill in enumerate(plan.supportingSkills, start=4):
         entries.append(AuthoringTask(f"A{index:03d}", "Draft or reuse supporting skill.", skill))
-    entries.append(AuthoringTask(f"A{len(entries) + 1:03d}", "Run ProofSignal validation before marking runnable.", "proofsignal-spec validate"))
+    entries.append(AuthoringTask(f"A{len(entries) + 1:03d}", "Run ProofSignal validation before marking runnable.", "proofsignal validate"))
     return AuthoringTaskSet(
         taskSetId=f"tasks-{plan.useCaseAlias}",
         useCaseAlias=plan.useCaseAlias,

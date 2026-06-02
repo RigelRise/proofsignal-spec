@@ -55,13 +55,13 @@ class IntegrationOnboardingGuidanceIntegrationTests(CliTestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("ProofSignal Core: [BLOCKED]", out)
         self.assertIn("full validation and browser execution require Core", out)
-        self.assertIn("Next: proofsignal-spec core setup --json", out)
+        self.assertIn("Next: proofsignal core setup --json", out)
 
         guide_path = self.project / ".claude" / "PROOFSIGNAL_ONBOARDING.md"
         content = guide_path.read_text(encoding="utf-8")
         self.assertIn("Core Runtime", content)
         self.assertIn("Specification, understanding, planning, task generation, and artifact authoring can continue without Core.", content)
-        self.assertIn("proofsignal-spec core setup --json", content)
+        self.assertIn("proofsignal core setup --json", content)
 
     def test_install_incompatible_core_prints_incompatible_status(self) -> None:
         os.environ["FAKE_PROOFSIGNAL_MODE"] = "incompatible-run-schema"

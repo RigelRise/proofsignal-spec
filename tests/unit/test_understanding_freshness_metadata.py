@@ -57,7 +57,7 @@ def test_current_understanding_returns_candidates_and_first_run_recommendation_c
     assert result["candidateUseCases"][0]["candidateAlias"] == "checkout"
     assert result["recommendedCandidate"]["candidateAlias"] == "checkout"
     assert result["candidateSelectionSource"] == "workflow.recommend-first-run"
-    assert result["firstRunRecommendationCommand"] == "proofsignal-spec workflow recommend-first-run --json"
+    assert result["firstRunRecommendationCommand"] == "proofsignal workflow recommend-first-run --json"
     assert result["projectOverview"]
 
 

@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import os
 import stat
 import sys
 import tarfile
+import threading
 from pathlib import Path
+from typing import Any
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
 
 from helpers import FAKE_CORE
 
@@ -62,3 +68,236 @@ def build_managed_runtime_distribution(root: Path, *, platform: str, core_versio
         "platform": platform,
     }
 
+
+def public_free_token_policy() -> dict[str, Any]:
+    return {
+        "policyId": "public-free",
+        "policyVersion": 1,
+        "validationMode": "happy-path-only",
+        "maxUseCases": 1,
+        "maxExchanges": 1,
+        "maxExchangesPerHour": 1,
+        "defaultTokenTtlDays": 30,
+        "defaultReceiptTtlDays": 7,
+        "refresh": "request_new_token",
+    }
+
+
+def public_free_receipt_summary(*, token: str = "ps_valid", exchange_count: int = 1) -> dict[str, Any]:
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+    return {
+        "receiptId": f"rcpt_{digest}",
+        "issuer": "https://proofsignal.io",
+        "issuedAt": "2026-06-01T00:00:00Z",
+        "expiresAt": "2099-01-01T00:00:00Z",
+        "scopes": ["runtime.download", "runtime.local-use"],
+        "keyId": "ps-entitlement-2026-06",
+        "usePolicy": {
+            "policyId": "public-free",
+            "policyVersion": 1,
+            "validationMode": "happy-path-only",
+            "maxUseCases": 1,
+        },
+        "tokenPolicy": {
+            "exchangeCount": exchange_count,
+            "maxExchanges": 1,
+            "hourlyExchangeCount": min(exchange_count, 1),
+            "maxExchangesPerHour": 1,
+            "refresh": "request_new_token",
+        },
+    }
+
+
+def token_delivery_response() -> dict[str, Any]:
+    return {
+        "schema": "proofsignal.entitlement-token-delivery/v1",
+        "schemaVersion": 1,
+        "status": "accepted",
+        "delivery": "email",
+        "tokenPolicy": public_free_token_policy(),
+        "message": "If the address is eligible, an unlock token will be sent.",
+    }
+
+
+def token_exchange_response(*, token: str = "ps_valid", exchange_count: int = 1) -> dict[str, Any]:
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    summary = public_free_receipt_summary(token=token, exchange_count=exchange_count)
+    receipt = {
+        "schema": "proofsignal.entitlement-receipt/v1",
+        "schemaVersion": 1,
+        "claims": {
+            "receiptId": summary["receiptId"],
+            "issuer": summary["issuer"],
+            "audience": "proofsignal-core",
+            "subject": {"kind": "opaque-subject", "value": f"sub_{digest[:16]}"},
+            "issuedAt": summary["issuedAt"],
+            "expiresAt": summary["expiresAt"],
+            "scopes": summary["scopes"],
+            "usePolicy": summary["usePolicy"],
+            "publicContractVersion": "proofsignal-public-cli-json/v1",
+            "coreVersionConstraint": ">=0.1.0 <1.0.0",
+        },
+        "signature": {
+            "algorithm": "ed25519",
+            "keyId": summary["keyId"],
+            "signedPayload": "canonical-claims-json/v1",
+            "value": "fake-signature",
+        },
+    }
+    return {
+        "schema": "proofsignal.entitlement-exchange/v1",
+        "schemaVersion": 1,
+        "receipt": json.dumps(receipt, separators=(",", ":")),
+        "receiptSummary": summary,
+    }
+
+
+def runtime_authorization_response(distribution: dict[str, Path | str]) -> dict[str, Any]:
+    return {
+        "schema": "proofsignal.runtime-download/v1",
+        "schemaVersion": 1,
+        "coreVersion": distribution["coreVersion"],
+        "platform": distribution["platform"],
+        "releaseMetadata": {"schema": "proofsignal.runtime-release/v1"},
+        "releaseSignature": {"schema": "proofsignal.runtime-signature/v1", "algorithm": "test", "keyId": "test-release-key", "value": "valid"},
+        "package": {
+            "filename": Path(str(distribution["artifact"])).name,
+            "byteSize": Path(str(distribution["artifact"])).stat().st_size,
+            "sha256": distribution["sha256"],
+            "downloadUrl": Path(str(distribution["artifact"])).as_uri(),
+            "expiresAt": "2099-01-01T00:00:00Z",
+        },
+    }
+
+
+class FakeBackendState:
+    def __init__(self, distribution: dict[str, Path | str] | None = None) -> None:
+        self.distribution = distribution
+        self.delivery_status = "accepted"
+        self.exchange_failures: dict[str, tuple[int, str]] = {
+            "ps_invalid": (401, "entitlement.invalid-token"),
+            "ps_expired": (403, "entitlement.expired-token"),
+            "ps_exchange_limit": (403, "entitlement.exchange-limit"),
+            "ps_exchange_throttled": (429, "entitlement.exchange-throttled"),
+            "ps_rejected": (403, "entitlement.rejected"),
+        }
+        self.keys_status = "ok"
+        self.download_status = "ok"
+        self.requests: list[dict[str, Any]] = []
+        self.exchange_count = 0
+
+
+class _FakeBackendHandler(BaseHTTPRequestHandler):
+    server: ThreadingHTTPServer
+
+    def log_message(self, _format: str, *args: Any) -> None:
+        return
+
+    @property
+    def state(self) -> FakeBackendState:
+        return self.server.state  # type: ignore[attr-defined]
+
+    def do_POST(self) -> None:
+        body = self.rfile.read(int(self.headers.get("Content-Length", "0") or "0"))
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        self.state.requests.append({"method": "POST", "path": self.path, "payload": payload})
+        if self.path == "/entitlements/request-token":
+            if self.state.delivery_status == "throttled":
+                self._json(429, {"schema": "proofsignal.error/v1", "code": "entitlement.delivery-throttled", "message": "Delivery throttled."})
+                return
+            if self.state.delivery_status == "unavailable":
+                self._json(503, {"schema": "proofsignal.error/v1", "code": "entitlement.delivery-unavailable", "message": "Delivery unavailable."})
+                return
+            self._json(200, token_delivery_response())
+            return
+        if self.path == "/entitlements/exchange":
+            token = str(payload.get("token", ""))
+            failure = self.state.exchange_failures.get(token)
+            if failure:
+                status, code = failure
+                self._json(status, {"schema": "proofsignal.error/v1", "code": code, "message": "Exchange refused."})
+                return
+            self.state.exchange_count += 1
+            self._json(200, token_exchange_response(token=token, exchange_count=self.state.exchange_count))
+            return
+        self._json(404, {"schema": "proofsignal.error/v1", "code": "not-found"})
+
+    def do_GET(self) -> None:
+        parsed = urlparse(self.path)
+        self.state.requests.append({"method": "GET", "path": self.path, "query": parse_qs(parsed.query)})
+        if parsed.path == "/entitlements/keys":
+            if self.state.keys_status == "unavailable":
+                self._json(503, {"schema": "proofsignal.error/v1", "code": "api.unavailable"})
+                return
+            self._json(
+                200,
+                {
+                    "schema": "proofsignal.entitlement-keys/v1",
+                    "schemaVersion": 1,
+                    "keys": [{"keyId": "ps-entitlement-2026-06", "algorithm": "ed25519", "publicKeyPem": "-----BEGIN PUBLIC KEY-----\\nMCowBQYDK2VwAyEA9cu+k/slRJsVRXV7mGPjJYtsqNO6DFFUi8phMq3Hiqw=\\n-----END PUBLIC KEY-----\\n", "status": "active"}],
+                },
+            )
+            return
+        if parsed.path.startswith("/runtimes/"):
+            if self.state.download_status == "unauthorized" or not self.headers.get("Authorization", "").startswith("Bearer "):
+                self._json(403, {"schema": "proofsignal.error/v1", "code": "distribution.unauthorized"})
+                return
+            if self.state.download_status == "unavailable" or not self.state.distribution:
+                self._json(503, {"schema": "proofsignal.error/v1", "code": "distribution.unavailable"})
+                return
+            if self.state.download_status == "url-expired":
+                payload = runtime_authorization_response(self.state.distribution)
+                payload["package"]["expiresAt"] = "2000-01-01T00:00:00Z"
+                self._json(200, payload)
+                return
+            self._json(200, runtime_authorization_response(self.state.distribution))
+            return
+        self._json(404, {"schema": "proofsignal.error/v1", "code": "not-found"})
+
+    def _json(self, status: int, payload: dict[str, Any]) -> None:
+        encoded = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+
+@contextlib.contextmanager
+def serve_fake_entitlement_backend(distribution: dict[str, Path | str] | None = None):
+    state = FakeBackendState(distribution=distribution)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _FakeBackendHandler)
+    server.state = state  # type: ignore[attr-defined]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}", state
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+        server.server_close()
+
+
+@contextlib.contextmanager
+def managed_runtime_test_env(monkeypatch, tmp_path: Path, *, api_base_url: str | None = None, token: str = "ps_valid"):
+    cache_dir = tmp_path / "user-cache"
+    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(cache_dir))
+    monkeypatch.setenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", token)
+    monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
+    if api_base_url:
+        monkeypatch.setenv("PROOFSIGNAL_API_BASE_URL", api_base_url)
+    try:
+        yield cache_dir
+    finally:
+        for key in [
+            "PROOFSIGNAL_RUNTIME_CACHE_DIR",
+            "PROOFSIGNAL_EMAIL_UNLOCK_TOKEN",
+            "PROOFSIGNAL_API_BASE_URL",
+            "PROOFSIGNAL_RUNTIME_MANIFEST_PATH",
+            "PROOFSIGNAL_RUNTIME_MANIFEST_JSON",
+        ]:
+            os.environ.pop(key, None)

@@ -2,15 +2,15 @@
 
 Create or update only planned draft artifacts.
 
-- Start by running `proofsignal-spec workflow check implement --alias <alias> --json`.
-- Before constructing the payload, read the public workflow contract with `proofsignal-spec workflow info proofsignal-use-case --json` and use `stagePayloadContracts.implement` as the source of truth. Do not inspect installed package source to infer payload schemas.
-- Use the installed `proofsignal-spec` executable directly. Do not use `npx proofsignal-spec`.
+- Start by running `proofsignal workflow check implement --alias <alias> --json`.
+- Before constructing the payload, read the public workflow contract with `proofsignal workflow info proofsignal-use-case --json` and use `stagePayloadContracts.implement` as the source of truth. Do not inspect installed package source to infer payload schemas.
+- Use the installed `proofsignal` executable directly. Do not use `npx` or package-runner wrappers.
 - Continue only when the result includes `requiredCapability: workflow.guardrails/v1` and `supported: true`.
-- If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal-spec` and regenerate the agent integration. Regenerate the agent integration after upgrading.
+- If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal` and regenerate the agent integration. Regenerate the agent integration after upgrading.
 - If the check does not allow continuation, name the missing artifact or decision, point to `nextCommand`, and stop.
 - Do not perform stage-specific work until the check allows it.
-- Read approved tasks and persisted context with `proofsignal-spec workflow show --alias <alias> --json`.
-- Read the browser authoring contract with `proofsignal-spec workflow info proofsignal-use-case --json` before drafting browser skill intent. Use `browserAuthoringContract.validActions`, `browserAuthoringContract.validAssertionKinds`, and `browserAuthoringContract.validNetworkMatchKeys` as the source of truth.
+- Read approved tasks and persisted context with `proofsignal workflow show --alias <alias> --json`.
+- Read the browser authoring contract with `proofsignal workflow info proofsignal-use-case --json` before drafting browser skill intent. Use `browserAuthoringContract.validActions`, `browserAuthoringContract.validAssertionKinds`, and `browserAuthoringContract.validNetworkMatchKeys` as the source of truth.
 - Follow `.proofsignal/workflows/use-cases/<alias>/tasks.md`.
 - Prepare structured artifact intent for `.proofsignal/run-requests/<alias>.yaml` and `.proofsignal/skills/<name>.browser.md`; the CLI owns the final `qa-run-request/v1` and `qa-skill/v1` envelopes.
 - Preserve the planned `mainSkill` from the artifact plan. Do not rely on `skills[0]`; reusable helper skills may appear before the main skill in submitted payloads.
@@ -24,11 +24,11 @@ Create or update only planned draft artifacts.
 - Browser assertions use `expected`, not `value`, and run after all steps complete. Put intermediate gate checks in step-level `checkText`/`checkLocation` actions or captured screenshot evidence.
 - For debounced inputs, avoid `awaitNetwork` immediately after `fill`; use `checkText` or `waitForText` with a long enough `timeoutMs` to cover debounce, API response, and render.
 - Do not iterate on schema errors manually. If artifact content is partial, send the intent through `workflow persist implement` so the CLI can normalize the canonical envelope or block unsafe no-op artifacts.
-- Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal-spec workflow persist implement --alias <alias> --payload <payload.json> --json`.
+- Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal workflow persist implement --alias <alias> --payload <payload.json> --json`.
 - The CLI must update canonical use-case records and registry entries; never manually author registry entries or canonical use-case records.
-- Do not use `proofsignal-spec author`, `proofsignal-spec schema`, `proofsignal-spec core schema`, or `proofsignal-spec scaffold` as fallbacks inside this staged workflow.
+- Do not use `proofsignal author`, `proofsignal core schema` as fallbacks inside this staged workflow.
 - Do not change artifacts that are not named by the approved plan and tasks.
 - Keep generated run requests and skills as drafts until validation passes.
-- Run `proofsignal-spec validate <alias> --runtime-readiness` before reporting browser artifacts ready.
+- Run `proofsignal validate <alias> --runtime-readiness` before reporting browser artifacts ready.
 - Never persist credential values.
 - Suggest `/proofsignal-validate` after draft artifacts are created.

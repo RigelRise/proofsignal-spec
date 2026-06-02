@@ -14,3 +14,7 @@ class SecretRedactionTests(unittest.TestCase):
     def test_nested_secret_detection(self) -> None:
         findings = validate_no_secret_values({"parameters": {"clientSecret": "real-secret-value"}})
         self.assertTrue(findings)
+
+    def test_token_policy_metadata_is_not_treated_as_secret(self) -> None:
+        findings = validate_no_secret_values({"entitlement": {"tokenPolicy": {"maxExchanges": 3, "ttlDays": 30}}})
+        self.assertEqual(findings, [])

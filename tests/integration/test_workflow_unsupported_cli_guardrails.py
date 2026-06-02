@@ -9,7 +9,7 @@ def test_installed_templates_stop_on_unsupported_workflow_contract(tmp_path) -> 
         content = files[f".agents/skills/proofsignal-{stage}/SKILL.md"]
         assert "workflow.guardrails/v1" in content
         assert "stop immediately" in content
-        assert "upgrade `proofsignal-spec` and regenerate the agent integration" in content
-        assert "Do not use `npx proofsignal-spec`" in content
+        assert "upgrade `proofsignal` and regenerate the agent integration" in content
+        assert "Do not use `npx` or package-runner wrappers" in content
     assert "Do not inspect the repository" in files[".agents/skills/proofsignal-understand/SKILL.md"]
-    assert "Do not fall back to `proofsignal-spec check`, directory listing, repository inspection, or use-case questions" in files[".agents/skills/proofsignal-specify/SKILL.md"]
+    assert "Do not fall back to `proofsignal check`, directory listing, repository inspection, or use-case questions" in files[".agents/skills/proofsignal-specify/SKILL.md"]

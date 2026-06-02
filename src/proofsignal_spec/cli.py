@@ -38,11 +38,13 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     init_parser.add_argument("--integration", choices=["codex", "claude"], required=True)
     init_parser.add_argument("--force", action="store_true")
     init_parser.add_argument("--core-cmd", help="ProofSignal Core executable, command string, or local Core repository path")
+    init_parser.add_argument("--api-base-url", help="Override the ProofSignal entitlement API base URL for staging, local development, or tests")
     init_parser.add_argument("--json", action="store_true")
 
     check_parser = subparsers.add_parser("check", help="Check workspace and Core readiness")
     check_parser.add_argument("--project", default=".")
     check_parser.add_argument("--core-cmd", help="ProofSignal Core executable, command string, or local Core repository path")
+    check_parser.add_argument("--api-base-url", help="Override the ProofSignal entitlement API base URL for staging, local development, or tests")
     check_parser.add_argument("--json", action="store_true")
 
     author_parser = subparsers.add_parser("author", help="Author a browser use case")
@@ -62,6 +64,7 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     validate_parser.add_argument("--project", default=".")
     validate_parser.add_argument("--runtime-readiness", action="store_true")
     validate_parser.add_argument("--core-cmd", help="Override configured ProofSignal Core command")
+    validate_parser.add_argument("--api-base-url", help="Override the ProofSignal entitlement API base URL for staging, local development, or tests")
     validate_parser.add_argument("--json", action="store_true")
 
     run_parser = subparsers.add_parser("run", help="Run a use case")
@@ -70,6 +73,7 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     run_parser.add_argument("--profile", default="normal")
     run_parser.add_argument("--slow-mo", dest="slow_mo", type=int, help="Override browser slow motion in milliseconds for this run")
     run_parser.add_argument("--core-cmd", help="Override configured ProofSignal Core command")
+    run_parser.add_argument("--api-base-url", help="Override the ProofSignal entitlement API base URL for staging, local development, or tests")
     run_parser.add_argument("--json", action="store_true")
     run_parser.add_argument("--non-interactive", action="store_true")
 
@@ -79,6 +83,7 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     repair_parser.add_argument("--from-report")
     repair_parser.add_argument("--approve", action="store_true")
     repair_parser.add_argument("--core-cmd", help="Override configured ProofSignal Core command")
+    repair_parser.add_argument("--api-base-url", help="Override the ProofSignal entitlement API base URL for staging, local development, or tests")
     repair_parser.add_argument("--json", action="store_true")
 
     core_parser = subparsers.add_parser("core", help="Inspect configured ProofSignal Core")
@@ -225,15 +230,15 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
     command = args.command
     if command == "init":
         project = resolve_project_path(args.project_path, here=args.here)
-        return init_command.run(project, args.integration, force=args.force, core_cmd=args.core_cmd), args.json
+        return init_command.run(project, args.integration, force=args.force, core_cmd=args.core_cmd, api_base_url=args.api_base_url), args.json
     if command == "check":
-        return check_command.run(Path(args.project).resolve(), core_cmd=args.core_cmd), args.json
+        return check_command.run(Path(args.project).resolve(), core_cmd=args.core_cmd, api_base_url=args.api_base_url), args.json
     if command == "author":
         return author_command.run(Path(args.project).resolve(), args.alias, args.description, run_request=args.run_request, skills=args.skill), args.json
     if command == "list":
         return list_command.run(Path(args.project).resolve()), args.json
     if command == "validate":
-        return validate_command.run(Path(args.project).resolve(), args.alias, runtime_readiness=args.runtime_readiness, core_cmd=args.core_cmd), args.json
+        return validate_command.run(Path(args.project).resolve(), args.alias, runtime_readiness=args.runtime_readiness, core_cmd=args.core_cmd, api_base_url=args.api_base_url), args.json
     if command == "run":
         return run_command.run(
             Path(args.project).resolve(),
@@ -241,10 +246,11 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
             profile_name=args.profile,
             interactive=not args.non_interactive,
             core_cmd=args.core_cmd,
+            api_base_url=args.api_base_url,
             slow_mo_override=args.slow_mo,
         ), args.json
     if command == "repair":
-        return repair_command.run(Path(args.project).resolve(), args.alias, from_report=args.from_report, approve=args.approve, core_cmd=args.core_cmd), args.json
+        return repair_command.run(Path(args.project).resolve(), args.alias, from_report=args.from_report, approve=args.approve, core_cmd=args.core_cmd, api_base_url=args.api_base_url), args.json
     if command == "core":
         from .core.adapter import CoreAdapter
         from .workspace.repository import get_core_command

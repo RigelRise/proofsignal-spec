@@ -132,7 +132,8 @@ Runtime readiness checks target resolution, syntactic target reachability,
 required runtime prerequisites, runtime authoring readiness, and public contract
 compatibility without running the full browser flow. If no override is
 configured, ProofSignal attempts to use a verified managed runtime from the user
-cache or acquire one from the official manifest after email-token unlock.
+cache or acquire one through the official `https://proofsignal.io/api`
+entitlement and runtime-download contract after email-token unlock.
 
 ## Golden Path
 
@@ -159,12 +160,29 @@ proofsignal init --here --integration codex
 proofsignal check
 ```
 
-During onboarding, ProofSignal may ask for the email unlock token issued by the
-official unlock flow. The raw token is process-local only; it is exchanged for a
-signed entitlement receipt in the user cache and is not written to
-`.proofsignal/`, generated guides, blockers, logs, or cache metadata. Managed
-runtime packages are cached outside the target project, by default under
-`~/.cache/proofsignal/core/<version>/<platform>/`.
+During onboarding, ProofSignal may ask for an email address, request token
+delivery through the official backend, then ask for the email unlock token. The
+backend owns token generation, email delivery, expiry, exchange limits,
+throttling, receipt signing, and runtime download authorization. The current
+public/free policy allows up to 3 token exchanges, at most 3 exchanges per hour,
+with a 30-day default token TTL. The raw email and token are process-local only;
+the token is exchanged for a signed entitlement receipt in the user cache and is
+not written to `.proofsignal/`, generated guides, blockers, logs, or cache
+metadata. Managed runtime packages are cached outside the target project, by
+default under `~/.cache/proofsignal/core/<version>/<platform>/`.
+
+The production API base URL defaults to:
+
+```text
+https://proofsignal.io/api
+```
+
+Use `--api-base-url` or `PROOFSIGNAL_API_BASE_URL` only for staging, local
+backend development, and tests:
+
+```sh
+proofsignal init --here --integration codex --api-base-url http://localhost:3000/api
+```
 
 For local development with the private ProofSignal Core repository, pass the
 repository directory directly. ProofSignal will run Core through
@@ -191,6 +209,13 @@ proofsignal check
 
 `PROOFSIGNAL_CORE_CMD` is read by `proofsignal`; it does not create a shell
 command named `proofsignal-core`.
+
+Core overrides are execution/discovery conveniences for development,
+diagnostics, CI, and restricted-network environments. They do not count as
+managed entitlement success. If an override-selected runtime enforces
+entitlement for a protected operation, ProofSignal passes the cached receipt
+reference when available or reports Core's public entitlement rejection as a
+non-repairable runtime blocker.
 
 ## Workspace Rules
 

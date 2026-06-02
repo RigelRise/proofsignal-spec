@@ -37,7 +37,7 @@ class ValidationReadinessContractTests(CliTestCase):
         self.assertIn("complete ProofSignal validation and browser execution experience", result["coreReadiness"]["message"])
         blocker = next(item for item in result["blockers"] if item["code"] == "core.missing")
         self.assertEqual(blocker["category"], "environment")
-        self.assertEqual(blocker["recoveryCommand"], "proofsignal-spec core setup --json")
+        self.assertEqual(blocker["recoveryCommand"], "proofsignal core setup --json")
         self.assertFalse(blocker["repairable"])
 
     def test_core_compatibility_fields_are_reported_when_core_is_available(self) -> None:

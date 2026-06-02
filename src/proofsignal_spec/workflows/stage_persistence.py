@@ -107,7 +107,7 @@ def persist_stage(
             code="payload.missing-required-field",
             message=finding.message,
             invalid=True,
-            recovery_command="proofsignal-spec workflow info proofsignal-use-case --json",
+            recovery_command="proofsignal workflow info proofsignal-use-case --json",
             documentation_ref=f"stagePayloadContracts.{stage}.requiredFields",
             warnings=public_contract_warnings,
         )
@@ -305,7 +305,7 @@ def _persist_plan(project: Path, alias: str, content: dict[str, Any]) -> StagePe
                 ReadinessBlocker(
                     code="clarification.unresolved-blocking",
                     message="Planning is blocked by unresolved runtime, data, credential, permission, or outcome clarifications.",
-                    recoveryCommand=f"proofsignal-spec workflow persist clarify --alias {alias} --payload <answers.json> --json",
+                    recoveryCommand=f"proofsignal workflow persist clarify --alias {alias} --payload <answers.json> --json",
                 )
             ],
             nextCommand=f"/proofsignal-clarify {alias}",
@@ -396,7 +396,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
                 ReadinessBlocker(
                     code="authoring.coherence-blocked",
                     message=message,
-                    recoveryCommand=f"proofsignal-spec workflow show --alias {alias} --json",
+                    recoveryCommand=f"proofsignal workflow show --alias {alias} --json",
                 )
                 for message in coherence.blockers
             ],
@@ -440,7 +440,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
         _write_payload_artifact(project, skill.path, skill_content, lambda record=record, skill=skill: artifacts.render_skill(record, skill))
 
     save_use_case(project, record)
-    write_handoff(project, alias, "implement", "Draft canonical artifacts were persisted by proofsignal-spec workflow persist implement. Validation is still required.")
+    write_handoff(project, alias, "implement", "Draft canonical artifacts were persisted by proofsignal workflow persist implement. Validation is still required.")
     save_workflow_state(project, alias, state_document(project, alias, current_stage="validate", status="paused"))
     return StagePersistenceResult(
         stage="implement",
@@ -613,7 +613,7 @@ def _gate_intent_requiredness_blockers(project: Path, alias: str, content: dict[
                 ReadinessBlocker(
                     code="gate-intent.requiredness-change-unconfirmed",
                     message=f"Gate '{gate_id}' changes requiredness. Record a clarify/plan gateIntentChanges entry with a non-secret reason before persisting.",
-                    recoveryCommand=f"proofsignal-spec workflow persist plan --alias {alias} --payload <payload-with-gateIntentChanges.json> --json",
+                    recoveryCommand=f"proofsignal workflow persist plan --alias {alias} --payload <payload-with-gateIntentChanges.json> --json",
                     documentationRef="stagePayloadContracts.plan.optionalFields.gateIntentChanges",
                 )
             )

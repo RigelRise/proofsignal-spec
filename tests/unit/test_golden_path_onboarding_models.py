@@ -59,7 +59,7 @@ def test_guided_first_run_state_validates_stage_and_round_trips() -> None:
         stage="repairing",
         firstRunStatus="repairing",
         strictPass=False,
-        resumeCommand="proofsignal-spec repair home-page-unauth --json",
+        resumeCommand="proofsignal repair home-page-unauth --json",
         stageCards=[
             {
                 "stageId": "repairing",

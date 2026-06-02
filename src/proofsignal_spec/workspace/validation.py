@@ -45,6 +45,7 @@ def looks_secret(value: Any, field_name: str = "") -> bool:
         "planFingerprint",
         "sha256",
         "generatedGitHash",
+        "tokenPolicy",
     }:
         return False
     if normalized_field == "hash" and HEX_IDENTIFIER_RE.match(text):

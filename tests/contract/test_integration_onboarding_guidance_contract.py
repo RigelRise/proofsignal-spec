@@ -49,7 +49,7 @@ class IntegrationOnboardingGuidanceContractTests(CliTestCase):
         data = json.loads(out)
         self.assertEqual(data["coreSetup"]["status"], "missing")
         self.assertEqual(data["onboardingGuide"]["coreStatus"]["statusMarker"], "[BLOCKED]")
-        self.assertEqual(data["onboardingGuide"]["coreStatus"]["nextAction"], "proofsignal-spec core setup --json")
+        self.assertEqual(data["onboardingGuide"]["coreStatus"]["nextAction"], "proofsignal core setup --json")
 
     def test_integration_install_json_includes_incompatible_core_status_contract(self) -> None:
         os.environ["FAKE_PROOFSIGNAL_MODE"] = "incompatible-run-schema"

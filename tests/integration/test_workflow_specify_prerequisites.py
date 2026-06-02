@@ -19,7 +19,7 @@ class WorkflowSpecifyPrerequisitesTests(CliTestCase):
         code, _, err = self.cli(["init", str(self.project), "--integration", "codex", "--json"])
         self.assertEqual(code, 0, err)
         content = (self.project / ".agents" / "skills" / "proofsignal-specify" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("proofsignal-spec workflow check specify --json", content)
+        self.assertIn("proofsignal workflow check specify --json", content)
         self.assertIn("repository understanding is required", content)
         self.assertIn("candidate validation use cases", content)
 
@@ -35,7 +35,7 @@ class WorkflowSpecifyPrerequisitesTests(CliTestCase):
         assert result["status"] == "ready"
         assert result["recommendedCandidate"]["candidateAlias"] == "profile"
         assert result["candidateSelectionSource"] == "workflow.recommend-first-run"
-        assert result["firstRunRecommendationCommand"] == "proofsignal-spec workflow recommend-first-run --json"
+        assert result["firstRunRecommendationCommand"] == "proofsignal workflow recommend-first-run --json"
         assert result["candidateUseCases"][0]["candidateAlias"] == "profile"
 
     def test_specify_stale_refresh_accept_and_decline_paths(self) -> None:

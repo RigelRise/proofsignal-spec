@@ -131,7 +131,7 @@ def _blockers(structural: StructuralWorkspaceValidation, core: CoreReadiness) ->
             ReadinessBlocker(
                 code="workspace.structural-blocked",
                 message="Workspace structure is blocked. Review structuralValidation.findings and apply approved migrations when offered.",
-                recoveryCommand="proofsignal-spec workflow check validate --json",
+                recoveryCommand="proofsignal workflow check validate --json",
             )
         )
     if core.status == "missing":
@@ -140,7 +140,7 @@ def _blockers(structural: StructuralWorkspaceValidation, core: CoreReadiness) ->
                 code="core.missing",
                 category="environment",
                 message="ProofSignal Core is not configured or could not be found. Core setup is required for complete validation and browser execution.",
-                recoveryCommand="proofsignal-spec core setup --json",
+                recoveryCommand="proofsignal core setup --json",
                 repairable=False,
             )
         )
@@ -149,7 +149,7 @@ def _blockers(structural: StructuralWorkspaceValidation, core: CoreReadiness) ->
             ReadinessBlocker(
                 code="core.incompatible",
                 message=core.message or "ProofSignal Core is incompatible with the required public contract.",
-                recoveryCommand="proofsignal-spec core version --json",
+                recoveryCommand="proofsignal core version --json",
             )
         )
     elif core.status == "error":

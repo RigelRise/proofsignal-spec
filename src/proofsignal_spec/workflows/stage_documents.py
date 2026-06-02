@@ -182,7 +182,7 @@ def _render_understanding_metadata(metadata: dict[str, Any]) -> list[str]:
 
 
 def _stage_contract_note(stage: str) -> str:
-    return f"See stagePayloadContracts.{stage} from `proofsignal-spec workflow info proofsignal-use-case --json`."
+    return f"See stagePayloadContracts.{stage} from `proofsignal workflow info proofsignal-use-case --json`."
 
 
 def _render_candidate_use_cases(candidates: list[dict[str, Any]]) -> list[str]:

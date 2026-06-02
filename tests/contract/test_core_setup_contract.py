@@ -39,7 +39,7 @@ class CoreSetupContractTests(CliTestCase):
         payload = json.loads(out)
         self.assertEqual(payload["status"], "missing")
         self.assertIsNone(payload.get("selectedCandidate"))
-        self.assertEqual(payload["recoveryCommand"], "proofsignal-spec core setup --json")
+        self.assertEqual(payload["recoveryCommand"], "proofsignal core setup --json")
         self.assertTrue(payload["attempts"])
 
     def test_core_setup_json_incompatible_contract(self) -> None:
@@ -65,7 +65,7 @@ class CoreSetupContractTests(CliTestCase):
         payload = json.loads(out)
         self.assertEqual(payload["status"], "error")
         self.assertEqual(payload["source"], "env")
-        self.assertEqual(payload["recoveryCommand"], "proofsignal-spec core setup --json")
+        self.assertEqual(payload["recoveryCommand"], "proofsignal core setup --json")
 
     def test_core_setup_one_time_override_contract(self) -> None:
         code, out, err = self.cli([

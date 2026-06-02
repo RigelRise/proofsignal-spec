@@ -23,6 +23,6 @@ MISSING_UNDERSTANDING_AUTO_PREPARE = (
     "then resume the original specify flow without requiring the user to manually restart"
 )
 PUBLIC_WORKFLOW_CONTRACT_BOUNDARY = (
-    "Use the public workflow contract from `proofsignal-spec workflow info proofsignal-use-case --json` "
+    "Use the public workflow contract from `proofsignal workflow info proofsignal-use-case --json` "
     "and `stagePayloadContracts`; Do not inspect installed package source to infer payload schemas"
 )

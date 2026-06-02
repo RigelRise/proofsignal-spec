@@ -229,7 +229,7 @@ def inspect_golden_path_workspace_state(project: Path) -> dict[str, Any]:
     preserved = _golden_path_preserved_artifacts(project, owned)
     selected = state.get("selectedCandidate") if state else None
     first_run_status = state.get("firstRunStatus") if state else None
-    resume_hint = f"proofsignal-spec run {selected} --json" if selected and first_run_status != "skipped" else "proofsignal-spec workflow recommend-first-run --json"
+    resume_hint = f"proofsignal run {selected} --json" if selected and first_run_status != "skipped" else "proofsignal workflow recommend-first-run --json"
     return GoldenPathWorkspaceState(
         status="empty" if not state else "ready",
         projectRoot=str(project),
@@ -240,7 +240,7 @@ def inspect_golden_path_workspace_state(project: Path) -> dict[str, Any]:
         resetPreview=[f"remove {path}" for path in owned],
         resumeHint=resume_hint,
         warnings=[],
-        nextAction="proofsignal-spec workflow reset-golden-path-state --preview --json" if owned else "proofsignal-spec workflow recommend-first-run --json",
+        nextAction="proofsignal workflow reset-golden-path-state --preview --json" if owned else "proofsignal workflow recommend-first-run --json",
     ).to_dict()
 
 
@@ -258,7 +258,7 @@ def reset_golden_path_workspace_state(project: Path, *, preview: bool = False, c
     inspected["firstRunState"] = None
     inspected["ownedArtifacts"] = []
     inspected["resetPreview"] = []
-    inspected["nextAction"] = "proofsignal-spec workflow recommend-first-run --json"
+    inspected["nextAction"] = "proofsignal workflow recommend-first-run --json"
     return inspected
 
 

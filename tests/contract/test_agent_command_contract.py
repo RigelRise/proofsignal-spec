@@ -9,7 +9,7 @@ def test_codex_renders_proofsignal_workflow_skills(tmp_path) -> None:
     assert ".agents/skills/proofsignal-understand/SKILL.md" in files
     assert ".agents/skills/proofsignal-run/SKILL.md" in files
     assert "proofsignal.understand" in files[".agents/skills/proofsignal-understand/SKILL.md"]
-    assert "proofsignal-spec-author" in files[".agents/skills/proofsignal-spec-author/SKILL.md"]
+    assert ".agents/skills/proofsignal-spec-author/SKILL.md" not in files
 
 
 def test_claude_renders_argument_hints_for_workflow_skills(tmp_path) -> None:

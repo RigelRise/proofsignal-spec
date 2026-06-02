@@ -20,7 +20,7 @@ def test_workflow_stage_contract_serializes_public_payload_guidance() -> None:
         defaults={"status": "draft"},
         unsupportedFieldsPolicy="warn",
         examples=[{"surface": "/", "behavior": "Validate home.", "expectedOutcome": "Home renders."}],
-        nextAction="proofsignal-spec workflow persist specify --payload <payload.json> --json",
+        nextAction="proofsignal workflow persist specify --payload <payload.json> --json",
     )
 
     data = contract.to_dict()
@@ -56,7 +56,7 @@ def test_validation_readiness_summary_distinguishes_authored_mapping_from_browse
         authoredEvidenceCoverageStatus="complete",
         runtimeReadinessStatus="passed",
         fullBrowserFlowExecuted=False,
-        nextAction="proofsignal-spec run home-page-unauth --json",
+        nextAction="proofsignal run home-page-unauth --json",
     )
 
     data = summary.to_dict()
@@ -76,7 +76,7 @@ def test_run_outcome_summary_separates_core_browser_and_spec_coverage_status() -
         profile="normal",
         runId="request_home-page-unauth_1",
         failedStep="scroll-to-activity",
-        nextAction="proofsignal-spec repair home-page-unauth --json",
+        nextAction="proofsignal repair home-page-unauth --json",
     )
 
     data = summary.to_dict()

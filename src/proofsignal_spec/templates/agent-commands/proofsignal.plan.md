@@ -2,14 +2,14 @@
 
 Plan one run request and reusable skills before implementation.
 
-- Start by running `proofsignal-spec workflow check plan --alias <alias> --json`.
-- Before constructing the payload, read the public workflow contract with `proofsignal-spec workflow info proofsignal-use-case --json` and use `stagePayloadContracts.plan` as the source of truth. Do not inspect installed package source to infer payload schemas.
-- Use the installed `proofsignal-spec` executable directly. Do not use `npx proofsignal-spec`.
+- Start by running `proofsignal workflow check plan --alias <alias> --json`.
+- Before constructing the payload, read the public workflow contract with `proofsignal workflow info proofsignal-use-case --json` and use `stagePayloadContracts.plan` as the source of truth. Do not inspect installed package source to infer payload schemas.
+- Use the installed `proofsignal` executable directly. Do not use `npx` or package-runner wrappers.
 - Continue only when the result includes `requiredCapability: workflow.guardrails/v1` and `supported: true`.
-- If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal-spec` and regenerate the agent integration. Regenerate the agent integration after upgrading.
+- If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal` and regenerate the agent integration. Regenerate the agent integration after upgrading.
 - If the check does not allow continuation, name the missing artifact or decision, point to `nextCommand`, and stop.
 - Do not perform stage-specific work until the check allows it.
-- Read existing persisted context with `proofsignal-spec workflow show --alias <alias> --json`. Do not invent `workflow show` alternatives or use `workflow status` as a use-case reader.
+- Read existing persisted context with `proofsignal workflow show --alias <alias> --json`. Do not invent `workflow show` alternatives or use `workflow status` as a use-case reader.
 - Stop when unresolved runtime, data, credential, permission, or expected-outcome clarifications remain. Route back to `/proofsignal-clarify`.
 - Do not leave `baseUrl` or equivalent target parameters empty after the user has supplied a target. Treat an empty target after clarification as a stage-handoff defect, not as a runtime prompt workaround.
 - Require exactly one planned run request for the use case.
@@ -22,6 +22,6 @@ Plan one run request and reusable skills before implementation.
 - Backend checks must declare method, public match keys such as `urlContains`, `status`, `requestBodyContains`, or `responseBodyContains`, expected status, and `gateId`. `operationName` is optional metadata only.
 - Persist both `mainSkill` and `reusableSkills`. `supportingSkills` is accepted for compatibility, but `reusableSkills` is the canonical payload field.
 - Reuse existing skills when appropriate instead of nesting or duplicating skills under a use case.
-- Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal-spec workflow persist plan --alias <alias> --payload <payload.json> --json`.
+- Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal workflow persist plan --alias <alias> --payload <payload.json> --json`.
 - Block implementation when the plan lacks a run request or skill relationship.
 - Suggest `/proofsignal-tasks` after the plan is approved.

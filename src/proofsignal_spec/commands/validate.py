@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.core.contracts import core_entitlement_blocker_code
+from proofsignal_spec.runtime.entitlement import load_receipt, receipt_status
+from proofsignal_spec.runtime.models import RuntimeSetupBlocker
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.first_run import advance_guided_first_run_state
 from proofsignal_spec.workflows.models import WORKFLOW_VALIDATION_READINESS_SCHEMA, CoreReadiness, ReadinessBlocker, ValidationReadinessSummary
@@ -22,7 +25,7 @@ def _selected_main_skill(record_main_skill: Any, main_skill: Path) -> dict[str, 
     return data
 
 
-def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: str | None = None) -> dict[str, Any]:
+def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: str | None = None, api_base_url: str | None = None) -> dict[str, Any]:
     structural = structural_validation(project, alias=alias)
     if structural.status == "blocked":
         return {
@@ -35,11 +38,11 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
                 ReadinessBlocker(
                     code="workspace.structural-blocked",
                     message="Workspace structure is blocked. Review structuralValidation.findings and apply approved migrations when offered.",
-                    recoveryCommand=f"proofsignal-spec workflow check validate --alias {alias} --json",
+                    recoveryCommand=f"proofsignal workflow check validate --alias {alias} --json",
                 ).to_dict()
             ],
         }
-    managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, context="validate")
+    managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="validate")
     if managed_runtime.status != "ready":
         result = {
             "schemaVersion": WORKFLOW_VALIDATION_READINESS_SCHEMA,
@@ -80,14 +83,20 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
                 ReadinessBlocker(
                     code="authoring.coherence-blocked",
                     message=message,
-                    recoveryCommand=f"proofsignal-spec workflow persist implement --alias {alias} --payload <payload.json> --json",
+                    recoveryCommand=f"proofsignal workflow persist implement --alias {alias} --payload <payload.json> --json",
                 ).to_dict()
                 for message in coherence.blockers
             ],
         }
         update_validation(project, alias, result)
         return result
-    result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).authoring_check(run_request, main_skill, skills, runtime_readiness=runtime_readiness)
+    result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).authoring_check(
+        run_request,
+        main_skill,
+        skills,
+        runtime_readiness=runtime_readiness,
+        entitlement_receipt=_valid_receipt_path(),
+    )
     runtime_check = evaluate_runtime_readiness(project, alias, authoring_result=result) if runtime_readiness else None
     wrapped = {
         "alias": alias,
@@ -98,6 +107,15 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         "managedRuntimeReadiness": managed_runtime.to_dict(),
         "core": result,
     }
+    entitlement_blocker_code = core_entitlement_blocker_code(result)
+    if entitlement_blocker_code:
+        blocker = RuntimeSetupBlocker(
+            code=entitlement_blocker_code,
+            message="ProofSignal Core rejected the entitlement receipt for this protected operation.",
+            recoveryCommand="Run `proofsignal init --here --integration codex` to unlock or refresh runtime entitlement.",
+        )
+        wrapped["status"] = "blocked"
+        wrapped["blockers"] = [ReadinessBlocker.from_dict(blocker.to_dict()).to_dict()]
     authored_evidence_status = _authored_evidence_coverage_status(coherence.to_dict().get("gateCoverage", []))
     runtime_status = "not-run"
     if runtime_check:
@@ -109,7 +127,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
                 ReadinessBlocker(
                     code=finding,
                     message=runtime_check.message or "Runtime readiness is blocked.",
-                    recoveryCommand=f"proofsignal-spec workflow check validate --alias {alias} --json",
+                    recoveryCommand=f"proofsignal workflow check validate --alias {alias} --json",
                 ).to_dict()
                 for finding in runtime_check.findingIds
             ]
@@ -121,7 +139,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         authoredEvidenceCoverageStatus=authored_evidence_status,
         runtimeReadinessStatus=runtime_status,
         fullBrowserFlowExecuted=False,
-        nextAction=f"proofsignal-spec run {alias} --json" if wrapped.get("status") == "passed" else f"proofsignal-spec workflow check validate --alias {alias} --json",
+        nextAction=f"proofsignal run {alias} --json" if wrapped.get("status") == "passed" else f"proofsignal workflow check validate --alias {alias} --json",
     )
     wrapped.update(summary.to_dict())
     wrapped["readinessSummary"] = _readiness_summary_text(summary)
@@ -133,7 +151,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
             alias,
             stage="running",
             first_run_status="running",
-            resume_command=f"proofsignal-spec run {alias} --json",
+            resume_command=f"proofsignal run {alias} --json",
             summary=f"{alias} validation readiness passed; the first browser run is ready.",
         )
     elif summary.status == "blocked":
@@ -172,3 +190,11 @@ def _readiness_summary_text(summary: ValidationReadinessSummary) -> str:
         "Validation readiness did not pass. Review structural validation, authoring coherence, "
         "runtime readiness, and mapped authored evidence before running the browser flow."
     )
+
+
+def _valid_receipt_path() -> str | None:
+    receipt = load_receipt()
+    if not receipt:
+        return None
+    status = receipt_status(receipt)
+    return status.receiptPath if status.status == "valid" else None

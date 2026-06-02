@@ -12,7 +12,8 @@ class InitCheckContractTests(CliTestCase):
         payload = json.loads(out)
         self.assertEqual(payload["integration"], "codex")
         self.assertTrue((self.project / ".proofsignal").exists())
-        self.assertTrue((self.project / ".agents" / "skills" / "proofsignal-spec-author" / "SKILL.md").exists())
+        self.assertTrue((self.project / ".agents" / "skills" / "proofsignal-specify" / "SKILL.md").exists())
+        self.assertFalse((self.project / ".agents" / "skills" / "proofsignal-spec-author" / "SKILL.md").exists())
         self.assertTrue(payload["core"]["compatible"])
 
         code, out, err = self.cli(["check", "--project", str(self.project), "--json"])

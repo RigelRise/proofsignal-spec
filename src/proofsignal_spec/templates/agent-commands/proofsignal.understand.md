@@ -3,10 +3,10 @@
 Capture repository and product understanding before authoring run requests.
 
 - No prior repository understanding is required for this command.
-- Start by running `proofsignal-spec workflow check understand --json` to verify that the installed CLI supports the current workflow contract.
-- Use the installed `proofsignal-spec` executable directly. Do not use `npx proofsignal-spec`.
+- Start by running `proofsignal workflow check understand --json` to verify that the installed CLI supports the current workflow contract.
+- Use the installed `proofsignal` executable directly. Do not use `npx` or package-runner wrappers.
 - Continue only when the result includes `requiredCapability: workflow.guardrails/v1` and `supported: true`.
-- If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal-spec` and regenerate the agent integration. Do not inspect the repository or write `.proofsignal/product-context.yaml` with an unknown CLI contract.
+- If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal` and regenerate the agent integration. Do not inspect the repository or write `.proofsignal/product-context.yaml` with an unknown CLI contract.
 - This command may be used for the initial understanding pass or after a stale-understanding refresh is accepted.
 - Work inside the target repository.
 - Keep generated docs, workflow prompts, run requests, and skills in English.
@@ -18,7 +18,7 @@ Capture repository and product understanding before authoring run requests.
 - Support scoped passes with `--scope all`, `--scope changed`, `--scope continue`, `--scope route:<path>`, or `--scope area:<name>`.
 - Mark the inventory as `complete` only when every discoverable user-facing surface is covered or explicitly excluded with a reason. Otherwise mark it as partial inventory with explicit partialInventoryReasons; mark changed areas `stale` when repository changes affect them.
 - Prepare a structured payload with repository summary, start instructions, safe paths, blocked sensitive paths, coverage inventory, candidate use cases, generated time, and git hash or git-unavailable reason.
-- Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal-spec workflow persist understand --scope <scope> --payload <payload.json> --json`.
+- Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal workflow persist understand --scope <scope> --payload <payload.json> --json`.
 - Report whether inventory is complete, partial, or stale before recommending scenarios.
 - Treat canonical examples as optional learning aids after the real-target first-run recommendation. Do not use fake/demo examples as a user-facing fallback when target information is missing.
 - Never persist credential values.

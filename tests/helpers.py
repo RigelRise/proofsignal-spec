@@ -52,9 +52,10 @@ def agent_template(stage: str) -> str:
 
 
 def assert_guardrail_template(content: str, stage: str) -> None:
-    assert f"proofsignal-spec workflow check {stage}" in content
+    assert f"proofsignal workflow check {stage}" in content
     assert "workflow.guardrails/v1" in content
-    assert "Do not use `npx proofsignal-spec`" in content
+    assert "Do not use `npx` or package-runner wrappers" in content
+    assert "proofsignal-spec-fe" not in content
     assert "Do not write managed `.proofsignal/` artifacts directly" in content
 
 

@@ -164,7 +164,7 @@ def test_core_setup_cli_text_missing(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert code == 0, err
     assert "Status: [BLOCKED]" in out
     assert "ProofSignal Core was not found." in out
-    assert "Next: proofsignal-spec core setup --json" in out
+    assert "Next: proofsignal core setup --json" in out
 
 
 def test_core_setup_cli_ready_scenario_completes_under_five_seconds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

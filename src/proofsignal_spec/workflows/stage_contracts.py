@@ -34,7 +34,7 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
                 "customSourceReason": "Selected by developer.",
             }
         ],
-        nextAction="proofsignal-spec workflow persist specify --alias <alias> --payload <payload.json> --json",
+        nextAction="proofsignal workflow persist specify --alias <alias> --payload <payload.json> --json",
     ),
     "clarify": WorkflowStageContract(
         stage="clarify",
@@ -53,7 +53,7 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
                 ]
             }
         ],
-        nextAction="proofsignal-spec workflow persist clarify --alias <alias> --payload <payload.json> --json",
+        nextAction="proofsignal workflow persist clarify --alias <alias> --payload <payload.json> --json",
     ),
     "plan": WorkflowStageContract(
         stage="plan",
@@ -81,7 +81,7 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
                 "validationGates": [{"id": "home-hero-visible", "required": True}],
             }
         ],
-        nextAction="proofsignal-spec workflow persist plan --alias <alias> --payload <payload.json> --json",
+        nextAction="proofsignal workflow persist plan --alias <alias> --payload <payload.json> --json",
     ),
     "tasks": WorkflowStageContract(
         stage="tasks",
@@ -98,7 +98,7 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
                 ]
             }
         ],
-        nextAction="proofsignal-spec workflow persist tasks --alias <alias> --payload <payload.json> --json",
+        nextAction="proofsignal workflow persist tasks --alias <alias> --payload <payload.json> --json",
     ),
     "implement": WorkflowStageContract(
         stage="implement",
@@ -123,7 +123,7 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
                 ],
             }
         ],
-        nextAction="proofsignal-spec workflow persist implement --alias <alias> --payload <payload.json> --json",
+        nextAction="proofsignal workflow persist implement --alias <alias> --payload <payload.json> --json",
     ),
 }
 
@@ -164,7 +164,7 @@ def unsupported_field_warnings(stage: str, payload: dict[str, Any]) -> list[str]
         if key not in allowed:
             warnings.append(
                 f"Unsupported field '{key}' is not part of stagePayloadContracts.{stage}. "
-                f"Review `proofsignal-spec workflow info proofsignal-use-case --json` before persisting this stage."
+                f"Review `proofsignal workflow info proofsignal-use-case --json` before persisting this stage."
             )
     return warnings
 
@@ -177,6 +177,6 @@ def missing_required_field_error(stage: str, field: str) -> StagePayloadContract
         severity="blocked",
         message=f"Payload missing required public contract field '{field}' for stage '{stage}'.",
         expectedContract=f"stagePayloadContracts.{stage}.requiredFields.{field}",
-        recoveryAction="Run `proofsignal-spec workflow info proofsignal-use-case --json` and submit the documented stage payload shape.",
+        recoveryAction="Run `proofsignal workflow info proofsignal-use-case --json` and submit the documented stage payload shape.",
     )
     return StagePayloadContractError(finding)

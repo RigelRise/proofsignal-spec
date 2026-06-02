@@ -9,6 +9,39 @@ import sys
 def main() -> int:
     args = sys.argv[1:]
     mode = os.environ.get("FAKE_PROOFSIGNAL_MODE", "ok").replace("_", "-")
+    protected = bool(args[:2] == ["authoring-check", "run-request"] or (args and args[0] == "run") or args[:2] == ["report", "inspect"])
+    if protected and mode in {"requires-entitlement", "rejects-entitlement", "expired-entitlement", "malformed-entitlement"}:
+        receipt_path = os.environ.get("PROOFSIGNAL_ENTITLEMENT_RECEIPT")
+        error_code = None
+        if not receipt_path:
+            error_code = "entitlement.missing"
+        elif mode == "rejects-entitlement":
+            error_code = "entitlement.policy-denied"
+        elif mode == "expired-entitlement":
+            error_code = "entitlement.expired"
+        elif mode == "malformed-entitlement":
+            error_code = "entitlement.malformed"
+        if error_code:
+            print(
+                json.dumps(
+                    {
+                        "schema": "proofsignal.error/v1",
+                        "schemaVersion": 1,
+                        "operation": args[0] if args else "unknown",
+                        "status": "blocked",
+                        "data": {
+                            "findings": [
+                                {
+                                    "severity": "blocking",
+                                    "code": error_code,
+                                    "message": "Entitlement receipt was rejected by Core.",
+                                }
+                            ]
+                        },
+                    }
+                )
+            )
+            return 2
     if args[:2] == ["version", "--json"]:
         if mode == "incompatible":
             payload = {

@@ -93,7 +93,7 @@ def verify_candidate(
     try:
         compatibility = CoreAdapter(executable=command, cwd=project).check_compatibility()
     except CoreMissingError as exc:
-        return (candidate.to_attempt(status="missing", terminal=False, message=str(exc)), None)
+        return (candidate.to_attempt(status="missing", terminal=terminal, message=str(exc)), None)
     except CoreExecutionError as exc:
         return (candidate.to_attempt(status="error", terminal=terminal, message=str(exc)), None)
     except Exception as exc:
@@ -218,7 +218,7 @@ def onboarding_core_status(result: CoreSetupResult) -> dict[str, object]:
         "source": result.source,
         "coreCommand": result.coreCommand,
         "selectedCandidate": None,
-        "nextAction": "Inspect setup attempts and rerun proofsignal-spec core setup --json.",
+        "nextAction": "Inspect setup attempts and rerun proofsignal core setup --json.",
         "guideText": "Core setup could not complete safely. Specification and authoring can continue, but full validation and browser execution require a successful Core setup.",
     }
 
@@ -285,7 +285,7 @@ def _blocked_result(
             contractVersion=contract["contractVersion"],
             attempts=attempts,
             message="Core setup could not complete safely.",
-            nextAction="Inspect setup attempts and rerun proofsignal-spec core setup --json.",
+            nextAction="Inspect setup attempts and rerun proofsignal core setup --json.",
         )
     if last_blocking_attempt and last_blocking_attempt.status == "incompatible":
         return CoreSetupResult(

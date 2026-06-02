@@ -427,7 +427,7 @@ def _understanding_payload(context: dict[str, Any]) -> dict[str, Any]:
             "candidateUseCases": [],
             "recommendedCandidate": None,
             "candidateSelectionSource": "workflow.recommend-first-run",
-            "firstRunRecommendationCommand": "proofsignal-spec workflow recommend-first-run --json",
+            "firstRunRecommendationCommand": "proofsignal workflow recommend-first-run --json",
             "understanding": {},
         }
     candidates = list(context.get("candidateUseCases", []))
@@ -436,7 +436,7 @@ def _understanding_payload(context: dict[str, Any]) -> dict[str, Any]:
         "candidateUseCases": candidates,
         "recommendedCandidate": _recommended_candidate(candidates),
         "candidateSelectionSource": "workflow.recommend-first-run",
-        "firstRunRecommendationCommand": "proofsignal-spec workflow recommend-first-run --json",
+        "firstRunRecommendationCommand": "proofsignal workflow recommend-first-run --json",
         "understanding": context.get("understanding", {}),
     }
 
