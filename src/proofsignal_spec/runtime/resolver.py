@@ -48,6 +48,34 @@ def ensure_core_runtime(
         attempt = _verify_command(project, source, command)
         attempts.append(attempt)
         if attempt.status == "compatible":
+            entitlement, entitlement_checked_api = _override_entitlement_status(
+                config,
+                email=email,
+                token=token,
+                integration=integration,
+                context=context,
+            )
+            if entitlement:
+                if entitlement_checked_api and not (entitlement.blockerCode or "").startswith("api."):
+                    api_status.status = "reachable"
+                if entitlement.status != "valid":
+                    code = entitlement.blockerCode or _entitlement_blocker_code(entitlement.status)
+                    blocker = RuntimeSetupBlocker(
+                        code=code,
+                        message=entitlement.message or "Email unlock token is required before protected ProofSignal Core operations.",
+                        recoveryCommand="Run `proofsignal init --here --integration codex` and enter the email unlock token, or provide a valid entitlement receipt.",
+                    )
+                    if code.startswith("api."):
+                        api_status.status = "unreachable"
+                    result = ManagedRuntimeReadinessResult.blocked(
+                        blocker,
+                        attempts=attempts,
+                        entitlement=entitlement,
+                        cache=RuntimeCacheStatus(status="not-checked"),
+                        message=blocker.message,
+                    )
+                    result.api = api_status
+                    return result
             return ManagedRuntimeReadinessResult(
                 status="ready",
                 source=source,  # type: ignore[arg-type]
@@ -56,7 +84,7 @@ def ensure_core_runtime(
                 contractVersion=attempt.contractVersion or PUBLIC_CONTRACT_VERSION,
                 attempts=attempts,
                 api=api_status,
-                entitlement=RuntimeEntitlementStatus(status="not-required"),
+                entitlement=entitlement or RuntimeEntitlementStatus(status="not-required"),
                 cache=RuntimeCacheStatus(status="not-checked"),
                 message="ProofSignal runtime is ready.",
                 nextAction="Continue with validation or run.",
@@ -241,6 +269,32 @@ def _ancestor_sibling_paths(project: Path) -> list[Path]:
         if sibling.exists():
             paths.append(sibling)
     return paths
+
+
+def _override_entitlement_status(
+    config,
+    *,
+    email: str | None,
+    token: str | None,
+    integration: str | None,
+    context: str,
+) -> tuple[RuntimeEntitlementStatus | None, bool]:
+    token_available = bool(token or os.environ.get("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN"))
+    email_available = bool(email or os.environ.get("PROOFSIGNAL_EMAIL"))
+    receipt_available = load_receipt() is not None
+    should_resolve = token_available or receipt_available or (context == "init" and email_available)
+    if not should_resolve:
+        return None, False
+    return (
+        ensure_entitlement(
+            config=config,
+            email=email,
+            token=token,
+            request_delivery=context == "init",
+            integration=integration,
+        ),
+        token_available or (context == "init" and email_available),
+    )
 
 
 def _verify_command(project: Path, source: str, command: str, *, platform: str | None = None) -> RuntimeSourceAttempt:

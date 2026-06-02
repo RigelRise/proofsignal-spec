@@ -17,7 +17,7 @@ def run(project: Path, integration: str, force: bool = False, core_cmd: str | No
     email = os.environ.get("PROOFSIGNAL_EMAIL")
     token = os.environ.get("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN")
     if not token and not email and sys.stdin.isatty():
-        email = input("ProofSignal email for runtime unlock: ").strip() or None
+        email = _prompt("ProofSignal email for runtime unlock: ").strip() or None
     runtime = ensure_core_runtime(
         project,
         explicit_core_cmd=core_cmd,
@@ -28,7 +28,7 @@ def run(project: Path, integration: str, force: bool = False, core_cmd: str | No
         context="init",
     )
     if runtime.status != "ready" and email and not token and sys.stdin.isatty():
-        token = input("ProofSignal email unlock token: ").strip() or None
+        token = _prompt("ProofSignal email unlock token: ").strip() or None
         if token:
             runtime = ensure_core_runtime(
                 project,
@@ -63,3 +63,9 @@ def run(project: Path, integration: str, force: bool = False, core_cmd: str | No
         "core": core,
         "next": "Run `/proofsignal-specify` in your agent, or use `proofsignal workflow run proofsignal-use-case --goal \"<behavior>\"`.",
     }
+
+
+def _prompt(message: str) -> str:
+    sys.stderr.write(message)
+    sys.stderr.flush()
+    return input()
