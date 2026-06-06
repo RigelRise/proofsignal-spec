@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ from proofsignal_spec.workflows.first_run import classify_first_run_status, gold
 from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
 from proofsignal_spec.workflows.models import GateCoverageResult, GoldenPathRunState, RepairRecommendation, RunOutcomeSummary
 from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
+from proofsignal_spec.workflows.readiness import executable_contract_blockers, legacy_executable_artifact_blockers, managed_runtime_contract_blockers
 from proofsignal_spec.workflows.stage_cards import run_result_card
 from proofsignal_spec.workflows.repository import load_artifact_plan
 from proofsignal_spec.workspace.models import ArtifactReference, RunHistoryEntry
@@ -37,6 +39,20 @@ def run(
     record, run_request, main_skill, skills = resolve_artifacts(project, alias)
     managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="run")
     if managed_runtime.status != "ready":
+        contract_blockers = managed_runtime_contract_blockers(managed_runtime)
+        if contract_blockers:
+            return {
+                "alias": alias,
+                "status": "blocked",
+                "coreStatus": "blocked",
+                "coverageStatus": "not-run",
+                "coreBrowserStatus": "blocked",
+                "specCoverageStatus": "not-run",
+                "managedRuntimeReadiness": managed_runtime.to_dict(),
+                "blockers": [blocker.to_dict() for blocker in contract_blockers],
+                "reason": contract_blockers[0].message,
+                "nextAction": f"proofsignal workflow check run --alias {alias} --json",
+            }
         if any(blocker.code == "core.missing" for blocker in managed_runtime.blockers):
             raise CoreMissingError(f"{managed_runtime.message} proofsignal core setup --json")
         return {
@@ -52,6 +68,26 @@ def run(
             "nextAction": managed_runtime.nextAction,
         }
     profile_settings_model = resolve_effective_profile_settings(profile, slow_mo_override=slow_mo_override)
+    contract_blockers = [
+        *legacy_executable_artifact_blockers(run_request, main_skill, skills),
+        *executable_contract_blockers(project, managed_runtime.runtimeCommand),
+    ]
+    if contract_blockers:
+        return {
+            "alias": alias,
+            "status": "blocked",
+            "coreStatus": "blocked",
+            "coverageStatus": "not-run",
+            "coreBrowserStatus": "blocked",
+            "specCoverageStatus": "not-run",
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "profile": profile_name,
+            "profileSettings": profile_settings_model.to_dict(),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "blockers": [blocker.to_dict() for blocker in contract_blockers],
+            "reason": contract_blockers[0].message,
+            "nextAction": f"proofsignal workflow check run --alias {alias} --json",
+        }
     runtime_values = resolve_runtime_inputs(
         record.runtimeInputs,
         interactive=interactive,
@@ -72,7 +108,7 @@ def run(
     run_id = data.get("runId") or f"{alias}-{now_iso().replace(':', '').replace('-', '')}"
     core = core_status(result)
     gates = _planned_gates(project, alias)
-    gate_coverage_results = _runtime_gate_coverage(result, gates)
+    gate_coverage_results = _runtime_gate_coverage(project, result, gates)
     gate_coverage = [item.to_dict() for item in gate_coverage_results]
     contradictions = (
         [
@@ -244,11 +280,56 @@ def _planned_gates(project: Path, alias: str) -> list[Any]:
         return []
 
 
-def _runtime_gate_coverage(result: dict[str, Any], gates: list[Any]) -> list[GateCoverageResult]:
+def _runtime_gate_coverage(project: Path, result: dict[str, Any], gates: list[Any]) -> list[GateCoverageResult]:
     if not gates:
         return []
-    evidence = extract_core_runtime_evidence(result, known_gate_ids={gate.id for gate in gates})
+    evidence = extract_core_runtime_evidence(
+        _result_with_public_report(project, result),
+        known_gate_ids={gate.id for gate in gates},
+    )
     return calculate_gate_coverage(gates, evidence)
+
+
+def _result_with_public_report(project: Path, result: dict[str, Any]) -> dict[str, Any]:
+    data = result.get("data") if isinstance(result.get("data"), dict) else {}
+    if isinstance(data.get("report"), dict):
+        return result
+    report = _load_public_qa_report(project, data.get("reportPath"))
+    if report is None:
+        return result
+    updated = dict(result)
+    updated_data = dict(data)
+    updated_data["report"] = report
+    updated["data"] = updated_data
+    return updated
+
+
+def _load_public_qa_report(project: Path, raw_path: Any) -> dict[str, Any] | None:
+    report_path = _resolve_report_path(project, raw_path)
+    if report_path is None or not report_path.exists():
+        return None
+    try:
+        data = json.loads(report_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict) or data.get("schemaVersion") != "qa-report/v1":
+        return None
+    return data
+
+
+def _resolve_report_path(project: Path, raw_path: Any) -> Path | None:
+    if not raw_path:
+        return None
+    path = Path(str(raw_path))
+    candidate = path if path.is_absolute() else project / path
+    try:
+        resolved = candidate.resolve()
+        workspace = (project / ".proofsignal").resolve()
+    except Exception:
+        return None
+    if resolved == workspace or workspace in resolved.parents:
+        return resolved
+    return None
 
 
 def _selected_main_skill(reference: ArtifactReference | None, path: Path) -> dict[str, Any]:

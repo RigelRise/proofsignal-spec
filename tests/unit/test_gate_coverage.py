@@ -153,6 +153,119 @@ def test_public_core_evidence_drives_required_gate_coverage() -> None:
     assert {item.gateId: item.status for item in coverage}["about-tab-content"] == "missing"
 
 
+def test_qa_report_steps_with_gate_ids_drive_runtime_coverage() -> None:
+    gates, _warnings = normalize_planned_gates(
+        [
+            {"id": "overview-data-card", "description": "Profile name renders", "required": True},
+            {"id": "projects-tab-content", "description": "Projects tab renders", "required": True},
+        ]
+    )
+    inventory = extract_core_runtime_evidence(
+        {
+            "status": "passed",
+            "data": {
+                "report": {
+                    "schemaVersion": "qa-report/v1",
+                    "status": "passed",
+                    "steps": [
+                        {"id": "assert-profile-name", "status": "passed", "gateId": "overview-data-card", "evidence": []},
+                        {"id": "assert-project-card", "status": "passed", "gateId": "projects-tab-content", "evidence": []},
+                    ],
+                }
+            },
+        },
+        known_gate_ids={gate.id for gate in gates},
+    )
+    coverage = calculate_gate_coverage(gates, inventory)
+
+    assert coverage_status("passed", coverage) == "complete"
+    assert {item.gateId: item.uiEvidenceIds for item in coverage} == {
+        "overview-data-card": ["assert-profile-name"],
+        "projects-tab-content": ["assert-project-card"],
+    }
+
+
+def test_qa_report_failed_or_tolerated_steps_do_not_prove_coverage() -> None:
+    gates, _warnings = normalize_planned_gates(
+        [
+            {"id": "overview-data-card", "description": "Profile name renders", "required": True},
+            {"id": "projects-tab-content", "description": "Projects tab renders", "required": True},
+        ]
+    )
+    inventory = extract_core_runtime_evidence(
+        {
+            "status": "passed",
+            "data": {
+                "report": {
+                    "schemaVersion": "qa-report/v1",
+                    "status": "passed",
+                    "steps": [
+                        {"id": "assert-profile-name", "status": "failed", "gateId": "overview-data-card", "evidence": []},
+                        {
+                            "id": "assert-project-card",
+                            "status": "passed",
+                            "gateId": "projects-tab-content",
+                            "toleratedFailure": True,
+                            "evidence": [],
+                        },
+                    ],
+                }
+            },
+        },
+        known_gate_ids={gate.id for gate in gates},
+    )
+    coverage = calculate_gate_coverage(gates, inventory)
+
+    assert coverage_status("passed", coverage) == "incomplete"
+    assert all(item.status == "missing" for item in coverage)
+
+
+def test_qa_report_without_gate_ids_keeps_legacy_gate_evidence_fallback() -> None:
+    gates, _warnings = normalize_planned_gates([{"id": "overview-data-card", "description": "Profile name renders", "required": True}])
+    inventory = extract_core_runtime_evidence(
+        {
+            "status": "passed",
+            "data": {
+                "report": {
+                    "schemaVersion": "qa-report/v1",
+                    "status": "passed",
+                    "steps": [{"id": "assert-profile-name", "status": "passed", "evidence": []}],
+                },
+                "gateEvidence": [
+                    {"id": "legacy-profile-name", "source": "assertion", "gateId": "overview-data-card", "status": "passed", "target": "profileName"}
+                ],
+            },
+        },
+        known_gate_ids={gate.id for gate in gates},
+    )
+    coverage = calculate_gate_coverage(gates, inventory)
+
+    assert coverage_status("passed", coverage) == "complete"
+    assert coverage[0].uiEvidenceIds == ["legacy-profile-name"]
+
+
+def test_qa_report_preconditions_with_gate_ids_drive_runtime_coverage() -> None:
+    gates, _warnings = normalize_planned_gates([{"id": "session-precondition", "description": "Anonymous session", "required": True}])
+    inventory = extract_core_runtime_evidence(
+        {
+            "status": "passed",
+            "data": {
+                "report": {
+                    "schemaVersion": "qa-report/v1",
+                    "status": "passed",
+                    "steps": [],
+                    "preconditions": [{"id": "anonymous-session", "status": "passed", "gateId": "session-precondition"}],
+                }
+            },
+        },
+        known_gate_ids={gate.id for gate in gates},
+    )
+    coverage = calculate_gate_coverage(gates, inventory)
+
+    assert coverage_status("passed", coverage) == "complete"
+    assert coverage[0].uiEvidenceIds == ["anonymous-session"]
+
+
 def test_conditional_gate_without_established_condition_is_not_evaluated() -> None:
     gates = [PlannedValidationGate(id="featured-project", required=False, condition="Profile has featured project")]
     coverage = calculate_gate_coverage(gates, EvidenceInventory())

@@ -73,6 +73,10 @@ class CoreAdapter:
     def version(self) -> dict[str, Any]:
         return self._run(["version", "--json"])
 
+    def contracts(self) -> dict[str, Any]:
+        self.require_compatible()
+        return self._run(["contracts", "--json"])
+
     def check_compatibility(self) -> CompatibilityResult:
         return validate_version_response(self.version())
 

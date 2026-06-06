@@ -7,6 +7,7 @@ PUBLIC_CONTRACT_VERSION = "proofsignal-public-cli-json/v1"
 
 REQUIRED_OPERATIONS = {
     "version": ("proofsignal.version/v1", 1),
+    "contracts": ("proofsignal.contracts/v1", 1),
     "authoring-check": ("proofsignal.authoring-check/v1", 1),
     "run": ("proofsignal.run/v1", 1),
     "report.inspect": ("proofsignal.report-inspection/v1", 1),

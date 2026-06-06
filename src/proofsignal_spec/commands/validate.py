@@ -11,7 +11,13 @@ from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.first_run import advance_guided_first_run_state
 from proofsignal_spec.workflows.models import WORKFLOW_VALIDATION_READINESS_SCHEMA, CoreReadiness, ReadinessBlocker, ValidationReadinessSummary
 from proofsignal_spec.workflows.authoring_coherence import evaluate_persisted_coherence
-from proofsignal_spec.workflows.readiness import structural_validation, validation_readiness
+from proofsignal_spec.workflows.readiness import (
+    executable_contract_blockers,
+    legacy_executable_artifact_blockers,
+    managed_runtime_contract_blockers,
+    structural_validation,
+    validation_readiness,
+)
 from proofsignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
 from proofsignal_spec.workspace.repository import resolve_artifacts, update_validation
 
@@ -44,6 +50,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         }
     managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="validate")
     if managed_runtime.status != "ready":
+        contract_blockers = managed_runtime_contract_blockers(managed_runtime)
         result = {
             "schemaVersion": WORKFLOW_VALIDATION_READINESS_SCHEMA,
             "capabilitySchemaVersion": "proofsignal-spec-workflow-capability/v1",
@@ -63,7 +70,8 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
                 message=managed_runtime.message,
             ).to_dict(),
             "managedRuntimeReadiness": managed_runtime.to_dict(),
-            "blockers": [
+            "blockers": [blocker.to_dict() for blocker in contract_blockers]
+            or [
                 ReadinessBlocker.from_dict(blocker.to_dict()).to_dict()
                 for blocker in managed_runtime.blockers
             ],
@@ -71,6 +79,21 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         update_validation(project, alias, result)
         return result
     record, run_request, main_skill, skills = resolve_artifacts(project, alias)
+    contract_blockers = [
+        *legacy_executable_artifact_blockers(run_request, main_skill, skills),
+        *executable_contract_blockers(project, managed_runtime.runtimeCommand),
+    ]
+    if contract_blockers:
+        result = {
+            "schemaVersion": WORKFLOW_VALIDATION_READINESS_SCHEMA,
+            "alias": alias,
+            "status": "blocked",
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "blockers": [blocker.to_dict() for blocker in contract_blockers],
+        }
+        update_validation(project, alias, result)
+        return result
     coherence = evaluate_persisted_coherence(project, alias)
     if coherence.status == "blocked":
         result = {

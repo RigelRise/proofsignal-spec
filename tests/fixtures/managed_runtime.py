@@ -16,6 +16,99 @@ from urllib.parse import parse_qs, urlparse
 from helpers import FAKE_CORE
 
 
+def core_contract_operation(name: str, schema: str, schema_version: int = 1, *, status: str = "stable") -> dict[str, Any]:
+    return {"name": name, "schema": schema, "schemaVersion": schema_version, "status": status}
+
+
+def core_contract_fixture_payload(
+    *,
+    browser_actions: list[dict[str, Any]] | None = None,
+    include_browser: bool = True,
+    include_credentials: bool = True,
+    include_report_coverage: bool = True,
+    extra_sections: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a public Core contracts response for contract-driven authoring tests."""
+
+    data: dict[str, Any] = {
+        "operations": [
+            core_contract_operation("version", "proofsignal.version/v1"),
+            core_contract_operation("contracts", "proofsignal.contracts/v1"),
+            core_contract_operation("authoring-check", "proofsignal.authoring-check/v1"),
+            core_contract_operation("run", "proofsignal.run/v1"),
+            core_contract_operation("report.inspect", "proofsignal.report-inspection/v1"),
+        ],
+        "runRequest": {
+            "schemaVersion": "qa-run-request/v1",
+            "fields": [
+                {"name": "schemaVersion", "status": "stable", "required": True},
+                {"name": "request", "status": "stable", "required": True},
+                {"name": "target", "status": "stable", "required": True},
+                {"name": "credentialRefs", "status": "stable", "required": False},
+                {"name": "skills", "status": "stable", "required": True},
+            ],
+        },
+        "skill": {
+            "schemaVersion": "proofsignal-browser-skill/v1",
+            "fields": [
+                {"name": "browser.targets", "status": "stable", "required": True},
+                {"name": "browser.steps", "status": "stable", "required": True},
+                {"name": "browser.assertions", "status": "stable", "required": False},
+            ],
+        },
+        "placeholders": {
+            "credentialSyntax": "{{credentials.<group>.<field>}}",
+            "supportedNamespaces": [{"name": "parameters", "status": "stable"}, {"name": "credentials", "status": "stable"}],
+        },
+        "publicRedactionPolicy": {
+            "redactFields": ["runtimeIdentity", "runtimeCommand", "credentialValues"],
+            "secretFieldPatterns": ["password", "token", "secret", "authorization"],
+        },
+        "runtimeTrustHandoff": {
+            "entitlementReceiptEnv": "PROOFSIGNAL_ENTITLEMENT_RECEIPT",
+            "verificationKeysEnv": "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
+        },
+    }
+    if include_browser:
+        data["browserWorkflow"] = {
+            "actions": browser_actions
+            or [
+                {"name": "navigate", "status": "stable", "requiredFields": ["value"]},
+                {"name": "click", "status": "stable", "requiredFields": ["target"]},
+                {"name": "fill", "status": "stable", "requiredFields": ["target", "value"]},
+                {"name": "awaitNetwork", "status": "stable", "requiredFields": ["match"]},
+            ],
+            "assertions": [
+                {"name": "text", "status": "stable", "requiredFields": ["target", "expected"]},
+                {"name": "visible", "status": "stable", "requiredFields": ["target"]},
+            ],
+            "targetSignals": [{"name": "testId", "status": "stable"}, {"name": "css", "status": "stable"}],
+            "networkMatchKeys": [{"name": "method", "status": "stable"}, {"name": "urlContains", "status": "stable"}],
+            "metadataKeys": [{"name": "operationName", "status": "stable"}, {"name": "expectedStatus", "status": "stable"}],
+        }
+    if include_credentials:
+        data["credentials"] = {
+            "sources": [{"name": "environment", "status": "stable"}, {"name": "prompt-cache", "status": "experimental"}],
+            "referenceShape": "credentialRefs.<group>.keys.<field>",
+        }
+    if include_report_coverage:
+        data["reportCoverage"] = {
+            "schemaVersion": "qa-report/v1",
+            "gateIdFields": ["gateId"],
+            "stepCollections": ["steps", "preconditions"],
+            "evidenceCollections": ["evidence"],
+        }
+    if extra_sections:
+        data.update(extra_sections)
+    return {
+        "schema": "proofsignal.contracts/v1",
+        "schemaVersion": 1,
+        "operation": "contracts",
+        "status": "passed",
+        "data": data,
+    }
+
+
 def write_fake_core_executable(path: Path, *, mode: str = "ok") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -108,6 +201,35 @@ def public_free_receipt_summary(*, token: str = "ps_valid", exchange_count: int 
     }
 
 
+def public_verification_keys(
+    *,
+    key_id: str = "ps-entitlement-2026-06",
+    issuer: str | None = None,
+    malformed: bool = False,
+) -> dict[str, Any]:
+    if malformed:
+        return {
+            "schema": "proofsignal.entitlement-keys/v1",
+            "schemaVersion": 1,
+            "keys": "not-a-list",
+        }
+    payload: dict[str, Any] = {
+        "schema": "proofsignal.entitlement-keys/v1",
+        "schemaVersion": 1,
+        "keys": [
+            {
+                "keyId": key_id,
+                "algorithm": "ed25519",
+                "publicKeyPem": "-----BEGIN PUBLIC KEY-----\\nMCowBQYDK2VwAyEA9cu+k/slRJsVRXV7mGPjJYtsqNO6DFFUi8phMq3Hiqw=\\n-----END PUBLIC KEY-----\\n",
+                "status": "active",
+            }
+        ],
+    }
+    if issuer:
+        payload["issuer"] = issuer
+    return payload
+
+
 def token_delivery_response() -> dict[str, Any]:
     return {
         "schema": "proofsignal.entitlement-token-delivery/v1",
@@ -182,9 +304,14 @@ class FakeBackendState:
             "ps_rejected": (403, "entitlement.rejected"),
         }
         self.keys_status = "ok"
+        self.keys_key_id = "ps-entitlement-2026-06"
+        self.keys_issuer: str | None = None
         self.download_status = "ok"
         self.requests: list[dict[str, Any]] = []
         self.exchange_count = 0
+
+    def request_paths(self, path: str) -> list[str]:
+        return [request["path"] for request in self.requests if request.get("path") == path]
 
 
 class _FakeBackendHandler(BaseHTTPRequestHandler):
@@ -232,14 +359,11 @@ class _FakeBackendHandler(BaseHTTPRequestHandler):
             if self.state.keys_status == "unavailable":
                 self._json(503, {"schema": "proofsignal.error/v1", "code": "api.unavailable"})
                 return
-            self._json(
-                200,
-                {
-                    "schema": "proofsignal.entitlement-keys/v1",
-                    "schemaVersion": 1,
-                    "keys": [{"keyId": "ps-entitlement-2026-06", "algorithm": "ed25519", "publicKeyPem": "-----BEGIN PUBLIC KEY-----\\nMCowBQYDK2VwAyEA9cu+k/slRJsVRXV7mGPjJYtsqNO6DFFUi8phMq3Hiqw=\\n-----END PUBLIC KEY-----\\n", "status": "active"}],
-                },
-            )
+            if self.state.keys_status == "malformed":
+                self._json(200, public_verification_keys(malformed=True))
+                return
+            key_id = "ps-entitlement-other" if self.state.keys_status == "mismatched" else self.state.keys_key_id
+            self._json(200, public_verification_keys(key_id=key_id, issuer=self.state.keys_issuer))
             return
         if parsed.path.startswith("/runtimes/"):
             if self.state.download_status == "unauthorized" or not self.headers.get("Authorization", "").startswith("Bearer "):

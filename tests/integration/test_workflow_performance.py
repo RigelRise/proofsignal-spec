@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import time
 
+from helpers import FAKE_CORE
+from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.core.executable_contract import CommandContractReuse
 from proofsignal_spec.workflows.authoring_coherence import evaluate_implementation_coherence
 from proofsignal_spec.workspace.repository import init_workspace
 from proofsignal_spec.workflows.evidence import extract_core_runtime_evidence, normalize_planned_gates
@@ -101,3 +104,33 @@ def test_runtime_coverage_classification_and_repair_recommendations_stay_under_o
     assert status == "incomplete"
     assert len(recommendations) == 50
     assert elapsed < 1.0
+
+
+def test_core_contract_projection_reuses_discovery_within_one_command_only() -> None:
+    adapter = CoreAdapter(executable=str(FAKE_CORE))
+    first_command = CommandContractReuse()
+    second_command = CommandContractReuse()
+
+    first_projection = first_command.get_or_discover(
+        runtime_identity=str(FAKE_CORE),
+        core_version="0.1.0",
+        public_contract_version="proofsignal-public-cli-json/v1",
+        discover=adapter.contracts,
+    )
+    second_projection = first_command.get_or_discover(
+        runtime_identity=str(FAKE_CORE),
+        core_version="0.1.0",
+        public_contract_version="proofsignal-public-cli-json/v1",
+        discover=adapter.contracts,
+    )
+    third_projection = second_command.get_or_discover(
+        runtime_identity=str(FAKE_CORE),
+        core_version="0.1.0",
+        public_contract_version="proofsignal-public-cli-json/v1",
+        discover=adapter.contracts,
+    )
+
+    assert first_projection == second_projection
+    assert third_projection == first_projection
+    assert first_command.discovery_count == 1
+    assert second_command.discovery_count == 1

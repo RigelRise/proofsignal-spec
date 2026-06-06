@@ -82,12 +82,28 @@ def test_runtime_download_authorization_contract_and_api_unavailable_mapping(tmp
 def test_public_verification_keys_are_fetched_and_cached(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
     with serve_fake_entitlement_backend() as (api_base_url, _state):
-        client = RuntimeDistributionClient(resolve_entitlement_config(api_base_url=api_base_url))
-        keys = client.fetch_verification_keys()
+        config = resolve_entitlement_config(api_base_url=api_base_url)
+        client = RuntimeDistributionClient(config)
+        keys = client.fetch_verification_keys(issuer="https://proofsignal.io")
 
     assert keys.blocker is None
     assert keys.data["schema"] == "proofsignal.entitlement-keys/v1"
     cached = load_verification_keys()
     assert cached is not None
+    assert cached["sourceApiBaseUrl"] == api_base_url
+    assert cached["issuer"] == "https://proofsignal.io"
+    assert cached["retrievedAt"]
     assert cached["keys"][0]["keyId"] == "ps-entitlement-2026-06"
     assert cached["keys"][0]["publicKeyPem"].startswith("-----BEGIN PUBLIC KEY-----")
+
+
+def test_malformed_public_verification_keys_map_to_trust_blocker(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    with serve_fake_entitlement_backend() as (api_base_url, state):
+        state.keys_status = "malformed"
+        client = RuntimeDistributionClient(resolve_entitlement_config(api_base_url=api_base_url))
+        keys = client.fetch_verification_keys()
+
+    assert keys.blocker is not None
+    assert keys.blocker.code == "entitlement.keys-incompatible"
+    assert load_verification_keys() is None

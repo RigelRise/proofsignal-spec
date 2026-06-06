@@ -1,0 +1,81 @@
+from __future__ import annotations
+
+import json
+
+from proofsignal_spec.workflows.stage_persistence import persist_stage
+from proofsignal_spec.workspace.repository import init_workspace, load_document
+
+
+def _prepare_project(project) -> None:
+    init_workspace(project)
+    persist_stage(
+        project,
+        "specify",
+        alias="add-collaboration-project",
+        payload={
+            "alias": "add-collaboration-project",
+            "surface": "/manage/project/add",
+            "behavior": "Create a collaboration project.",
+            "expectedOutcome": "Project page renders.",
+            "customSourceReason": "Authenticated credential fixture.",
+        },
+    )
+    persist_stage(
+        project,
+        "plan",
+        alias="add-collaboration-project",
+        payload={
+            "runRequest": ".proofsignal/run-requests/add-collaboration-project.yaml",
+            "mainSkill": ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md",
+            "reusableSkills": [".proofsignal/skills/validate-add-collaboration-project-flow.browser.md"],
+            "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
+            "unresolvedBlockingClarifications": [],
+        },
+    )
+
+
+def test_authenticated_artifact_generation_uses_core_credential_contract(tmp_path) -> None:
+    _prepare_project(tmp_path)
+
+    result = persist_stage(
+        tmp_path,
+        "implement",
+        alias="add-collaboration-project",
+        payload={
+            "runRequest": {"path": ".proofsignal/run-requests/add-collaboration-project.yaml"},
+            "credentialRefs": {
+                "e2eUser": {
+                    "source": "environment",
+                    "keys": {"email": "E2E_USER_EMAIL", "password": "E2E_USER_PASSWORD"},
+                }
+            },
+            "skills": [
+                {
+                    "path": ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md",
+                    "kind": "skill",
+                    "browser": {
+                        "targets": {
+                            "emailInput": {"testId": "email-input"},
+                            "passwordInput": {"testId": "password-input"},
+                        },
+                        "steps": [
+                            {"id": "fill-email", "action": "fill", "target": "emailInput", "value": "{{credentials.e2eUser.email}}"},
+                            {"id": "fill-password", "action": "fill", "target": "passwordInput", "value": "{{credentials.e2eUser.password}}"},
+                        ],
+                    },
+                }
+            ],
+        },
+    )
+
+    assert result["status"] == "persisted"
+    run_request = json.loads((tmp_path / ".proofsignal/run-requests/add-collaboration-project.yaml").read_text())
+    skill = (tmp_path / ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md").read_text()
+    use_case = load_document(tmp_path / ".proofsignal/use-cases/add-collaboration-project.yaml")
+
+    assert run_request["credentialRefs"]["e2eUser"]["keys"]["email"] == "E2E_USER_EMAIL"
+    assert "{{credentials.e2eUser.email}}" in skill
+    assert "{{credentials.e2eUser.password}}" in skill
+    assert "user@example.com" not in json.dumps(run_request)
+    assert use_case["credentialRefs"]["e2eUser"]["source"] == "environment"
+    assert all(item["name"] not in {"userEmail", "userPassword"} for item in use_case.get("runtimeInputs", []))

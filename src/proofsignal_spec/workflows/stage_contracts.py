@@ -68,6 +68,7 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
             "validationGates",
             "gateIntentChanges",
             "credentialGroups",
+            "credentialRefs",
             "targetEnvironment",
             "unresolvedBlockingClarifications",
         ],
@@ -103,7 +104,7 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
     "implement": WorkflowStageContract(
         stage="implement",
         requiredFields=["runRequest", "skills"],
-        optionalFields=["alias", "runtimeInputs", "profiles", "artifacts", "credentialGroups"],
+        optionalFields=["alias", "runtimeInputs", "profiles", "artifacts", "credentialGroups", "credentialRefs"],
         examples=[
             {
                 "runRequest": {"path": ".proofsignal/run-requests/home-page-unauth.yaml"},

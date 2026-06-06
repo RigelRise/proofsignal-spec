@@ -3,7 +3,7 @@
 Plan one run request and reusable skills before implementation.
 
 - Start by running `proofsignal workflow check plan --alias <alias> --json`.
-- Before constructing the payload, read the public workflow contract with `proofsignal workflow info proofsignal-use-case --json` and use `stagePayloadContracts.plan` as the source of truth. Do not inspect installed package source to infer payload schemas.
+- Before constructing the payload, read the public workflow contract with `proofsignal workflow info proofsignal-use-case --json` and use `stagePayloadContracts.plan` as the source of truth. Use `coreExecutableContract` for Core-owned executable artifact/report sections. Do not inspect installed package source to infer payload schemas.
 - Use the installed `proofsignal` executable directly. Do not use `npx` or package-runner wrappers.
 - Continue only when the result includes `requiredCapability: workflow.guardrails/v1` and `supported: true`.
 - If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal` and regenerate the agent integration. Regenerate the agent integration after upgrading.
@@ -19,7 +19,7 @@ Plan one run request and reusable skills before implementation.
 - For browser page-view use cases, every required validation gate must have a stable `id`, `description`, and `required` flag. Conditional gates must include a human-readable `condition`.
 - Plan explicit gate evidence: each UI assertion, backend request check, and screenshot intended to prove coverage must declare `gateId`.
 - A page-view gate is not complete with only navigation, URL matching, body text, screenshots, or HTTP 200. Plan a specific rendered-result UI assertion with target and expected text/state/count.
-- Backend checks must declare method, public match keys such as `urlContains`, `status`, `requestBodyContains`, or `responseBodyContains`, expected status, and `gateId`. `operationName` is optional metadata only.
+- Backend checks must use Core-declared public network match keys from `coreExecutableContract.sections.browserWorkflow.validNetworkMatchKeys`; method/status may be metadata when Core declares them that way. Treat any key names in examples as non-authoritative examples, not as a local allowlist. Checks still need expected status and `gateId`; `operationName` is optional metadata only.
 - Persist both `mainSkill` and `reusableSkills`. `supportingSkills` is accepted for compatibility, but `reusableSkills` is the canonical payload field.
 - Reuse existing skills when appropriate instead of nesting or duplicating skills under a use case.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal workflow persist plan --alias <alias> --payload <payload.json> --json`.

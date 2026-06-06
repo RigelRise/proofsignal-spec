@@ -11,5 +11,7 @@ def test_regenerated_agent_guidance_contains_public_contract_upgrade_instruction
     for files, root in [(codex_files, ".agents/skills"), (claude_files, ".claude/skills")]:
         implement = files[f"{root}/proofsignal-implement/SKILL.md"]
         assert "stagePayloadContracts" in implement
+        assert "coreExecutableContract" in implement
         assert "browserAuthoringContract" in implement
+        assert "non-authoritative examples" in implement
         assert "Regenerate the agent integration" in implement

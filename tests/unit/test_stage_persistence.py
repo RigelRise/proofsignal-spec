@@ -352,6 +352,63 @@ def test_implement_preserves_executable_intent_and_runtime_input_values(tmp_path
     assert "Execution Intent" in skill
 
 
+def test_implement_persists_credential_refs_without_runtime_credential_parameters(tmp_path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    persist_stage(
+        project,
+        "specify",
+        alias="add-project",
+        payload={
+            "alias": "add-project",
+            "surface": "/manage/project/add",
+            "behavior": "Create a project.",
+            "expectedOutcome": "Project page renders.",
+            "customSourceReason": "Authenticated fixture.",
+        },
+    )
+    result = persist_stage(
+        project,
+        "implement",
+        alias="add-project",
+        payload={
+            "runRequest": {"path": ".proofsignal/run-requests/add-project.yaml"},
+            "credentialRefs": {
+                "e2eUser": {
+                    "source": "environment",
+                    "keys": {"email": "E2E_USER_EMAIL", "password": "E2E_USER_PASSWORD"},
+                }
+            },
+            "runtimeInputs": [
+                {"name": "baseUrl", "value": "https://app.example.test"},
+                {"name": "userEmail", "kind": "credential", "credentialGroup": "e2eUser", "envVar": "E2E_USER_EMAIL"},
+                {"name": "userPassword", "kind": "credential", "credentialGroup": "e2eUser", "envVar": "E2E_USER_PASSWORD"},
+            ],
+            "skills": [
+                {
+                    "path": ".proofsignal/skills/validate-add-project-flow.browser.md",
+                    "kind": "skill",
+                    "browser": {
+                        "targets": {"emailInput": {"testId": "email-input"}},
+                        "steps": [
+                            {"id": "fill-email", "action": "fill", "target": "emailInput", "value": "{{credentials.e2eUser.email}}"}
+                        ],
+                    },
+                }
+            ],
+        },
+    )
+
+    assert result["status"] == "persisted"
+    use_case = load_document(project / ".proofsignal/use-cases/add-project.yaml")
+    run_request = load_document(project / ".proofsignal/run-requests/add-project.yaml")
+    assert use_case["credentialRefs"]["e2eUser"]["keys"]["password"] == "E2E_USER_PASSWORD"
+    assert {item["name"] for item in use_case["runtimeInputs"]} == {"baseUrl"}
+    assert set(run_request["parameters"]) == {"baseUrl"}
+    assert "credentialRefs" in run_request
+
+
 def test_clarify_accepts_answer_only_payload_for_existing_questions(tmp_path) -> None:
     project = tmp_path / "repo"
     project.mkdir()

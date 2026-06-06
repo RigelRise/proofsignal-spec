@@ -39,3 +39,21 @@ class WorkflowPublicContractGuidanceTests(CliTestCase):
 
         self.assertEqual(result["status"], "persisted")
         self.assertEqual(result["nextCommand"], "/proofsignal-clarify home-page-unauth")
+
+    def test_non_executable_workflow_commands_continue_with_core_contract_blocker(self) -> None:
+        import os
+
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "contracts-missing-browser"
+        try:
+            code, out, err = self.cli(["workflow", "info", "proofsignal-use-case", "--project", str(self.project), "--json"])
+            self.assertEqual(code, 0, err)
+            info = json.loads(out)
+            self.assertEqual(info["coreExecutableContract"]["findings"][0]["code"], "core-contract.section-missing")
+
+            code, out, err = self.cli(["workflow", "check", "specify", "--project", str(self.project), "--json"])
+            self.assertEqual(code, 0, err)
+            check = json.loads(out)
+            self.assertTrue(check["supported"])
+            self.assertIn(check["status"], {"ready", "missing", "stale"})
+        finally:
+            os.environ.pop("FAKE_PROOFSIGNAL_MODE", None)

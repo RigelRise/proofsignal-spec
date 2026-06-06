@@ -1,0 +1,21 @@
+from __future__ import annotations
+
+import json
+
+from helpers import CliTestCase
+
+
+class WorkflowCoreContractGuidanceTests(CliTestCase):
+    def test_workflow_info_separates_spec_policy_and_redacted_core_contract(self) -> None:
+        self.cli(["init", str(self.project), "--integration", "codex", "--json"])
+
+        code, out, err = self.cli(["workflow", "info", "--project", str(self.project), "--json"])
+
+        self.assertEqual(code, 0, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["coreExecutableContract"]["source"], "core-public-contract")
+        self.assertEqual(payload["specWorkflowPolicy"]["source"], "proofsignal-spec")
+        self.assertIn("gate-adequacy", {item["name"] for item in payload["specWorkflowPolicy"]["policies"]})
+        self.assertNotIn("validActions", json.dumps(payload["specWorkflowPolicy"]))
+        self.assertEqual(payload["coreExecutableContract"]["runtimeIdentity"], "[redacted]")
+        self.assertIn("runtimeIdentity", payload["coreExecutableContract"]["sections"]["publicRedactionPolicy"]["redactFields"])

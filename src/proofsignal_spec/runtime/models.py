@@ -38,6 +38,9 @@ REQUIRED_RUNTIME_BLOCKER_CODES = {
     "entitlement.malformed",
     "entitlement.unverifiable",
     "entitlement.rejected",
+    "entitlement.key-unknown",
+    "entitlement.keys-unavailable",
+    "entitlement.keys-incompatible",
     "core.missing",
     "core.incompatible",
     "distribution.unauthorized",
@@ -230,6 +233,20 @@ class RuntimeCacheStatus:
 
 
 @dataclass(slots=True)
+class RuntimeVerificationKeyStatus:
+    status: Literal["ready", "blocked", "not-required", "not-checked"] = "not-checked"
+    source: Literal["manual-override", "cache", "fetched", "none", "not-required"] = "none"
+    matchedKeyId: str | None = None
+    sourceApiBaseUrl: str | None = None
+    issuer: str | None = None
+    message: str | None = None
+    blockerCode: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return redact_runtime_payload(clean(asdict(self)))
+
+
+@dataclass(slots=True)
 class RuntimeCacheEntry:
     coreVersion: str
     contractVersion: str
@@ -401,6 +418,7 @@ class ManagedRuntimeReadinessResult:
     api: RuntimeApiStatus = field(default_factory=lambda: RuntimeApiStatus(baseUrl="https://proofsignal.io/api"))
     entitlement: RuntimeEntitlementStatus = field(default_factory=RuntimeEntitlementStatus)
     cache: RuntimeCacheStatus = field(default_factory=RuntimeCacheStatus)
+    verificationKeys: RuntimeVerificationKeyStatus = field(default_factory=RuntimeVerificationKeyStatus)
     blockers: list[RuntimeSetupBlocker] = field(default_factory=list)
     message: str = ""
     nextAction: str = "Continue with validation or run."
@@ -414,6 +432,7 @@ class ManagedRuntimeReadinessResult:
         attempts: list[RuntimeSourceAttempt] | None = None,
         entitlement: RuntimeEntitlementStatus | None = None,
         cache: RuntimeCacheStatus | None = None,
+        verification_keys: RuntimeVerificationKeyStatus | None = None,
         message: str | None = None,
     ) -> "ManagedRuntimeReadinessResult":
         return cls(
@@ -422,6 +441,7 @@ class ManagedRuntimeReadinessResult:
             attempts=attempts or [],
             entitlement=entitlement or RuntimeEntitlementStatus(),
             cache=cache or RuntimeCacheStatus(),
+            verificationKeys=verification_keys or RuntimeVerificationKeyStatus(),
             blockers=[blocker],
             message=message or blocker.message,
             nextAction=blocker.recoveryCommand or "Resolve runtime setup blocker.",
@@ -443,6 +463,7 @@ class ManagedRuntimeReadinessResult:
             "api": self.api.to_dict(),
             "entitlement": self.entitlement.to_dict(),
             "cache": self.cache.to_dict(),
+            "verificationKeys": self.verificationKeys.to_dict(),
             "blockers": [item.to_dict() for item in self.blockers],
             "message": self.message,
             "nextAction": self.nextAction,

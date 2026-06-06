@@ -85,7 +85,7 @@ def _parse_scalar(value: str) -> Any:
         return value
 
 
-def init_workspace(project: Path, force: bool = False, core_cmd: str | None = None) -> dict[str, Any]:
+def init_workspace(project: Path, force: bool = False, core_cmd: str | None = None, api_base_url: str | None = None) -> dict[str, Any]:
     root = layout.workspace_root(project)
     for directory in layout.workspace_dirs(project):
         directory.mkdir(parents=True, exist_ok=True)
@@ -110,6 +110,8 @@ def init_workspace(project: Path, force: bool = False, core_cmd: str | None = No
     )
     if core_cmd:
         workspace["coreCommand"] = core_cmd
+    if api_base_url:
+        workspace["entitlementApiBaseUrl"] = api_base_url
     save_document(root / layout.WORKSPACE_FILE, workspace)
 
     product_context_path = layout.product_context_path(project)
@@ -156,6 +158,11 @@ def init_workspace(project: Path, force: bool = False, core_cmd: str | None = No
 def get_core_command(project: Path) -> str | None:
     workspace = load_document(layout.workspace_root(project) / layout.WORKSPACE_FILE, default={}) or {}
     return workspace.get("coreCommand")
+
+
+def get_entitlement_api_base_url(project: Path) -> str | None:
+    workspace = load_document(layout.workspace_root(project) / layout.WORKSPACE_FILE, default={}) or {}
+    return workspace.get("entitlementApiBaseUrl")
 
 
 def get_core_configuration(project: Path) -> dict[str, Any]:

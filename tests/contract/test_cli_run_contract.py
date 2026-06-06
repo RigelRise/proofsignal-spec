@@ -33,6 +33,20 @@ class RunContractTests(CliTestCase):
         self.assertEqual(payload["skillSelectionStatus"], "matched")
         self.assertEqual(payload["missingRequiredGates"], [])
 
+    def test_qa_report_step_gate_ids_drive_required_gate_coverage(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "qa-report-step-coverage"
+
+        code, out, err = self.cli(["run", "profile-view-unauth", "--project", str(self.project), "--json", "--non-interactive"])
+
+        self.assertEqual(code, 0, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["coreBrowserStatus"], "passed")
+        self.assertEqual(payload["specCoverageStatus"], "complete")
+        self.assertEqual(payload["missingRequiredGates"], [])
+        self.assertIn("assert-overview-data-card", payload["gateCoverage"][0]["uiEvidenceIds"])
+
     def test_core_failure_produces_failed_use_case_status_with_partial_coverage(self) -> None:
         create_main_skill_coverage_workspace(self.project)
         os.environ["FAKE_PROOFSIGNAL_MODE"] = "failed-with-partial"

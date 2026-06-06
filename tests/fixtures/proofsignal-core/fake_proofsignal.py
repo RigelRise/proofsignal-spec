@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 
 
 def main() -> int:
@@ -21,6 +22,10 @@ def main() -> int:
             error_code = "entitlement.expired"
         elif mode == "malformed-entitlement":
             error_code = "entitlement.malformed"
+        else:
+            receipt_key_id = _receipt_key_id(receipt_path)
+            if receipt_key_id and not _public_keys_include(receipt_key_id):
+                error_code = "entitlement.key-unknown"
         if error_code:
             print(
                 json.dumps(
@@ -54,10 +59,13 @@ def main() -> int:
         else:
             operations = [
                 {"name": "version", "schema": "proofsignal.version/v1", "schemaVersion": 1, "status": "stable"},
+                {"name": "contracts", "schema": "proofsignal.contracts/v1", "schemaVersion": 1, "status": "stable"},
                 {"name": "authoring-check", "schema": "proofsignal.authoring-check/v1", "schemaVersion": 1, "status": "stable"},
                 {"name": "run", "schema": "proofsignal.run/v1", "schemaVersion": 1, "status": "stable"},
                 {"name": "report.inspect", "schema": "proofsignal.report-inspection/v1", "schemaVersion": 1, "status": "stable"},
             ]
+            if mode == "missing-contracts-operation":
+                operations = [operation for operation in operations if operation["name"] != "contracts"]
             if mode == "missing-report-inspect":
                 operations = [operation for operation in operations if operation["name"] != "report.inspect"]
             if mode == "incompatible-run-schema":
@@ -77,6 +85,35 @@ def main() -> int:
                 },
             }
         print(json.dumps(payload))
+        return 0
+    if args[:2] == ["contracts", "--json"]:
+        _increment_contract_counter()
+        if mode == "contracts-non-json":
+            print("not json")
+            return 0
+        if mode == "contracts-failed":
+            print(
+                json.dumps(
+                    {
+                        "schema": "proofsignal.error/v1",
+                        "schemaVersion": 1,
+                        "operation": "contracts",
+                        "status": "blocked",
+                        "data": {
+                            "findings": [
+                                {
+                                    "severity": "blocking",
+                                    "code": "contracts.unavailable",
+                                    "message": "Core public contract is unavailable.",
+                                }
+                            ]
+                        },
+                    }
+                )
+            )
+            return 2
+        contract = _contracts_payload(mode)
+        print(json.dumps(contract))
         return 0
     if args[:2] == ["authoring-check", "run-request"]:
         status = "blocked" if mode == "blocked" else "passed"
@@ -134,6 +171,16 @@ def main() -> int:
                     "publicMatchKeys": ["urlContains"],
                 },
             ]
+        elif mode == "qa-report-step-coverage":
+            executed_skill = skill_args[0] if skill_args else "skill.validate-profile-view-unauth-flow"
+            _write_report(
+                ".proofsignal/runs/login/fake-run-1/report.json",
+                [
+                    {"id": "assert-overview-data-card", "status": "passed", "gateId": "overview-data-card", "evidence": []},
+                    {"id": "assert-projects-tab-content", "status": "passed", "gateId": "projects-tab-content", "evidence": []},
+                    {"id": "assert-overview-profile-query", "status": "passed", "gateId": "overview-profile-query", "evidence": []},
+                ],
+            )
         elif mode in {"failed-with-partial", "aborted-activity-wait"}:
             gate_evidence = [{"id": "profile-name", "source": "assertion", "gateId": "overview-data-card", "status": "passed", "target": "profileName"}]
         if "--slow-mo" in args:
@@ -217,6 +264,191 @@ def main() -> int:
         return 0
     print(json.dumps({"schema": "proofsignal.error/v1", "schemaVersion": 1, "operation": "unknown", "status": "error"}))
     return 1
+
+
+def _receipt_key_id(receipt_path: str | None) -> str | None:
+    if not receipt_path:
+        return None
+    try:
+        data = json.loads(open(receipt_path, encoding="utf-8").read())
+    except Exception:
+        return None
+    if isinstance(data, dict) and isinstance(data.get("signature"), dict):
+        return data["signature"].get("keyId")
+    if isinstance(data, dict) and isinstance(data.get("receipt"), str):
+        try:
+            envelope = json.loads(data["receipt"])
+        except Exception:
+            return None
+        signature = envelope.get("signature") if isinstance(envelope, dict) else {}
+        return signature.get("keyId") if isinstance(signature, dict) else None
+    return None
+
+
+def _write_report(path: str, steps: list[dict[str, object]]) -> None:
+    report_path = Path(path)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": "qa-report/v1",
+                "runId": "fake-run-1",
+                "status": "passed",
+                "summary": {"status": "passed", "failedStepId": None},
+                "failedStep": None,
+                "steps": steps,
+                "preconditions": [],
+                "evidenceLinks": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _contracts_payload(mode: str) -> dict[str, object]:
+    operations = [
+        {"name": "version", "schema": "proofsignal.version/v1", "schemaVersion": 1, "status": "stable"},
+        {"name": "contracts", "schema": "proofsignal.contracts/v1", "schemaVersion": 1, "status": "stable"},
+        {"name": "authoring-check", "schema": "proofsignal.authoring-check/v1", "schemaVersion": 1, "status": "stable"},
+        {"name": "run", "schema": "proofsignal.run/v1", "schemaVersion": 1, "status": "stable"},
+        {"name": "report.inspect", "schema": "proofsignal.report-inspection/v1", "schemaVersion": 1, "status": "stable"},
+    ]
+    browser_actions = [
+        {"name": "navigate", "status": "stable", "requiredFields": ["value"]},
+        {"name": "click", "status": "stable", "requiredFields": ["target"]},
+        {"name": "fill", "status": "stable", "requiredFields": ["target", "value"]},
+        {"name": "select", "status": "stable", "requiredFields": ["target", "value"]},
+        {"name": "waitForText", "status": "stable", "requiredFields": ["target", "value"]},
+        {"name": "checkText", "status": "stable", "requiredFields": ["target", "value"]},
+        {"name": "checkLocation", "status": "stable", "requiredFields": ["value"]},
+        {"name": "captureScreenshot", "status": "stable", "requiredFields": []},
+        {"name": "scrollIntoView", "status": "stable", "requiredFields": ["target"]},
+        {"name": "awaitNetwork", "status": "stable", "requiredFields": ["match"]},
+        {"name": "repeatUntil", "status": "stable", "requiredFields": ["until", "do"]},
+    ]
+    if mode == "contract-drift":
+        browser_actions = [item for item in browser_actions if item["name"] != "repeatUntil"]
+        browser_actions.append({"name": "press", "status": "stable", "requiredFields": ["target", "value"]})
+    if mode == "experimental-contract":
+        browser_actions.append({"name": "dragAndDrop", "status": "experimental", "requiredFields": ["target", "value"]})
+    data: dict[str, object] = {
+        "operations": operations,
+        "runRequest": {
+            "status": "stable",
+            "schemaVersion": "qa-run-request/v1",
+            "fields": [
+                {"name": "schemaVersion", "status": "stable", "required": True},
+                {"name": "request", "status": "stable", "required": True},
+                {"name": "target", "status": "stable", "required": True},
+                {"name": "credentialRefs", "status": "stable", "required": False},
+                {"name": "skills", "status": "stable", "required": True},
+            ],
+        },
+        "skill": {
+            "status": "stable",
+            "schemaVersion": "proofsignal-browser-skill/v1",
+            "fields": [
+                {"name": "browser.targets", "status": "stable", "required": True},
+                {"name": "browser.steps", "status": "stable", "required": True},
+                {"name": "browser.assertions", "status": "stable", "required": False},
+            ],
+        },
+        "browserWorkflow": {
+            "actions": browser_actions,
+            "assertions": [
+                {"name": "text", "status": "stable", "requiredFields": ["target", "expected"]},
+                {"name": "location", "status": "stable", "requiredFields": ["expected"]},
+                {"name": "visible", "status": "stable", "requiredFields": ["target"]},
+                {"name": "hidden", "status": "stable", "requiredFields": ["target"]},
+                {"name": "screenshot-required", "status": "stable", "requiredFields": []},
+                {"name": "image-diff", "status": "experimental", "requiredFields": ["target"]},
+            ],
+            "targetSignals": [
+                {"name": "testId", "status": "stable"},
+                {"name": "label", "status": "stable"},
+                {"name": "text", "status": "stable"},
+                {"name": "css", "status": "stable"},
+                {"name": "semanticLocator", "status": "stable"},
+                {"name": "all", "status": "stable", "composition": ["testId", "css"]},
+            ],
+            "networkMatchKeys": [
+                {"name": "urlContains", "status": "stable"},
+                {"name": "method", "status": "stable"},
+                {"name": "status", "status": "stable"},
+                {"name": "requestBodyContains", "status": "stable"},
+                {"name": "responseBodyContains", "status": "stable"},
+                {"name": "privateHeaderContains", "status": "experimental"},
+            ],
+            "metadataKeys": [{"name": "operationName", "status": "stable"}, {"name": "expectedStatus", "status": "stable"}],
+            "gateEvidenceRules": {
+                "gateId": "UI assertions, network waits, and screenshots must declare gateId to count toward planned gate coverage.",
+                "renderedResult": "Required page-view gates need a specific target plus expected text/state/count.",
+                "network": "awaitNetwork match uses stable public match keys and expected status.",
+            },
+        },
+        "credentials": {
+            "sources": [{"name": "environment", "status": "stable"}, {"name": "prompt-cache", "status": "experimental"}],
+            "referenceShape": "credentialRefs.<group>.keys.<field>",
+        },
+        "placeholders": {
+            "credentialSyntax": "{{credentials.<group>.<field>}}",
+            "supportedNamespaces": [{"name": "parameters", "status": "stable"}, {"name": "credentials", "status": "stable"}],
+        },
+        "reportCoverage": {
+            "schemaVersion": "qa-report/v1",
+            "gateIdFields": ["gateId"],
+            "stepCollections": ["steps", "preconditions"],
+            "evidenceCollections": ["evidence"],
+            "statusField": "status",
+            "passedStatus": "passed",
+        },
+        "publicRedactionPolicy": {
+            "redactFields": ["runtimeIdentity", "runtimeCommand", "credentialValues"],
+            "secretFieldPatterns": ["password", "token", "secret", "authorization"],
+        },
+        "runtimeTrustHandoff": {
+            "entitlementReceiptEnv": "PROOFSIGNAL_ENTITLEMENT_RECEIPT",
+            "verificationKeysEnv": "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
+        },
+    }
+    if mode == "contracts-missing-browser":
+        data.pop("browserWorkflow")
+    if mode == "contracts-malformed-browser":
+        data["browserWorkflow"] = []
+    return {
+        "schema": "proofsignal.contracts/v1",
+        "schemaVersion": 1,
+        "operation": "contracts",
+        "status": "passed",
+        "data": data,
+    }
+
+
+def _increment_contract_counter() -> None:
+    path = os.environ.get("FAKE_PROOFSIGNAL_CONTRACT_COUNTER")
+    if not path:
+        return
+    counter_path = Path(path)
+    counter_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        value = int(counter_path.read_text(encoding="utf-8").strip() or "0")
+    except Exception:
+        value = 0
+    counter_path.write_text(str(value + 1), encoding="utf-8")
+
+
+def _public_keys_include(key_id: str) -> bool:
+    raw = os.environ.get("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON")
+    if not raw:
+        return False
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return False
+    keys = data.get("keys") if isinstance(data, dict) else data
+    if not isinstance(keys, list):
+        return False
+    return any(isinstance(item, dict) and item.get("keyId") == key_id for item in keys)
 
 
 if __name__ == "__main__":

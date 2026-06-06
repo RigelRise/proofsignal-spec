@@ -7,13 +7,16 @@ from typing import Any
 
 from proofsignal_spec.commands.integration import install as install_integration
 from proofsignal_spec.core.adapter import readiness
+from proofsignal_spec.runtime.entitlement import resolve_entitlement_config
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.core_setup import run_core_setup
 from proofsignal_spec.workspace.repository import init_workspace
 
 
 def run(project: Path, integration: str, force: bool = False, core_cmd: str | None = None, api_base_url: str | None = None) -> dict[str, Any]:
-    workspace = init_workspace(project, force=False)
+    entitlement_config = resolve_entitlement_config(api_base_url=api_base_url)
+    persisted_api_base_url = entitlement_config.apiBaseUrl if api_base_url or entitlement_config.source == "environment" else None
+    workspace = init_workspace(project, force=False, core_cmd=core_cmd, api_base_url=persisted_api_base_url)
     email = os.environ.get("PROOFSIGNAL_EMAIL")
     token = os.environ.get("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN")
     if not token and not email and sys.stdin.isatty():
@@ -21,7 +24,7 @@ def run(project: Path, integration: str, force: bool = False, core_cmd: str | No
     runtime = ensure_core_runtime(
         project,
         explicit_core_cmd=core_cmd,
-        api_base_url=api_base_url,
+        api_base_url=persisted_api_base_url,
         email=email,
         token=token,
         integration=integration,
@@ -33,13 +36,13 @@ def run(project: Path, integration: str, force: bool = False, core_cmd: str | No
             runtime = ensure_core_runtime(
                 project,
                 explicit_core_cmd=core_cmd,
-                api_base_url=api_base_url,
+                api_base_url=persisted_api_base_url,
                 token=token,
                 integration=integration,
                 context="init",
             )
     core_setup = run_core_setup(project, explicit_core_cmd=core_cmd, persist=False) if core_cmd else run_core_setup(project, persist=False)
-    workspace = init_workspace(project, force=False)
+    workspace = init_workspace(project, force=False, core_cmd=core_cmd, api_base_url=persisted_api_base_url)
     installed = install_integration(project, integration, force=force, default=True)
     if runtime.status == "ready":
         core = readiness(executable=runtime.runtimeCommand, cwd=project)

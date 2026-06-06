@@ -7,7 +7,7 @@ from pathlib import Path
 from proofsignal_spec.core.adapter import CoreAdapter
 from proofsignal_spec.core.contracts import PUBLIC_CONTRACT_VERSION
 from proofsignal_spec.core.errors import CoreExecutionError, CoreMissingError
-from proofsignal_spec.workspace.repository import get_core_command
+from proofsignal_spec.workspace.repository import get_core_command, get_entitlement_api_base_url
 
 from .cache import load_cache_entry, mark_cache_used
 from .distribution import (
@@ -17,6 +17,7 @@ from .distribution import (
     load_manifest,
     manifest_entries,
     normalize_platform,
+    prepare_verification_keys,
     select_manifest_entry,
 )
 from .entitlement import ensure_entitlement, load_receipt, resolve_entitlement_config
@@ -25,6 +26,7 @@ from .models import (
     RuntimeApiStatus,
     RuntimeCacheStatus,
     RuntimeEntitlementStatus,
+    RuntimeVerificationKeyStatus,
     RuntimeSetupBlocker,
     RuntimeSourceAttempt,
 )
@@ -41,7 +43,7 @@ def ensure_core_runtime(
     context: str = "runtime",
 ) -> ManagedRuntimeReadinessResult:
     project = project.resolve()
-    config = resolve_entitlement_config(api_base_url=api_base_url)
+    config = resolve_entitlement_config(api_base_url=api_base_url, workspace_api_base_url=get_entitlement_api_base_url(project))
     api_status = RuntimeApiStatus(baseUrl=config.apiBaseUrl, source=config.source, status="not-checked")
     attempts: list[RuntimeSourceAttempt] = []
     for source, command in _override_candidates(project, explicit_core_cmd):
@@ -76,6 +78,22 @@ def ensure_core_runtime(
                     )
                     result.api = api_status
                     return result
+                verification_keys, key_blocker = prepare_verification_keys(config, entitlement)
+                if key_blocker:
+                    if key_blocker.code == "entitlement.keys-unavailable":
+                        api_status.status = "unreachable"
+                    result = ManagedRuntimeReadinessResult.blocked(
+                        key_blocker,
+                        attempts=attempts,
+                        entitlement=entitlement,
+                        cache=RuntimeCacheStatus(status="not-checked"),
+                        verification_keys=verification_keys,
+                        message=key_blocker.message,
+                    )
+                    result.api = api_status
+                    return result
+            else:
+                verification_keys = RuntimeVerificationKeyStatus(status="not-required", source="not-required")
             return ManagedRuntimeReadinessResult(
                 status="ready",
                 source=source,  # type: ignore[arg-type]
@@ -86,6 +104,7 @@ def ensure_core_runtime(
                 api=api_status,
                 entitlement=entitlement or RuntimeEntitlementStatus(status="not-required"),
                 cache=RuntimeCacheStatus(status="not-checked"),
+                verificationKeys=verification_keys,
                 message="ProofSignal runtime is ready.",
                 nextAction="Continue with validation or run.",
             )
@@ -125,6 +144,20 @@ def ensure_core_runtime(
         result.api = api_status
         return result
     api_status.status = "reachable"
+    verification_keys, key_blocker = prepare_verification_keys(config, entitlement)
+    if key_blocker:
+        if key_blocker.code == "entitlement.keys-unavailable":
+            api_status.status = "unreachable"
+        attempts.append(RuntimeSourceAttempt(source="managed-download", status="blocked", terminal=True, platform=platform, message=key_blocker.message, blockerCode=key_blocker.code))
+        result = ManagedRuntimeReadinessResult.blocked(
+            key_blocker,
+            attempts=attempts,
+            entitlement=entitlement,
+            cache=RuntimeCacheStatus(status="miss", platform=platform),
+            verification_keys=verification_keys,
+        )
+        result.api = api_status
+        return result
     entry = load_cache_entry(platform=platform)
     if entry:
         if entry.entitlementReceiptId and entitlement.receiptId and entry.entitlementReceiptId != entitlement.receiptId:
@@ -154,6 +187,7 @@ def ensure_core_runtime(
                     api=api_status,
                     entitlement=entitlement,
                     cache=RuntimeCacheStatus(status="hit", platform=platform, coreVersion=entry.coreVersion),
+                    verificationKeys=verification_keys,
                     message="ProofSignal runtime is ready.",
                     nextAction="Continue with validation or run.",
                 )
@@ -175,6 +209,7 @@ def ensure_core_runtime(
             attempts=attempts,
             entitlement=entitlement,
             cache=RuntimeCacheStatus(status="miss", platform=platform),
+            verification_keys=verification_keys,
         )
         result.api = api_status
         return result
@@ -185,6 +220,7 @@ def ensure_core_runtime(
             blocker = RuntimeSetupBlocker(code="manifest.invalid", message="Managed runtime manifest does not contain a compatible entry for this platform and contract.")
             attempts.append(RuntimeSourceAttempt(source="managed-download", status="blocked", terminal=True, platform=platform, message=blocker.message, blockerCode=blocker.code))
             result = ManagedRuntimeReadinessResult.blocked(blocker, attempts=attempts, entitlement=entitlement, cache=RuntimeCacheStatus(status="miss", platform=platform))
+            result.verificationKeys = verification_keys
             result.api = api_status
             return result
         runtime_core_version = str(selected.get("coreVersion"))
@@ -195,19 +231,14 @@ def ensure_core_runtime(
             blocker = RuntimeSetupBlocker(code="entitlement.malformed", message="Entitlement receipt file is unavailable after unlock.")
             attempts.append(RuntimeSourceAttempt(source="managed-download", status="blocked", terminal=True, platform=platform, message=blocker.message, blockerCode=blocker.code))
             result = ManagedRuntimeReadinessResult.blocked(blocker, attempts=attempts, entitlement=entitlement, cache=RuntimeCacheStatus(status="miss", platform=platform))
+            result.verificationKeys = verification_keys
             result.api = api_status
             return result
         distribution_client = RuntimeDistributionClient(config)
-        keys = distribution_client.fetch_verification_keys()
-        if keys.blocker:
-            attempts.append(RuntimeSourceAttempt(source="managed-download", status="blocked", terminal=True, platform=platform, message=keys.blocker.message, blockerCode=keys.blocker.code))
-            result = ManagedRuntimeReadinessResult.blocked(keys.blocker, attempts=attempts, entitlement=entitlement, cache=RuntimeCacheStatus(status="miss", platform=platform))
-            result.api = api_status
-            return result
         grant = distribution_client.authorize_runtime_download(os.environ.get("PROOFSIGNAL_CORE_VERSION", "0.12.0"), platform, receipt)
         if grant.blocker:
             attempts.append(RuntimeSourceAttempt(source="managed-download", status="blocked", terminal=True, platform=platform, message=grant.blocker.message, blockerCode=grant.blocker.code))
-            result = ManagedRuntimeReadinessResult.blocked(grant.blocker, attempts=attempts, entitlement=entitlement, cache=RuntimeCacheStatus(status="miss", platform=platform))
+            result = ManagedRuntimeReadinessResult.blocked(grant.blocker, attempts=attempts, entitlement=entitlement, cache=RuntimeCacheStatus(status="miss", platform=platform), verification_keys=verification_keys)
             result.api = api_status
             return result
         runtime_core_version = str(grant.data.get("coreVersion", os.environ.get("PROOFSIGNAL_CORE_VERSION", "0.12.0")))
@@ -215,7 +246,7 @@ def ensure_core_runtime(
     if blocker or not runtime_command:
         actual = blocker or RuntimeSetupBlocker(code="distribution.unavailable", message="Managed runtime installation failed.")
         attempts.append(RuntimeSourceAttempt(source="managed-download", status="blocked", terminal=True, platform=platform, message=actual.message, blockerCode=actual.code))
-        result = ManagedRuntimeReadinessResult.blocked(actual, attempts=attempts, entitlement=entitlement, cache=RuntimeCacheStatus(status="miss", platform=platform))
+        result = ManagedRuntimeReadinessResult.blocked(actual, attempts=attempts, entitlement=entitlement, cache=RuntimeCacheStatus(status="miss", platform=platform), verification_keys=verification_keys)
         result.api = api_status
         return result
     attempt = _verify_command(project, "managed-download", runtime_command, platform=platform)
@@ -231,10 +262,12 @@ def ensure_core_runtime(
             api=api_status,
             entitlement=entitlement,
             cache=RuntimeCacheStatus(status="hit", platform=platform, coreVersion=runtime_core_version),
+            verificationKeys=verification_keys,
             message="ProofSignal runtime is ready.",
             nextAction="Continue with validation or run.",
         )
     result = _blocked_from_attempt(attempt, attempts, entitlement=entitlement, cache=RuntimeCacheStatus(status="incompatible", platform=platform))
+    result.verificationKeys = verification_keys
     result.api = api_status
     return result
 

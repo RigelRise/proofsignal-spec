@@ -169,6 +169,34 @@ def test_secret_named_fields_still_reject_real_secret_values() -> None:
     assert validate_no_secret_values(unsafe)
 
 
+def test_credential_refs_allow_env_key_names_but_reject_values() -> None:
+    safe = {
+        "credentialRefs": {
+            "e2eUser": {
+                "source": "environment",
+                "keys": {
+                    "email": "E2E_USER_EMAIL",
+                    "password": "E2E_USER_PASSWORD",
+                },
+            }
+        }
+    }
+    unsafe = {
+        "credentialRefs": {
+            "e2eUser": {
+                "source": "environment",
+                "keys": {
+                    "email": "qa@example.com",
+                    "password": "actual-secret-password-value",
+                },
+            }
+        }
+    }
+
+    assert validate_no_secret_values(safe) == []
+    assert validate_no_secret_values(unsafe)
+
+
 def test_core_setup_does_not_read_env_files(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
@@ -200,3 +228,22 @@ def test_core_setup_does_not_persist_or_echo_credential_looking_command(tmp_path
     assert "[redacted]" in serialized
     workspace = load_document(tmp_path / ".proofsignal/workspace.yaml")
     assert "coreCommand" not in workspace
+
+
+def test_verification_key_readiness_status_contains_only_public_metadata() -> None:
+    from proofsignal_spec.runtime.models import RuntimeVerificationKeyStatus
+
+    status = RuntimeVerificationKeyStatus(
+        status="ready",
+        source="fetched",
+        matchedKeyId="ps-entitlement-local",
+        sourceApiBaseUrl="http://localhost:3000/api",
+        issuer="https://proofsignal.io",
+        message="Public verification keys are ready.",
+    )
+
+    payload = status.to_dict()
+    assert validate_no_secret_values(payload) == []
+    assert "receiptPayload" not in payload
+    assert "privateKeyPem" not in payload
+    assert "unlockToken" not in payload

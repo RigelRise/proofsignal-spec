@@ -13,18 +13,20 @@ def render_run_request(record: UseCaseRecord, parameters: dict[str, Any] | None 
 
     resolved_parameters = dict(parameters or {})
     for item in record.runtimeInputs:
+        if item.kind == "credential":
+            continue
         resolved_parameters.setdefault(item.name, "")
-    return json.dumps(
-        {
-            "schemaVersion": "qa-run-request/v1",
-            "request": {"id": f"request.{record.alias}", "name": record.title},
-            "target": "browser",
-            "validationScope": "feature-level",
-            "skills": skill_refs,
-            "parameters": resolved_parameters,
-        },
-        indent=2,
-    ) + "\n"
+    document: dict[str, Any] = {
+        "schemaVersion": "qa-run-request/v1",
+        "request": {"id": f"request.{record.alias}", "name": record.title},
+        "target": "browser",
+        "validationScope": "feature-level",
+        "skills": skill_refs,
+        "parameters": resolved_parameters,
+    }
+    if record.credentialRefs:
+        document["credentialRefs"] = record.credentialRefs
+    return json.dumps(document, indent=2) + "\n"
 
 
 def render_skill(
@@ -103,6 +105,8 @@ def _render_skill_parameters(record: UseCaseRecord) -> str:
         return "  []"
     lines: list[str] = []
     for item in record.runtimeInputs:
+        if item.kind == "credential":
+            continue
         lines.extend(
             [
                 f"  - name: {item.name}",

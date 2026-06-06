@@ -16,6 +16,8 @@ def resolve_runtime_inputs(
     provided = {str(key): value for key, value in (provided or {}).items() if value is not None and value != ""}
     values: dict[str, str] = {}
     for requirement in requirements:
+        if requirement.kind == "credential":
+            continue
         value = None
         if requirement.source == "environment" and requirement.envVar:
             value = os.environ.get(requirement.envVar)

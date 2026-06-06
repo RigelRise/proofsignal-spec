@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import copy
 import re
 from pathlib import Path
 from typing import Any
 
+from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.core.errors import CoreExecutionError, CoreIncompatibleError, CoreMissingError
+from proofsignal_spec.core.executable_contract import ContractCompatibilityFinding, project_core_contract
 from proofsignal_spec.commands import list as list_command
 from proofsignal_spec.commands import repair as repair_command
 from proofsignal_spec.commands import run as run_command
 from proofsignal_spec.commands import validate as validate_command
 from proofsignal_spec.workspace import layout
 from proofsignal_spec.workspace.models import ArtifactReference
-from proofsignal_spec.workspace.repository import load_document, load_use_case, now_iso, save_use_case
+from proofsignal_spec.workspace.repository import get_core_command, load_document, load_use_case, now_iso, save_use_case
 
 from .definitions import load_workflow_definition
 from .browser_authoring import browser_authoring_contract
@@ -201,6 +205,7 @@ def workflow_list(project: Path) -> dict[str, Any]:
 def workflow_info(project: Path, workflow_id: str = WORKFLOW_ID, integration: str | None = None) -> dict[str, Any]:
     definition = load_workflow_definition(project, workflow_id)
     integration = choose_integration(project, integration)
+    core_contract = _core_executable_contract(project)
     return {
         "schemaVersion": "proofsignal-spec-workflow-info/v1",
         "workflowId": definition.workflowId,
@@ -211,8 +216,103 @@ def workflow_info(project: Path, workflow_id: str = WORKFLOW_ID, integration: st
         "supportedIntegrations": ["codex", "claude"],
         "nativeCommands": {stage: native_invocation(stage, "skill") for stage in [*WORKFLOW_STAGES, "list"]},
         "stagePayloadContracts": stage_contracts_payload(),
-        "browserAuthoringContract": browser_authoring_contract(),
+        "coreExecutableContract": core_contract,
+        "browserAuthoringContract": browser_authoring_contract(core_contract=core_contract),
+        "specWorkflowPolicy": _spec_workflow_policy(),
         "integration": integration,
+    }
+
+
+def _core_executable_contract(project: Path) -> dict[str, Any]:
+    command = get_core_command(project)
+    adapter = CoreAdapter(executable=command, cwd=project)
+    try:
+        compatibility = adapter.check_compatibility()
+        if not compatibility.compatible:
+            return _blocked_core_contract(
+                "core-contract.bootstrap-incompatible",
+                compatibility.message,
+                contract_version=compatibility.contractVersion,
+                core_version=compatibility.proofsignalVersion,
+            )
+        raw = adapter.contracts()
+        return _apply_public_redaction_policy(
+            project_core_contract(
+                raw,
+                runtime_identity=adapter.executable,
+                core_version=compatibility.proofsignalVersion,
+                public_contract_version=compatibility.contractVersion,
+            )
+        )
+    except (CoreMissingError, CoreIncompatibleError, CoreExecutionError) as exc:
+        return _blocked_core_contract("core-contract.discovery-failed", str(exc))
+    except Exception as exc:
+        return _blocked_core_contract("core-contract.discovery-error", str(exc))
+
+
+def _blocked_core_contract(
+    code: str,
+    message: str,
+    *,
+    contract_version: str | None = None,
+    core_version: str | None = None,
+) -> dict[str, Any]:
+    finding = ContractCompatibilityFinding(code=code, message=message, contractSection="contracts").to_dict()
+    return {
+        "source": "core-public-contract",
+        "runtimeIdentity": None,
+        "coreVersion": core_version,
+        "publicContractVersion": contract_version,
+        "schemaVersion": None,
+        "sections": {
+            "operations": {},
+            "runRequest": {},
+            "skill": {},
+            "browserWorkflow": {},
+            "credentials": {},
+            "placeholders": {},
+            "reportCoverage": {},
+            "publicRedactionPolicy": {},
+            "runtimeTrustHandoff": {},
+        },
+        "stableOnlyAuthoring": True,
+        "findings": [finding],
+    }
+
+
+def _apply_public_redaction_policy(core_contract: dict[str, Any]) -> dict[str, Any]:
+    redacted = copy.deepcopy(core_contract)
+    policy = redacted.get("sections", {}).get("publicRedactionPolicy", {})
+    field_names = policy.get("redactFields") if isinstance(policy, dict) else []
+    redact_fields = {str(item) for item in field_names if item}
+    if not redact_fields:
+        return redacted
+    _redact_named_fields(redacted, redact_fields)
+    return redacted
+
+
+def _redact_named_fields(value: Any, redact_fields: set[str]) -> None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in redact_fields and child not in {None, ""}:
+                value[key] = "[redacted]"
+            else:
+                _redact_named_fields(child, redact_fields)
+    elif isinstance(value, list):
+        for child in value:
+            _redact_named_fields(child, redact_fields)
+
+
+def _spec_workflow_policy() -> dict[str, Any]:
+    return {
+        "source": "proofsignal-spec",
+        "policies": [
+            {"name": "stage-order", "description": "Use case workflows progress through understand, specify, clarify, plan, tasks, implement, validate, run, repair."},
+            {"name": "one-run-request-per-use-case", "description": "Each use case references exactly one run request."},
+            {"name": "reusable-skills", "description": "Skills are decoupled reusable artifacts and may be shared by run requests."},
+            {"name": "gate-adequacy", "description": "Spec evaluates whether Core evidence adequately proves planned gates."},
+            {"name": "workspace-portability", "description": "Target-project state remains under .proofsignal/."},
+        ],
     }
 
 

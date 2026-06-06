@@ -21,10 +21,14 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         self.assertEqual(result["schemaVersion"], "proofsignal-spec-workflow-info/v1")
         self.assertEqual(result["workflowId"], "proofsignal-use-case")
         contract = result["browserAuthoringContract"]
+        self.assertEqual(contract["source"], "core-public-contract")
         self.assertIn("navigate", contract["validActions"])
         self.assertIn("text", contract["validAssertionKinds"])
         self.assertIn("method", contract["validNetworkMatchKeys"])
         self.assertIn("stepsReferenceNamedTargets", contract["targetRules"])
+        self.assertEqual(result["coreExecutableContract"]["source"], "core-public-contract")
+        self.assertIn("runRequest", result["coreExecutableContract"]["sections"])
+        self.assertIn("skill", result["coreExecutableContract"]["sections"])
 
     def test_understand_persists_product_context_and_inventory(self) -> None:
         payload = stage_payload(

@@ -9,10 +9,12 @@ def test_core_public_contract_declares_required_operations_and_schemas() -> None
     assert summary["contractVersion"] == PUBLIC_CONTRACT_VERSION
     assert {item["operationName"] for item in summary["requiredOperations"]} == {
         "version",
+        "contracts",
         "authoring-check",
         "run",
         "report.inspect",
     }
+    assert summary["requiredOperationsByName"]["contracts"]["schemaName"] == "proofsignal.contracts/v1"
     assert summary["requiredOperationsByName"]["report.inspect"]["schemaName"] == "proofsignal.report-inspection/v1"
 
 
@@ -24,7 +26,7 @@ def test_core_contract_incompatibility_reports_missing_operation_names() -> None
             "operations": [
                 {"name": name, "schema": schema, "schemaVersion": version}
                 for name, (schema, version) in REQUIRED_OPERATIONS.items()
-                if name != "report.inspect"
+                if name != "contracts"
             ],
         }
     }
@@ -32,7 +34,7 @@ def test_core_contract_incompatibility_reports_missing_operation_names() -> None
     result = validate_version_response(payload)
 
     assert result.compatible is False
-    assert result.missingOperations == ["report.inspect"]
+    assert result.missingOperations == ["contracts"]
     assert result.to_dict()["requiredOperationsByName"]["run"]["schemaVersion"] == 1
 
 

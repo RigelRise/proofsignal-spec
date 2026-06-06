@@ -30,6 +30,18 @@ def test_implement_template_uses_canonical_skill_shape_and_cli_persistence() -> 
     assert "Run `proofsignal validate <alias> --runtime-readiness` before reporting browser artifacts ready" in content
 
 
+def test_plan_and_implement_templates_do_not_author_from_hardcoded_core_lists() -> None:
+    plan = agent_template("plan")
+    implement = agent_template("implement")
+
+    assert "coreExecutableContract" in plan
+    assert "Core-declared public network match keys" in plan
+    assert "browserAuthoringContract" in implement
+    assert "non-authoritative examples" in implement
+    assert "public match keys such as `urlContains`, `status`, `requestBodyContains`, or `responseBodyContains`" not in plan
+    assert "one primary selector signal (`testId`, `label`, `text`, `css`, `semanticLocator`, or `all`)" not in implement
+
+
 def test_specify_and_plan_templates_require_browser_target_before_executable_planning() -> None:
     specify = agent_template("specify")
     plan = agent_template("plan")

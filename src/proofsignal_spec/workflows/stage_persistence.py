@@ -409,6 +409,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     skills = [_skill_reference(item) for item in content.get("skills", [])]
     if not skills:
         raise ValueError("Implementation requires at least one browser skill.")
+    credential_refs = _credential_refs_from_payload(content)
     try:
         plan = load_artifact_plan(project, alias)
         planned_main = next((skill for skill in skills if skill.path == plan.mainSkill), None)
@@ -423,8 +424,11 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     record.skills = skills
     runtime_inputs = content.get("runtimeInputs") or _runtime_inputs_from_run_request_payload(content.get("runRequest")) or _planned_runtime_inputs(project, alias)
     runtime_inputs = _merge_resolved_target_runtime_input(runtime_inputs, _stage_handoff_target(record))
+    runtime_inputs = _filter_runtime_credential_inputs(runtime_inputs, credential_refs)
     content["runtimeInputs"] = runtime_inputs
     record.runtimeInputs = [_runtime_input(item) for item in runtime_inputs]
+    record.credentialRefs = credential_refs
+    record.credentialGroups = _credential_groups_from_refs(credential_refs)
     profiles = _profiles_from_payload(content)
     if profiles:
         from proofsignal_spec.workspace.models import RunProfile
@@ -436,7 +440,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     run_request_content = _ensure_core_run_request_document(_artifact_content(content["runRequest"]), record, content)
     _write_payload_artifact(project, run_request_path, run_request_content, lambda: artifacts.render_run_request(record))
     for item, skill in zip(content.get("skills", []), skills, strict=False):
-        skill_content = _ensure_core_skill_document(_artifact_content(item), record, skill, item)
+        skill_content = _ensure_core_skill_document(_artifact_content(item), record, skill, item, credential_refs=credential_refs)
         _write_payload_artifact(project, skill.path, skill_content, lambda record=record, skill=skill: artifacts.render_skill(record, skill))
 
     save_use_case(project, record)
@@ -843,15 +847,35 @@ def _artifact_content(value: Any) -> str | None:
 
 
 def _ensure_core_run_request_document(content: str | None, record: Any, payload: dict[str, Any]) -> str:
+    schema_version = _schema_version_from_content(content)
+    if schema_version and schema_version != "qa-run-request/v1":
+        raise ValueError(f"Legacy executable artifact schemaVersion {schema_version!r}; expected 'qa-run-request/v1' from the Core public contract.")
     if content and _looks_like_core_run_request(content):
         return _ensure_run_request_skill_order(content, record)
     return artifacts.render_run_request(record, parameters=_parameters_from_payload(payload))
 
 
-def _ensure_core_skill_document(content: str | None, record: Any, skill: ArtifactReference, payload: Any) -> str:
+def _ensure_core_skill_document(content: str | None, record: Any, skill: ArtifactReference, payload: Any, *, credential_refs: dict[str, Any] | None = None) -> str:
+    schema_version = _schema_version_from_content(content)
+    if schema_version and schema_version != "qa-skill/v1":
+        raise ValueError(f"Legacy executable artifact schemaVersion {schema_version!r}; expected 'qa-skill/v1' from the Core public contract.")
     if content and _looks_like_core_skill(content):
         return content
-    return artifacts.render_skill(record, skill, draft_notes=_skill_notes_from_payload(content, payload), browser=_browser_from_payload(payload))
+    return artifacts.render_skill(record, skill, draft_notes=_skill_notes_from_payload(content, payload), browser=_browser_from_payload(payload, credential_refs=credential_refs))
+
+
+def _schema_version_from_content(content: str | None) -> str | None:
+    if not content:
+        return None
+    try:
+        import yaml  # type: ignore
+
+        parsed = yaml.safe_load(content) or {}
+    except Exception:
+        return None
+    if isinstance(parsed, dict) and parsed.get("schemaVersion"):
+        return str(parsed["schemaVersion"])
+    return None
 
 
 def _looks_like_core_run_request(content: str) -> bool:
@@ -872,6 +896,8 @@ def _ensure_run_request_skill_order(content: str, record: Any) -> str:
     if not isinstance(parsed, dict):
         return content
     parsed["skills"] = [{"id": skill.id or f"skill.{record.alias}", "version": skill.version or "1.0.0"} for skill in record.skills]
+    if record.credentialRefs:
+        parsed["credentialRefs"] = record.credentialRefs
     try:
         import json
 
@@ -892,7 +918,11 @@ def _parameters_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     runtime_inputs = payload.get("runtimeInputs")
     if not runtime_inputs and isinstance(run_request, dict):
         runtime_inputs = run_request.get("runtimeInputs") or run_request_intent.get("runtimeInputs")
-    return {item["name"]: item.get("value", item.get("default", "")) for item in runtime_inputs or [] if isinstance(item, dict) and item.get("name")}
+    return {
+        item["name"]: item.get("value", item.get("default", ""))
+        for item in runtime_inputs or []
+        if isinstance(item, dict) and item.get("name") and item.get("kind") != "credential" and not item.get("credentialGroup")
+    }
 
 
 def _runtime_inputs_from_run_request_payload(payload: Any) -> list[dict[str, Any]]:
@@ -933,6 +963,89 @@ def _runtime_inputs_from_parameters(parameters: Any) -> list[dict[str, Any]]:
     return [{"name": str(name), "value": value, "source": "default", "required": True} for name, value in parameters.items()]
 
 
+def _credential_refs_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    run_request = payload.get("runRequest") if isinstance(payload.get("runRequest"), dict) else {}
+    candidates: list[Any] = [
+        payload.get("credentialRefs"),
+        run_request.get("credentialRefs"),
+    ]
+    intent = run_request.get("intent") if isinstance(run_request.get("intent"), dict) else {}
+    candidates.append(intent.get("credentialRefs"))
+    content = _artifact_content(run_request)
+    if content:
+        try:
+            import yaml  # type: ignore
+
+            parsed = yaml.safe_load(content) or {}
+        except Exception:
+            parsed = {}
+        if isinstance(parsed, dict):
+            candidates.append(parsed.get("credentialRefs"))
+    for candidate in candidates:
+        refs = _normalize_credential_refs(candidate)
+        if refs:
+            return refs
+    return {}
+
+
+def _normalize_credential_refs(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    refs: dict[str, Any] = {}
+    for group, config in value.items():
+        group_name = str(group).strip()
+        if not group_name or not isinstance(config, dict):
+            continue
+        keys = config.get("keys")
+        if not isinstance(keys, dict):
+            continue
+        normalized_keys = {str(field).strip(): str(env_name).strip() for field, env_name in keys.items() if str(field).strip() and str(env_name).strip()}
+        if not normalized_keys:
+            continue
+        refs[group_name] = {
+            "source": str(config.get("source") or "environment"),
+            "keys": normalized_keys,
+        }
+    return refs
+
+
+def _credential_groups_from_refs(credential_refs: dict[str, Any]) -> list[dict[str, Any]]:
+    groups: list[dict[str, Any]] = []
+    for group, config in credential_refs.items():
+        keys = config.get("keys") if isinstance(config, dict) else {}
+        groups.append(
+            {
+                "name": str(group),
+                "source": str(config.get("source") or "environment") if isinstance(config, dict) else "environment",
+                "fields": sorted(str(field) for field in keys) if isinstance(keys, dict) else [],
+            }
+        )
+    return groups
+
+
+def _filter_runtime_credential_inputs(runtime_inputs: list[dict[str, Any]], credential_refs: dict[str, Any]) -> list[dict[str, Any]]:
+    if not credential_refs:
+        return runtime_inputs
+    filtered: list[dict[str, Any]] = []
+    declared_env_names = {
+        str(env_name)
+        for config in credential_refs.values()
+        if isinstance(config, dict)
+        for env_name in (config.get("keys") or {}).values()
+    }
+    for item in runtime_inputs:
+        if not isinstance(item, dict):
+            continue
+        if item.get("kind") == "credential" or item.get("credentialGroup"):
+            continue
+        if item.get("envVar") and str(item.get("envVar")) in declared_env_names:
+            continue
+        filtered.append(item)
+    return filtered
+
+
 def _profiles_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
     profiles = payload.get("profiles")
     if isinstance(profiles, list):
@@ -948,13 +1061,13 @@ def _profiles_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
-def _browser_from_payload(payload: Any) -> dict[str, Any]:
+def _browser_from_payload(payload: Any, *, credential_refs: dict[str, Any] | None = None) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {}
     intent = payload.get("intent") if isinstance(payload.get("intent"), dict) else {}
     browser = payload.get("browser") if isinstance(payload.get("browser"), dict) else intent.get("browser")
     normalized = _normalize_browser_payload(browser if isinstance(browser, dict) else {})
-    blockers = validate_browser_payload(normalized)
+    blockers = validate_browser_payload(normalized, credential_refs=credential_refs)
     if blockers:
         raise ValueError("Invalid executable browser skill intent: " + " ".join(blockers))
     if _has_detailed_skill_intent(payload) and not _has_executable_browser_intent(normalized, payload):

@@ -23,7 +23,9 @@ class CliTestCase(unittest.TestCase):
         self.project = Path(self.tmp.name)
         self.old_core = os.environ.get("PROOFSIGNAL_CORE_CMD")
         self.old_mode = os.environ.get("FAKE_PROOFSIGNAL_MODE")
+        self.old_runtime_cache = os.environ.get("PROOFSIGNAL_RUNTIME_CACHE_DIR")
         os.environ["PROOFSIGNAL_CORE_CMD"] = str(FAKE_CORE)
+        os.environ["PROOFSIGNAL_RUNTIME_CACHE_DIR"] = str(self.project / "runtime-cache")
         os.environ.pop("FAKE_PROOFSIGNAL_MODE", None)
 
     def tearDown(self) -> None:
@@ -36,6 +38,10 @@ class CliTestCase(unittest.TestCase):
             os.environ.pop("FAKE_PROOFSIGNAL_MODE", None)
         else:
             os.environ["FAKE_PROOFSIGNAL_MODE"] = self.old_mode
+        if self.old_runtime_cache is None:
+            os.environ.pop("PROOFSIGNAL_RUNTIME_CACHE_DIR", None)
+        else:
+            os.environ["PROOFSIGNAL_RUNTIME_CACHE_DIR"] = self.old_runtime_cache
 
     def cli(self, args: list[str]) -> tuple[int, str, str]:
         from proofsignal_spec.cli import main
@@ -65,3 +71,20 @@ def assert_public_workflow_contract_guidance(content: str) -> None:
     assert "public workflow contract" in content.lower()
     assert "stage_persistence.py" not in content
     assert "site-packages" not in content
+
+
+def assert_no_core_contract_snapshots(project: Path) -> None:
+    forbidden_roots = [project / ".proofsignal", project / "runtime-cache", project / "user-cache"]
+    suspicious_names = {"core-contract.json", "core-contract.yaml", "contracts.json", "contracts.yaml", "core-executable-contract.json"}
+    offenders: list[str] = []
+    for root in forbidden_roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            lower_name = path.name.lower()
+            rel = path.relative_to(project)
+            if lower_name in suspicious_names or "core-contract" in lower_name or "executable-contract" in lower_name:
+                offenders.append(str(rel))
+    assert offenders == []

@@ -224,6 +224,7 @@ class UseCaseRecord:
     mainSkill: ArtifactReference | None = None
     skills: list[ArtifactReference] = field(default_factory=list)
     runtimeInputs: list[RuntimeInputRequirement] = field(default_factory=list)
+    credentialRefs: dict[str, Any] = field(default_factory=dict)
     credentialGroups: list[dict[str, Any] | str] = field(default_factory=list)
     profiles: list[RunProfile] = field(
         default_factory=lambda: [
@@ -252,6 +253,7 @@ class UseCaseRecord:
             mainSkill=ArtifactReference.from_dict(data["mainSkill"]) if data.get("mainSkill") else None,
             skills=[ArtifactReference.from_dict(item) for item in data.get("skills", [])],
             runtimeInputs=[RuntimeInputRequirement.from_dict(item) for item in data.get("runtimeInputs", [])],
+            credentialRefs=dict(data.get("credentialRefs", {})),
             credentialGroups=list(data.get("credentialGroups", [])),
             profiles=[RunProfile.from_dict(item) for item in data.get("profiles", [])] or [RunProfile()],
             authoringQuestions=[AuthoringQuestion.from_dict(item) for item in data.get("authoringQuestions", [])],
@@ -267,6 +269,7 @@ class UseCaseRecord:
         data["mainSkill"] = self.mainSkill.to_dict() if self.mainSkill else None
         data["skills"] = [item.to_dict() for item in self.skills]
         data["runtimeInputs"] = [item.to_dict() for item in self.runtimeInputs]
+        data["credentialRefs"] = dict(self.credentialRefs)
         data["profiles"] = [item.to_dict() for item in self.profiles]
         data["authoringQuestions"] = [item.to_dict() for item in self.authoringQuestions]
         return _clean(data)

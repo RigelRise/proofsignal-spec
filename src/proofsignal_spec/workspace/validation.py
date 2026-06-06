@@ -17,6 +17,7 @@ HIGH_ENTROPY_RE = re.compile(r"^[A-Za-z0-9_./+=-]{32,}$")
 HEX_IDENTIFIER_RE = re.compile(r"^[a-f0-9]{7,64}$", re.I)
 DUMMY_VALUES = {"example", "dummy", "placeholder", "changeme", "test", "sample", "qa@example.com"}
 SECRET_QUERY_PARAM_RE = re.compile(r"(token|secret|api[_-]?key|access[_-]?key|client[_-]?secret|authorization|auth|password|pwd)", re.I)
+ENV_VAR_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 
 
 def looks_secret(value: Any, field_name: str = "") -> bool:
@@ -99,12 +100,21 @@ def validate_no_secret_values(data: Any, path: str = "") -> list[dict[str, str]]
             child_path = f"{path}.{key}" if path else str(key)
             if isinstance(value, (dict, list)):
                 findings.extend(validate_no_secret_values(value, child_path))
+            elif _is_public_credential_ref_key_name(child_path, value):
+                continue
             elif looks_secret(value, str(key)):
                 findings.append({"severity": "blocking", "code": "secret-looking-value", "path": child_path, "message": "Secret-looking value must not be persisted."})
     elif isinstance(data, list):
         for index, value in enumerate(data):
             findings.extend(validate_no_secret_values(value, f"{path}[{index}]"))
     return findings
+
+
+def _is_public_credential_ref_key_name(path: str, value: Any) -> bool:
+    marker_path = f".{path}"
+    if ".credentialRefs." not in marker_path or ".keys." not in marker_path:
+        return False
+    return isinstance(value, str) and bool(ENV_VAR_NAME_RE.match(value.strip()))
 
 
 def validate_workspace(project: Path) -> list[dict[str, str]]:

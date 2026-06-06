@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from proofsignal_spec.workspace.models import RunProfile
 
+from proofsignal_spec.core.executable_contract import browser_authoring_projection
 from .models import RunProfileSettings
 
 VALID_BROWSER_ACTIONS = {
@@ -24,6 +26,7 @@ VALID_ASSERTION_KINDS = {"text", "location", "visible", "hidden", "screenshot-re
 VALID_NETWORK_MATCH_KEYS = {"urlContains", "method", "status", "requestBodyContains", "responseBodyContains"}
 NETWORK_METADATA_KEYS = {"operationName", "expectedStatus"}
 TARGET_SIGNAL_KEYS = ("testId", "label", "text", "css", "semanticLocator", "all")
+PLACEHOLDER_RE = re.compile(r"\{\{\s*([^}]+?)\s*\}\}")
 
 ACTION_REQUIREMENTS = {
     "navigate": {"required": ["value"], "notes": "The URL goes in value, not target."},
@@ -40,7 +43,9 @@ ACTION_REQUIREMENTS = {
 }
 
 
-def browser_authoring_contract() -> dict[str, Any]:
+def browser_authoring_contract(core_contract: dict[str, Any] | None = None) -> dict[str, Any]:
+    if core_contract:
+        return browser_authoring_projection(core_contract)
     return {
         "schemaVersion": "proofsignal-browser-authoring-contract/v1",
         "validActions": sorted(VALID_BROWSER_ACTIONS),
@@ -99,28 +104,35 @@ def resolve_effective_profile_settings(profile: RunProfile, slow_mo_override: in
     return RunProfileSettings(profile=profile.name, headed=profile.headed, slowMoMs=profile.slowMoMs, source="workspace-profile")
 
 
-def validate_browser_payload(browser: dict[str, Any]) -> list[str]:
+def validate_browser_payload(
+    browser: dict[str, Any],
+    *,
+    core_contract: dict[str, Any] | None = None,
+    credential_refs: dict[str, Any] | None = None,
+) -> list[str]:
+    rules = _rules_from_contract(core_contract)
     blockers: list[str] = []
     targets = browser.get("targets") if isinstance(browser.get("targets"), dict) else {}
     for alias, bundle in targets.items():
         if not isinstance(bundle, dict):
             blockers.append(f"browser.targets.{alias} must be an object.")
             continue
-        blockers.extend(_validate_target_bundle(str(alias), bundle))
+        blockers.extend(_validate_target_bundle(str(alias), bundle, rules["targetSignals"], rules["compositionSignals"]))
 
     for index, step in enumerate(_list(browser.get("steps")), start=1):
-        blockers.extend(_validate_step(step, index, targets))
+        blockers.extend(_validate_step(step, index, targets, rules))
 
     for index, assertion in enumerate(_list(browser.get("assertions")), start=1):
-        blockers.extend(_validate_assertion(assertion, index, targets))
+        blockers.extend(_validate_assertion(assertion, index, targets, rules))
+    blockers.extend(_validate_placeholders(browser, credential_refs or {}))
     return blockers
 
 
-def _validate_target_bundle(alias: str, bundle: dict[str, Any]) -> list[str]:
+def _validate_target_bundle(alias: str, bundle: dict[str, Any], target_signal_keys: set[str], composition_signals: set[str]) -> list[str]:
     blockers: list[str] = []
-    primary_signals = [key for key in TARGET_SIGNAL_KEYS if _has_value(bundle.get(key))]
+    primary_signals = [key for key in target_signal_keys if _has_value(bundle.get(key))]
     if not primary_signals:
-        blockers.append(f"browser.targets.{alias} must define one selector signal: testId, label, text, css, semanticLocator, or all.")
+        blockers.append(f"browser.targets.{alias} must define one selector signal: {', '.join(sorted(target_signal_keys))}.")
     if len(primary_signals) > 1:
         blockers.append(
             f"browser.targets.{alias} defines multiple primary selector signals ({', '.join(primary_signals)}). "
@@ -135,8 +147,8 @@ def _validate_target_bundle(alias: str, bundle: dict[str, Any]) -> list[str]:
                 if not isinstance(entry, dict):
                     blockers.append(f"browser.targets.{alias}.all[{index}] must be an object.")
                     continue
-                signals = [key for key in ("testId", "css") if _has_value(entry.get(key))]
-                unsupported = sorted(key for key in entry if key not in {"testId", "css"})
+                signals = [key for key in composition_signals if _has_value(entry.get(key))]
+                unsupported = sorted(key for key in entry if key not in composition_signals)
                 if unsupported:
                     blockers.append(f"browser.targets.{alias}.all[{index}] uses unsupported signals: {', '.join(unsupported)}.")
                 if len(signals) != 1:
@@ -144,15 +156,16 @@ def _validate_target_bundle(alias: str, bundle: dict[str, Any]) -> list[str]:
     return blockers
 
 
-def _validate_step(step: Any, index: int, targets: dict[str, Any]) -> list[str]:
+def _validate_step(step: Any, index: int, targets: dict[str, Any], rules: dict[str, Any]) -> list[str]:
     if not isinstance(step, dict):
         return [f"browser.steps[{index}] must be an object."]
     blockers: list[str] = []
     step_id = str(step.get("id") or f"#{index}")
     action = step.get("action")
-    if action not in VALID_BROWSER_ACTIONS:
+    valid_actions = rules["actions"]
+    if action not in valid_actions:
         blockers.append(
-            f"Unsupported browser step action at {step_id}: {action!r}. Valid actions: {', '.join(sorted(VALID_BROWSER_ACTIONS))}."
+            f"Unsupported browser step action at {step_id}: {action!r}. Valid actions: {', '.join(sorted(valid_actions))}."
         )
         return blockers
 
@@ -166,7 +179,7 @@ def _validate_step(step: Any, index: int, targets: dict[str, Any]) -> list[str]:
     if action in {"fill", "select", "waitForText", "checkText", "checkLocation"} and not isinstance(step.get("value"), str):
         blockers.append(f"Step {step_id} action {action} requires string value.")
     if action == "awaitNetwork":
-        blockers.extend(_validate_network_match(step.get("match"), f"Step {step_id}"))
+        blockers.extend(_validate_network_match(step.get("match"), f"Step {step_id}", rules))
         if step.get("gateId") and not isinstance(step.get("gateId"), str):
             blockers.append(f"Step {step_id} gateId must be a string.")
     if action == "repeatUntil":
@@ -177,15 +190,16 @@ def _validate_step(step: Any, index: int, targets: dict[str, Any]) -> list[str]:
     return blockers
 
 
-def _validate_assertion(assertion: Any, index: int, targets: dict[str, Any]) -> list[str]:
+def _validate_assertion(assertion: Any, index: int, targets: dict[str, Any], rules: dict[str, Any]) -> list[str]:
     if not isinstance(assertion, dict):
         return [f"browser.assertions[{index}] must be an object."]
     blockers: list[str] = []
     assertion_id = str(assertion.get("id") or f"#{index}")
     kind = assertion.get("kind")
-    if kind not in VALID_ASSERTION_KINDS:
+    valid_assertions = rules["assertions"]
+    if kind not in valid_assertions:
         blockers.append(
-            f"Unsupported browser assertion kind at {assertion_id}: {kind!r}. Valid kinds: {', '.join(sorted(VALID_ASSERTION_KINDS))}."
+            f"Unsupported browser assertion kind at {assertion_id}: {kind!r}. Valid kinds: {', '.join(sorted(valid_assertions))}."
         )
         return blockers
     if kind in {"text", "visible", "hidden"}:
@@ -201,15 +215,18 @@ def _validate_assertion(assertion: Any, index: int, targets: dict[str, Any]) -> 
     return blockers
 
 
-def _validate_network_match(match: Any, prefix: str) -> list[str]:
+def _validate_network_match(match: Any, prefix: str, rules: dict[str, Any] | None = None) -> list[str]:
     if not isinstance(match, dict):
         return [f"{prefix} action awaitNetwork requires match object."]
+    rules = rules or _rules_from_contract(None)
+    valid_network_keys = rules["networkKeys"]
+    metadata_keys = rules["networkMetadataKeys"]
     present_keys = {str(key) for key, value in match.items() if value is not None}
-    unsupported = sorted(present_keys - VALID_NETWORK_MATCH_KEYS - NETWORK_METADATA_KEYS)
+    unsupported = sorted(present_keys - valid_network_keys - metadata_keys)
     blockers = []
     if unsupported:
         blockers.append(f"{prefix} awaitNetwork.match uses unsupported keys: {', '.join(unsupported)}.")
-    public_present = present_keys & VALID_NETWORK_MATCH_KEYS
+    public_present = present_keys & valid_network_keys
     if not public_present:
         blockers.append(f"{prefix} awaitNetwork.match must include at least one supported field.")
     return blockers
@@ -224,9 +241,62 @@ def _require_named_target(item: dict[str, Any], label: str, targets: dict[str, A
     return []
 
 
+def _validate_placeholders(value: Any, credential_refs: dict[str, Any], path: str = "browser") -> list[str]:
+    blockers: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            blockers.extend(_validate_placeholders(child, credential_refs, f"{path}.{key}"))
+        return blockers
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            blockers.extend(_validate_placeholders(child, credential_refs, f"{path}[{index}]"))
+        return blockers
+    if not isinstance(value, str):
+        return blockers
+    for match in PLACEHOLDER_RE.finditer(value):
+        expression = match.group(1).strip()
+        if expression.startswith("env."):
+            blockers.append(f"{path} uses unsupported placeholder namespace '{{{{{expression}}}}}'. Use credentialRefs plus {{{{credentials.<group>.<field>}}}} for secrets.")
+            continue
+        if not expression.startswith("credentials."):
+            continue
+        parts = expression.split(".")
+        if len(parts) != 3 or not parts[1] or not parts[2]:
+            blockers.append(f"{path} uses invalid credential placeholder '{{{{{expression}}}}}'. Expected {{{{credentials.<group>.<field>}}}}.")
+            continue
+        group, field = parts[1], parts[2]
+        config = credential_refs.get(group)
+        keys = config.get("keys") if isinstance(config, dict) else None
+        if not isinstance(keys, dict) or field not in keys:
+            blockers.append(f"{path} references undeclared credential '{{{{{expression}}}}}'. Declare credentialRefs.{group}.keys.{field}.")
+    return blockers
+
+
 def _has_value(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip()) or isinstance(value, list) and bool(value)
 
 
 def _list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
+
+
+def _rules_from_contract(core_contract: dict[str, Any] | None) -> dict[str, Any]:
+    if not core_contract:
+        return {
+            "actions": set(VALID_BROWSER_ACTIONS),
+            "assertions": set(VALID_ASSERTION_KINDS),
+            "networkKeys": set(VALID_NETWORK_MATCH_KEYS),
+            "networkMetadataKeys": set(NETWORK_METADATA_KEYS),
+            "targetSignals": set(TARGET_SIGNAL_KEYS),
+            "compositionSignals": {"testId", "css"},
+        }
+    browser = core_contract.get("sections", {}).get("browserWorkflow", {})
+    target_signals = set(browser.get("targetSignalPriority") or TARGET_SIGNAL_KEYS)
+    return {
+        "actions": set(browser.get("validActions") or []),
+        "assertions": set(browser.get("validAssertionKinds") or []),
+        "networkKeys": set(browser.get("validNetworkMatchKeys") or []),
+        "networkMetadataKeys": set(browser.get("networkMetadataKeys") or NETWORK_METADATA_KEYS),
+        "targetSignals": target_signals,
+        "compositionSignals": {"testId", "css"},
+    }

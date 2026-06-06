@@ -19,7 +19,7 @@ from typing import Any
 from proofsignal_spec.core.contracts import PUBLIC_CONTRACT_VERSION
 
 from .cache import cache_root, platform_cache_dir, save_cache_entry
-from .models import EntitlementClientConfig, RuntimeEntitlementReceipt, RuntimeSetupBlocker
+from .models import EntitlementClientConfig, RuntimeEntitlementReceipt, RuntimeEntitlementStatus, RuntimeSetupBlocker, RuntimeVerificationKeyStatus
 
 
 @dataclass(slots=True)
@@ -188,16 +188,16 @@ class RuntimeDistributionClient:
         blocker = validate_runtime_authorization_response(data, expected_platform=platform)
         return RuntimeAuthorizationResponse(data=data, blocker=blocker)
 
-    def fetch_verification_keys(self) -> RuntimeAuthorizationResponse:
+    def fetch_verification_keys(self, *, issuer: str | None = None) -> RuntimeAuthorizationResponse:
         status, data, transport_blocker = self._json_request("/entitlements/keys")
         if transport_blocker:
-            return RuntimeAuthorizationResponse(data={}, blocker=transport_blocker)
+            return RuntimeAuthorizationResponse(data={}, blocker=_verification_key_blocker("entitlement.keys-unavailable"))
         if status != 200:
-            return RuntimeAuthorizationResponse(data={}, blocker=RuntimeSetupBlocker(code="api.unavailable", message="ProofSignal entitlement verification keys are unavailable."))
+            return RuntimeAuthorizationResponse(data={}, blocker=_verification_key_blocker("entitlement.keys-unavailable"))
         if data.get("schema") != "proofsignal.entitlement-keys/v1" or data.get("schemaVersion") != 1 or not isinstance(data.get("keys"), list):
-            return RuntimeAuthorizationResponse(data={}, blocker=RuntimeSetupBlocker(code="api.incompatible", message="Entitlement verification key response is incompatible."))
-        save_verification_keys(data)
-        return RuntimeAuthorizationResponse(data=data)
+            return RuntimeAuthorizationResponse(data={}, blocker=_verification_key_blocker("entitlement.keys-incompatible"))
+        save_verification_keys(data, source_api_base_url=self.config.apiBaseUrl, issuer=issuer)
+        return RuntimeAuthorizationResponse(data=load_verification_keys() or data)
 
     def _json_request(self, path: str, *, headers: dict[str, str] | None = None) -> tuple[int, dict[str, Any], RuntimeSetupBlocker | None]:
         request = urllib.request.Request(
@@ -232,10 +232,16 @@ def verification_keys_path() -> Path:
     return cache_root() / "entitlement" / "keys.json"
 
 
-def save_verification_keys(data: dict[str, Any]) -> Path:
+def save_verification_keys(data: dict[str, Any], *, source_api_base_url: str | None = None, issuer: str | None = None) -> Path:
     path = verification_keys_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    payload = dict(data)
+    if source_api_base_url:
+        payload["sourceApiBaseUrl"] = source_api_base_url.rstrip("/")
+    if payload.get("issuer") is None and issuer:
+        payload["issuer"] = issuer
+    payload.setdefault("retrievedAt", datetime.now(UTC).isoformat().replace("+00:00", "Z"))
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     try:
         path.chmod(0o600)
     except OSError:
@@ -252,6 +258,136 @@ def load_verification_keys() -> dict[str, Any] | None:
     except Exception:
         return None
     return data if isinstance(data, dict) else None
+
+
+def prepare_verification_keys(
+    config: EntitlementClientConfig,
+    entitlement: RuntimeEntitlementStatus,
+) -> tuple[RuntimeVerificationKeyStatus, RuntimeSetupBlocker | None]:
+    if entitlement.status == "not-required":
+        return RuntimeVerificationKeyStatus(status="not-required", source="not-required", message="No entitlement receipt is required."), None
+    if entitlement.status != "valid":
+        return RuntimeVerificationKeyStatus(status="not-checked", source="none", message="Entitlement receipt is not valid yet."), None
+    if not entitlement.keyId:
+        blocker = _verification_key_blocker("entitlement.keys-incompatible", "Entitlement receipt does not identify a signing key.")
+        return _blocked_verification_keys(blocker, source="none", entitlement=entitlement, config=config), blocker
+
+    manual = os.environ.get("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON")
+    if manual:
+        manual_data, blocker = _parse_manual_public_keys(manual)
+        if blocker:
+            return _blocked_verification_keys(blocker, source="manual-override", entitlement=entitlement, config=config), blocker
+        status = _matching_key_status(manual_data, source="manual-override", entitlement=entitlement, config=config, require_binding=False)
+        if status.status == "ready":
+            return status, None
+        blocker = _verification_key_blocker("entitlement.key-unknown")
+        return _blocked_verification_keys(blocker, source="manual-override", entitlement=entitlement, config=config), blocker
+
+    cached = load_verification_keys()
+    cached_status = _matching_key_status(cached, source="cache", entitlement=entitlement, config=config, require_binding=True)
+    if cached_status.status == "ready":
+        return cached_status, None
+
+    fetched = RuntimeDistributionClient(config).fetch_verification_keys(issuer=entitlement.issuer)
+    if fetched.blocker:
+        return _blocked_verification_keys(fetched.blocker, source="none", entitlement=entitlement, config=config), fetched.blocker
+    fetched_status = _matching_key_status(fetched.data, source="fetched", entitlement=entitlement, config=config, require_binding=True)
+    if fetched_status.status == "ready":
+        return fetched_status, None
+    blocker = _verification_key_blocker("entitlement.key-unknown")
+    return _blocked_verification_keys(blocker, source="fetched", entitlement=entitlement, config=config), blocker
+
+
+def _parse_manual_public_keys(raw: str) -> tuple[dict[str, Any], RuntimeSetupBlocker | None]:
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}, _verification_key_blocker("entitlement.keys-incompatible")
+    if isinstance(data, list):
+        return {"keys": data}, None
+    if isinstance(data, dict) and isinstance(data.get("keys"), list):
+        return data, None
+    return {}, _verification_key_blocker("entitlement.keys-incompatible")
+
+
+def _matching_key_status(
+    data: dict[str, Any] | None,
+    *,
+    source: str,
+    entitlement: RuntimeEntitlementStatus,
+    config: EntitlementClientConfig,
+    require_binding: bool,
+) -> RuntimeVerificationKeyStatus:
+    if not isinstance(data, dict):
+        return RuntimeVerificationKeyStatus(status="blocked", source=source, blockerCode="entitlement.keys-unavailable")
+    if require_binding and not _key_cache_binding_matches(data, config=config, entitlement=entitlement):
+        return RuntimeVerificationKeyStatus(status="blocked", source=source, blockerCode="entitlement.key-unknown")
+    keys = data.get("keys")
+    if not isinstance(keys, list):
+        return RuntimeVerificationKeyStatus(status="blocked", source=source, blockerCode="entitlement.keys-incompatible")
+    if not _has_active_key(keys, entitlement.keyId or ""):
+        return RuntimeVerificationKeyStatus(status="blocked", source=source, blockerCode="entitlement.key-unknown")
+    return RuntimeVerificationKeyStatus(
+        status="ready",
+        source=source,  # type: ignore[arg-type]
+        matchedKeyId=entitlement.keyId,
+        sourceApiBaseUrl=data.get("sourceApiBaseUrl") if isinstance(data.get("sourceApiBaseUrl"), str) else (config.apiBaseUrl if source == "fetched" else None),
+        issuer=data.get("issuer") if isinstance(data.get("issuer"), str) else entitlement.issuer,
+        message="Public verification keys are ready.",
+    )
+
+
+def _key_cache_binding_matches(data: dict[str, Any], *, config: EntitlementClientConfig, entitlement: RuntimeEntitlementStatus) -> bool:
+    source_api_base_url = data.get("sourceApiBaseUrl")
+    if source_api_base_url != config.apiBaseUrl:
+        return False
+    issuer = data.get("issuer")
+    if issuer and entitlement.issuer and issuer != entitlement.issuer:
+        return False
+    return True
+
+
+def _has_active_key(keys: list[Any], key_id: str) -> bool:
+    for item in keys:
+        if not isinstance(item, dict):
+            continue
+        if item.get("keyId") != key_id:
+            continue
+        status = item.get("status")
+        if status in {None, "", "active"}:
+            return True
+    return False
+
+
+def _blocked_verification_keys(
+    blocker: RuntimeSetupBlocker,
+    *,
+    source: str,
+    entitlement: RuntimeEntitlementStatus,
+    config: EntitlementClientConfig,
+) -> RuntimeVerificationKeyStatus:
+    return RuntimeVerificationKeyStatus(
+        status="blocked",
+        source=source,  # type: ignore[arg-type]
+        matchedKeyId=None,
+        sourceApiBaseUrl=config.apiBaseUrl,
+        issuer=entitlement.issuer,
+        message=blocker.message,
+        blockerCode=blocker.code,
+    )
+
+
+def _verification_key_blocker(code: str, message: str | None = None) -> RuntimeSetupBlocker:
+    messages = {
+        "entitlement.key-unknown": "No public verification key matched the entitlement receipt key.",
+        "entitlement.keys-unavailable": "ProofSignal entitlement verification keys are unavailable.",
+        "entitlement.keys-incompatible": "Entitlement verification key response is incompatible.",
+    }
+    return RuntimeSetupBlocker(
+        code=code,
+        message=message or messages.get(code, "ProofSignal entitlement trust material is unavailable."),
+        recoveryCommand="Refresh the configured entitlement service, obtain a new receipt, or provide valid public verification keys.",
+    )
 
 
 def _download_artifact(url: str, destination: Path) -> None:

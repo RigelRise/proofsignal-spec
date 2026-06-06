@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import contextlib
 import io
+import os
+import shutil
 
 from proofsignal_spec.commands.validate import run as validate_run
 from proofsignal_spec.workflows.core_setup import run_core_setup
@@ -71,6 +73,44 @@ def test_core_setup_success_clears_previous_missing_core_readiness(tmp_path, mon
     ready = validation_readiness(tmp_path, alias="profile-view-unauth")
     assert ready["coreReadiness"]["status"] == "available"
     assert not any(item["code"] == "core.missing" for item in ready["blockers"])
+
+
+def test_validation_readiness_uses_managed_runtime_discovery_not_spec_cli_on_path(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    workspace_root = tmp_path / "workspace"
+    project = workspace_root / "Feats" / "fe-feats"
+    project.mkdir(parents=True)
+    create_main_skill_coverage_workspace(project)
+    shutil.copy2(FAKE_CORE, workspace_root / "proofsignal")
+    os.chmod(workspace_root / "proofsignal", 0o755)
+
+    spec_cli_bin = tmp_path / "spec-cli-bin"
+    spec_cli_bin.mkdir()
+    spec_cli = spec_cli_bin / "proofsignal"
+    spec_cli.write_text(
+        "#!/usr/bin/env sh\n"
+        "echo \"proofsignal: error: argument command: invalid choice: 'version'\" >&2\n"
+        "exit 2\n",
+        encoding="utf-8",
+    )
+    os.chmod(spec_cli, 0o755)
+    monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
+    monkeypatch.delenv("PROOFSIGNAL_EMAIL", raising=False)
+    monkeypatch.delenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
+    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
+    monkeypatch.delenv("FAKE_PROOFSIGNAL_MODE", raising=False)
+    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "runtime-cache"))
+    monkeypatch.setenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", str(tmp_path / "runtime-cache" / "missing-receipt.json"))
+    monkeypatch.setenv("PATH", str(spec_cli_bin) + os.pathsep + os.environ.get("PATH", ""))
+
+    result = validation_readiness(project, alias="profile-view-unauth")
+
+    assert result["status"] == "ready"
+    assert result["coreReadiness"]["status"] == "available"
+    assert result["coreReadiness"]["coreCommand"] == str(workspace_root / "proofsignal")
+    assert not result["blockers"]
 
 
 def test_run_missing_core_stderr_points_to_setup(tmp_path, monkeypatch) -> None:
