@@ -16,7 +16,7 @@ from proofsignal_spec.workspace.repository import init_workspace
 def run(project: Path, integration: str, force: bool = False, core_cmd: str | None = None, api_base_url: str | None = None) -> dict[str, Any]:
     entitlement_config = resolve_entitlement_config(api_base_url=api_base_url)
     persisted_api_base_url = entitlement_config.apiBaseUrl if api_base_url or entitlement_config.source == "environment" else None
-    workspace = init_workspace(project, force=False, core_cmd=core_cmd, api_base_url=persisted_api_base_url)
+    workspace = init_workspace(project, force=False, api_base_url=persisted_api_base_url)
     email = os.environ.get("PROOFSIGNAL_EMAIL")
     token = os.environ.get("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN")
     if not token and not email and sys.stdin.isatty():
@@ -41,7 +41,7 @@ def run(project: Path, integration: str, force: bool = False, core_cmd: str | No
                 integration=integration,
                 context="init",
             )
-    workspace_core_cmd = core_cmd
+    workspace_core_cmd = None
     if core_cmd and runtime.status == "ready":
         workspace_core_cmd = resolve_persistable_core_command(runtime.runtimeCommand or core_cmd, cwd=project)
         runtime.runtimeCommand = workspace_core_cmd

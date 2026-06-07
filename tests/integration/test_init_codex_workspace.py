@@ -44,3 +44,22 @@ class InitCodexIntegrationTests(CliTestCase):
         self.assertEqual(workspace["coreCommand"], payload["runtime"]["runtimeCommand"])
         self.assertNotEqual(workspace["coreCommand"], str(core_repo))
         self.assertIn("proofsignal:dev", workspace["coreCommand"])
+
+    def test_init_with_invalid_core_command_does_not_persist_unverified_command(self) -> None:
+        code, out, _err = self.cli(
+            [
+                "init",
+                str(self.project),
+                "--integration",
+                "codex",
+                "--core-cmd",
+                "missing-proofsignal-core-for-init",
+                "--json",
+            ]
+        )
+
+        self.assertEqual(code, 2)
+        payload = json.loads(out)
+        workspace = load_document(self.project / ".proofsignal" / "workspace.yaml")
+        self.assertEqual(payload["status"], "blocked")
+        self.assertNotIn("coreCommand", workspace)
