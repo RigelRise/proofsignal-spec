@@ -4,6 +4,7 @@ import json
 
 from proofsignal_spec.workflows.stage_persistence import persist_stage
 from proofsignal_spec.workspace.repository import init_workspace, load_document
+from tests.helpers import FAKE_CORE
 
 
 def _prepare_project(project) -> None:
@@ -79,3 +80,57 @@ def test_authenticated_artifact_generation_uses_core_credential_contract(tmp_pat
     assert "user@example.com" not in json.dumps(run_request)
     assert use_case["credentialRefs"]["e2eUser"]["source"] == "environment"
     assert all(item["name"] not in {"userEmail", "userPassword"} for item in use_case.get("runtimeInputs", []))
+
+
+def test_implement_persistence_accepts_core_added_browser_action(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "contract-drift")
+    _prepare_project(tmp_path)
+
+    result = persist_stage(
+        tmp_path,
+        "implement",
+        alias="add-collaboration-project",
+        payload={
+            "runRequest": {"path": ".proofsignal/run-requests/add-collaboration-project.yaml"},
+            "skills": [
+                {
+                    "path": ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md",
+                    "kind": "skill",
+                    "browser": {
+                        "targets": {"searchBox": {"testId": "search-box"}},
+                        "steps": [{"id": "press-enter", "action": "press", "target": "searchBox", "value": "Enter"}],
+                    },
+                }
+            ],
+        },
+    )
+
+    assert result["status"] == "persisted"
+
+
+def test_implement_persistence_rejects_core_removed_browser_action(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "contract-drift")
+    _prepare_project(tmp_path)
+
+    result = persist_stage(
+        tmp_path,
+        "implement",
+        alias="add-collaboration-project",
+        payload={
+            "runRequest": {"path": ".proofsignal/run-requests/add-collaboration-project.yaml"},
+            "skills": [
+                {
+                    "path": ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md",
+                    "kind": "skill",
+                    "browser": {
+                        "steps": [{"id": "legacy-repeat", "action": "repeatUntil", "until": {"text": "Done"}, "do": {"action": "click"}}],
+                    },
+                }
+            ],
+        },
+    )
+
+    assert result["status"] == "invalid"
+    assert "repeatUntil" in result["blockers"][0]["message"]

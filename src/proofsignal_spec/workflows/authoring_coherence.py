@@ -29,7 +29,14 @@ def normalized_aliases_used(value: Any) -> list[str]:
     return sorted(used)
 
 
-def evaluate_implementation_coherence(project: Path, alias: str, content: dict[str, Any], *, new_artifacts: bool = True) -> AuthoringCoherenceResult:
+def evaluate_implementation_coherence(
+    project: Path,
+    alias: str,
+    content: dict[str, Any],
+    *,
+    new_artifacts: bool = True,
+    core_contract: dict[str, Any] | None = None,
+) -> AuthoringCoherenceResult:
     result = AuthoringCoherenceResult(alias=alias)
     result.normalizedAliases = normalized_aliases_used(content)
 
@@ -64,7 +71,12 @@ def evaluate_implementation_coherence(project: Path, alias: str, content: dict[s
 
     evidence = merge_evidence(
         [
-            extract_browser_evidence(_browser_for_artifact(project, artifact), source_artifact=_artifact_path(artifact), known_gate_ids={gate.id for gate in gates})
+            extract_browser_evidence(
+                _browser_for_artifact(project, artifact),
+                source_artifact=_artifact_path(artifact),
+                known_gate_ids={gate.id for gate in gates},
+                core_contract=core_contract,
+            )
             for artifact in skill_artifacts
             if _artifact_path(artifact)
         ]
@@ -98,7 +110,7 @@ def evaluate_implementation_coherence(project: Path, alias: str, content: dict[s
     return result
 
 
-def evaluate_persisted_coherence(project: Path, alias: str) -> AuthoringCoherenceResult:
+def evaluate_persisted_coherence(project: Path, alias: str, *, core_contract: dict[str, Any] | None = None) -> AuthoringCoherenceResult:
     try:
         from proofsignal_spec.workspace.repository import load_use_case
 
@@ -117,7 +129,7 @@ def evaluate_persisted_coherence(project: Path, alias: str) -> AuthoringCoherenc
             for skill in record.skills
         ]
     }
-    return evaluate_implementation_coherence(project, alias, content, new_artifacts=False)
+    return evaluate_implementation_coherence(project, alias, content, new_artifacts=False, core_contract=core_contract)
 
 
 def _skill_artifacts(content: dict[str, Any]) -> list[dict[str, Any]]:

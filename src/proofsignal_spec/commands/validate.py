@@ -5,6 +5,8 @@ from typing import Any
 
 from proofsignal_spec.core.adapter import CoreAdapter
 from proofsignal_spec.core.contracts import core_entitlement_blocker_code
+from proofsignal_spec.core.errors import CoreExecutionError, CoreIncompatibleError, CoreMissingError
+from proofsignal_spec.core.executable_contract import project_core_contract
 from proofsignal_spec.runtime.entitlement import load_receipt, receipt_status
 from proofsignal_spec.runtime.models import RuntimeSetupBlocker
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
@@ -29,6 +31,15 @@ def _selected_main_skill(record_main_skill: Any, main_skill: Path) -> dict[str, 
     if record_main_skill and record_main_skill.version:
         data["version"] = record_main_skill.version
     return data
+
+
+def _core_contract_for_coherence(project: Path, core_command: str | None) -> dict[str, Any] | None:
+    if not core_command:
+        return None
+    try:
+        return project_core_contract(CoreAdapter(executable=core_command, cwd=project).contracts())
+    except (CoreMissingError, CoreIncompatibleError, CoreExecutionError):
+        return None
 
 
 def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: str | None = None, api_base_url: str | None = None) -> dict[str, Any]:
@@ -94,7 +105,11 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         }
         update_validation(project, alias, result)
         return result
-    coherence = evaluate_persisted_coherence(project, alias)
+    coherence = evaluate_persisted_coherence(
+        project,
+        alias,
+        core_contract=_core_contract_for_coherence(project, managed_runtime.runtimeCommand),
+    )
     if coherence.status == "blocked":
         result = {
             "schemaVersion": WORKFLOW_VALIDATION_READINESS_SCHEMA,

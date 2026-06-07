@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
 
+from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.core.errors import CoreExecutionError, CoreIncompatibleError, CoreMissingError
+from proofsignal_spec.core.executable_contract import project_core_contract
 from proofsignal_spec.workspace import artifacts, layout
 from proofsignal_spec.workspace.models import ArtifactReference, AuthoringQuestion, RuntimeInputRequirement
 from proofsignal_spec.workspace.product_context import load_product_context, save_product_context
-from proofsignal_spec.workspace.repository import init_workspace, load_use_case, now_iso, save_use_case
+from proofsignal_spec.workspace.repository import get_core_command, init_workspace, load_use_case, now_iso, save_use_case
 from proofsignal_spec.workspace.validation import validate_no_secret_values
 
 from .coverage_inventory import candidate_dicts, merge_inventory, normalize_scope
@@ -386,7 +390,8 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     content = _normalize_implementation_content(alias, content)
     _require_fields(content, ["runRequest", "skills"], stage="implement")
     record = load_use_case(project, alias)
-    coherence = evaluate_implementation_coherence(project, alias, content, new_artifacts=True)
+    core_contract = _core_contract_for_browser_authoring(project)
+    coherence = evaluate_implementation_coherence(project, alias, content, new_artifacts=True, core_contract=core_contract)
     if coherence.status == "blocked":
         return StagePersistenceResult(
             stage="implement",
@@ -440,7 +445,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     run_request_content = _ensure_core_run_request_document(_artifact_content(content["runRequest"]), record, content)
     _write_payload_artifact(project, run_request_path, run_request_content, lambda: artifacts.render_run_request(record))
     for item, skill in zip(content.get("skills", []), skills, strict=False):
-        skill_content = _ensure_core_skill_document(_artifact_content(item), record, skill, item, credential_refs=credential_refs)
+        skill_content = _ensure_core_skill_document(_artifact_content(item), record, skill, item, credential_refs=credential_refs, core_contract=core_contract)
         _write_payload_artifact(project, skill.path, skill_content, lambda record=record, skill=skill: artifacts.render_skill(record, skill))
 
     save_use_case(project, record)
@@ -855,13 +860,26 @@ def _ensure_core_run_request_document(content: str | None, record: Any, payload:
     return artifacts.render_run_request(record, parameters=_parameters_from_payload(payload))
 
 
-def _ensure_core_skill_document(content: str | None, record: Any, skill: ArtifactReference, payload: Any, *, credential_refs: dict[str, Any] | None = None) -> str:
+def _ensure_core_skill_document(
+    content: str | None,
+    record: Any,
+    skill: ArtifactReference,
+    payload: Any,
+    *,
+    credential_refs: dict[str, Any] | None = None,
+    core_contract: dict[str, Any] | None = None,
+) -> str:
     schema_version = _schema_version_from_content(content)
     if schema_version and schema_version != "qa-skill/v1":
         raise ValueError(f"Legacy executable artifact schemaVersion {schema_version!r}; expected 'qa-skill/v1' from the Core public contract.")
     if content and _looks_like_core_skill(content):
         return content
-    return artifacts.render_skill(record, skill, draft_notes=_skill_notes_from_payload(content, payload), browser=_browser_from_payload(payload, credential_refs=credential_refs))
+    return artifacts.render_skill(
+        record,
+        skill,
+        draft_notes=_skill_notes_from_payload(content, payload),
+        browser=_browser_from_payload(payload, credential_refs=credential_refs, core_contract=core_contract),
+    )
 
 
 def _schema_version_from_content(content: str | None) -> str | None:
@@ -1061,13 +1079,33 @@ def _profiles_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
-def _browser_from_payload(payload: Any, *, credential_refs: dict[str, Any] | None = None) -> dict[str, Any]:
+def _core_contract_for_browser_authoring(project: Path) -> dict[str, Any] | None:
+    command = get_core_command(project) or os.environ.get("PROOFSIGNAL_CORE_CMD")
+    if not command:
+        return None
+    try:
+        projection = project_core_contract(CoreAdapter(executable=command, cwd=project).contracts())
+    except (CoreMissingError, CoreIncompatibleError, CoreExecutionError) as exc:
+        raise ValueError(f"Core executable contract unavailable for browser authoring validation: {exc}") from exc
+    blockers = [item for item in projection.get("findings", []) if item.get("severity") == "blocking"]
+    if blockers:
+        message = blockers[0].get("message") or blockers[0].get("code") or "Core executable contract is incompatible."
+        raise ValueError(f"Core executable contract unavailable for browser authoring validation: {message}")
+    return projection
+
+
+def _browser_from_payload(
+    payload: Any,
+    *,
+    credential_refs: dict[str, Any] | None = None,
+    core_contract: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {}
     intent = payload.get("intent") if isinstance(payload.get("intent"), dict) else {}
     browser = payload.get("browser") if isinstance(payload.get("browser"), dict) else intent.get("browser")
     normalized = _normalize_browser_payload(browser if isinstance(browser, dict) else {})
-    blockers = validate_browser_payload(normalized, credential_refs=credential_refs)
+    blockers = validate_browser_payload(normalized, credential_refs=credential_refs, core_contract=core_contract)
     if blockers:
         raise ValueError("Invalid executable browser skill intent: " + " ".join(blockers))
     if _has_detailed_skill_intent(payload) and not _has_executable_browser_intent(normalized, payload):
