@@ -403,8 +403,12 @@ def _contracts_payload(mode: str) -> dict[str, object]:
             "passedStatus": "passed",
         },
         "publicRedactionPolicy": {
-            "redactFields": ["runtimeIdentity", "runtimeCommand", "credentialValues"],
-            "secretFieldPatterns": ["password", "token", "secret", "authorization"],
+            "publicErrorShape": {
+                "forbiddenFields": ["rawValue", "rawRequestBody", "rawResponseBody", "receipt", "receiptPayload", "privateKey", "signedUrl", "absolutePath", "rawPayload"],
+            },
+            "safeEvidenceReferences": {
+                "forbiddenFields": ["rawPayload", "absolutePath", "signedUrl", "storageState", "sessionCookies", "tracePayload", "screenshotPayload"],
+            },
         },
         "runtimeTrustHandoff": {
             "entitlementReceiptEnv": "PROOFSIGNAL_ENTITLEMENT_RECEIPT",
@@ -420,7 +424,7 @@ def _contracts_payload(mode: str) -> dict[str, object]:
         "schemaVersion": 1,
         "operation": "contracts",
         "status": "passed",
-        "data": data,
+        "data": {"sections": data},
     }
 
 

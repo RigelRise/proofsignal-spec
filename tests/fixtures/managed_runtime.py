@@ -61,8 +61,12 @@ def core_contract_fixture_payload(
             "supportedNamespaces": [{"name": "parameters", "status": "stable"}, {"name": "credentials", "status": "stable"}],
         },
         "publicRedactionPolicy": {
-            "redactFields": ["runtimeIdentity", "runtimeCommand", "credentialValues"],
-            "secretFieldPatterns": ["password", "token", "secret", "authorization"],
+            "publicErrorShape": {
+                "forbiddenFields": ["rawValue", "rawRequestBody", "rawResponseBody", "receipt", "receiptPayload", "privateKey", "signedUrl", "absolutePath", "rawPayload"],
+            },
+            "safeEvidenceReferences": {
+                "forbiddenFields": ["rawPayload", "absolutePath", "signedUrl", "storageState", "sessionCookies", "tracePayload", "screenshotPayload"],
+            },
         },
         "runtimeTrustHandoff": {
             "entitlementReceiptEnv": "PROOFSIGNAL_ENTITLEMENT_RECEIPT",
@@ -105,7 +109,7 @@ def core_contract_fixture_payload(
         "schemaVersion": 1,
         "operation": "contracts",
         "status": "passed",
-        "data": data,
+        "data": {"sections": data},
     }
 
 

@@ -99,16 +99,17 @@ def project_core_contract(
 ) -> dict[str, Any]:
     findings = validate_core_contract(raw)
     data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+    section_data = data.get("sections") if isinstance(data.get("sections"), dict) else {}
     sections = {
-        "operations": _project_operations(data.get("operations")),
-        "runRequest": _project_schema_section(data.get("runRequest")),
-        "skill": _project_schema_section(data.get("skill")),
-        "browserWorkflow": _project_browser_workflow(data.get("browserWorkflow")),
-        "credentials": _project_credentials(data.get("credentials")),
-        "placeholders": _project_placeholders(data.get("placeholders")),
-        "reportCoverage": _project_report_coverage(data.get("reportCoverage")),
-        "publicRedactionPolicy": _project_plain_section(data.get("publicRedactionPolicy")),
-        "runtimeTrustHandoff": _project_plain_section(data.get("runtimeTrustHandoff")),
+        "operations": _project_operations(section_data.get("operations")),
+        "runRequest": _project_schema_section(section_data.get("runRequest")),
+        "skill": _project_schema_section(section_data.get("skill")),
+        "browserWorkflow": _project_browser_workflow(section_data.get("browserWorkflow")),
+        "credentials": _project_credentials(section_data.get("credentials")),
+        "placeholders": _project_placeholders(section_data.get("placeholders")),
+        "reportCoverage": _project_report_coverage(section_data.get("reportCoverage")),
+        "publicRedactionPolicy": _project_plain_section(section_data.get("publicRedactionPolicy")),
+        "runtimeTrustHandoff": _project_plain_section(section_data.get("runtimeTrustHandoff")),
     }
     return CoreContractProjection(
         runtimeIdentity=runtime_identity,
@@ -148,9 +149,10 @@ def validate_core_contract(raw: dict[str, Any], *, required_sections: list[str] 
                 contractSection="data",
             ),
         ]
+    section_data = data.get("sections") if isinstance(data.get("sections"), dict) else {}
     sections = required_sections or ["operations", "runRequest", "skill", "browserWorkflow", "credentials", "placeholders", "reportCoverage"]
     for section in sections:
-        value = data.get(section)
+        value = section_data.get(section)
         if value is None:
             findings.append(
                 ContractCompatibilityFinding(
@@ -302,7 +304,13 @@ def _composition_rule(items: list[dict[str, Any]]) -> str:
 def _items(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
-    return [item for item in value if isinstance(item, dict)]
+    items: list[dict[str, Any]] = []
+    for item in value:
+        if isinstance(item, dict):
+            items.append(item)
+        elif isinstance(item, str) and item:
+            items.append({"name": item})
+    return items
 
 
 def _name(item: dict[str, Any]) -> str:
@@ -310,4 +318,5 @@ def _name(item: dict[str, Any]) -> str:
 
 
 def _status(item: dict[str, Any]) -> str:
-    return str(item.get("status") or "stable")
+    status = str(item.get("status") or "stable")
+    return "stable" if status == "supported" else status

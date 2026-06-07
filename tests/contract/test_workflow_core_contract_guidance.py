@@ -18,4 +18,7 @@ class WorkflowCoreContractGuidanceTests(CliTestCase):
         self.assertIn("gate-adequacy", {item["name"] for item in payload["specWorkflowPolicy"]["policies"]})
         self.assertNotIn("validActions", json.dumps(payload["specWorkflowPolicy"]))
         self.assertEqual(payload["coreExecutableContract"]["runtimeIdentity"], "[redacted]")
-        self.assertIn("runtimeIdentity", payload["coreExecutableContract"]["sections"]["publicRedactionPolicy"]["redactFields"])
+        policy = payload["coreExecutableContract"]["sections"]["publicRedactionPolicy"]
+        self.assertIn("rawValue", policy["publicErrorShape"]["forbiddenFields"])
+        self.assertIn("signedUrl", policy["safeEvidenceReferences"]["forbiddenFields"])
+        self.assertNotIn("redactFields", policy)

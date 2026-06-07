@@ -12,8 +12,8 @@ def test_core_adapter_invokes_public_contracts_operation() -> None:
     assert result["schema"] == "proofsignal.contracts/v1"
     assert result["operation"] == "contracts"
     assert result["status"] == "passed"
-    assert "browserWorkflow" in result["data"]
-    assert "credentialSyntax" in result["data"]["placeholders"]
+    assert "browserWorkflow" in result["data"]["sections"]
+    assert "credentialSyntax" in result["data"]["sections"]["placeholders"]
 
 
 def test_core_contract_projection_exposes_run_request_and_skill_sections() -> None:

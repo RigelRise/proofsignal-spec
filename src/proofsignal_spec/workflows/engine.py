@@ -283,12 +283,30 @@ def _blocked_core_contract(
 def _apply_public_redaction_policy(core_contract: dict[str, Any]) -> dict[str, Any]:
     redacted = copy.deepcopy(core_contract)
     policy = redacted.get("sections", {}).get("publicRedactionPolicy", {})
-    field_names = policy.get("redactFields") if isinstance(policy, dict) else []
-    redact_fields = {str(item) for item in field_names if item}
+    redact_fields = _public_redaction_field_names(policy)
     if not redact_fields:
         return redacted
     _redact_named_fields(redacted, redact_fields)
     return redacted
+
+
+def _public_redaction_field_names(policy: Any) -> set[str]:
+    redact_fields = {"runtimeIdentity", "runtimeCommand", "credentialValues"}
+    if not isinstance(policy, dict):
+        return redact_fields
+    redact_fields.update(_string_items(policy.get("redactFields")))
+    redact_fields.update(_string_items(policy.get("publicOutputForbiddenFields")))
+    public_error_shape = policy.get("publicErrorShape") if isinstance(policy.get("publicErrorShape"), dict) else {}
+    safe_evidence = policy.get("safeEvidenceReferences") if isinstance(policy.get("safeEvidenceReferences"), dict) else {}
+    redact_fields.update(_string_items(public_error_shape.get("forbiddenFields")))
+    redact_fields.update(_string_items(safe_evidence.get("forbiddenFields")))
+    return {field for field in redact_fields if field}
+
+
+def _string_items(value: Any) -> set[str]:
+    if not isinstance(value, list):
+        return set()
+    return {str(item) for item in value if item}
 
 
 def _redact_named_fields(value: Any, redact_fields: set[str]) -> None:
