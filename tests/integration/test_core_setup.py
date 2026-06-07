@@ -95,6 +95,23 @@ def test_explicit_one_time_override_does_not_persist(tmp_path: Path, monkeypatch
     assert "coreCommand" not in workspace
 
 
+def test_explicit_core_repo_directory_persists_resolved_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    init_workspace(tmp_path)
+    core_repo = tmp_path / "proofsignal-core"
+    _write_dev_core_dir(core_repo)
+    monkeypatch.setenv("PATH", os.environ.get("PATH", ""))
+
+    setup = run_core_setup(tmp_path, explicit_core_cmd=str(core_repo))
+
+    assert setup.status == "ready"
+    assert setup.source == "explicit"
+    assert setup.coreCommand != str(core_repo)
+    assert "proofsignal:dev" in setup.coreCommand
+    workspace = load_document(tmp_path / ".proofsignal/workspace.yaml")
+    assert workspace["coreCommand"] == setup.coreCommand
+    assert workspace["coreCommandSource"] == "explicit"
+
+
 def test_workspace_candidate_takes_precedence_over_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     init_workspace(tmp_path)
     save_core_configuration(tmp_path, str(FAKE_CORE), source="workspace", version="0.1.0")
@@ -120,8 +137,10 @@ def test_ancestor_sibling_discovery_persists_verified_command(tmp_path: Path, mo
 
     assert setup.status == "ready"
     assert setup.source == "ancestor-sibling"
+    assert setup.coreCommand != str((parent / "proofsignal").resolve())
+    assert "proofsignal:dev" in setup.coreCommand
     workspace = load_document(project / ".proofsignal/workspace.yaml")
-    assert workspace["coreCommand"] == str((parent / "proofsignal").resolve())
+    assert workspace["coreCommand"] == setup.coreCommand
     assert workspace["coreCommandSource"] == "ancestor-sibling"
 
 

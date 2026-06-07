@@ -141,12 +141,13 @@ def run_core_setup(project: Path, explicit_core_cmd: str | None = None, *, persi
         if attempt.status == "compatible" and compatibility:
             one_time = candidate.source == "explicit" and not persist
             persisted = False
+            core_command = _persistable_core_command(project, candidate.command)
             if persist:
-                save_core_configuration(project, candidate.command, source=candidate.source, version=compatibility.proofsignalVersion)
+                save_core_configuration(project, core_command, source=candidate.source, version=compatibility.proofsignalVersion)
                 persisted = True
             selected = CoreCandidateAttempt(
                 source=attempt.source,
-                command=attempt.command,
+                command=core_command,
                 displayPath=attempt.displayPath,
                 status=attempt.status,
                 terminal=True,
@@ -156,7 +157,7 @@ def run_core_setup(project: Path, explicit_core_cmd: str | None = None, *, persi
             attempts[-1] = selected
             return CoreSetupResult(
                 status="ready",
-                coreCommand=candidate.command,
+                coreCommand=core_command,
                 source=candidate.source,  # type: ignore[arg-type]
                 selectedCandidate=selected,
                 persisted=persisted,
@@ -315,6 +316,13 @@ def _display_path(command: str) -> str | None:
     if path.exists():
         return str(path.resolve())
     return None
+
+
+def _persistable_core_command(project: Path, command: str) -> str:
+    path = Path(command.strip()).expanduser()
+    if path.exists() and path.is_dir():
+        return CoreAdapter(executable=command, cwd=project).resolved_command()
+    return command
 
 
 def _looks_secret_like(value: str) -> bool:
