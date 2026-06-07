@@ -59,3 +59,11 @@ def test_run_template_forbids_summarizing_incomplete_runs_as_passed() -> None:
     content = agent_template("run")
     assert "Core `passed` result can still be `coverageStatus: incomplete`" in content
     assert "Do not summarize `status: incomplete` as passed" in content
+
+
+def test_run_template_uses_single_outcome_summary_without_manual_gate_tables() -> None:
+    content = agent_template("run")
+    assert "Use `runOutcomeSummary` as the primary source for the final user-facing run result" in content
+    assert "Render exactly one final run result section" in content
+    assert "Do not build markdown tables from `gateCoverage`" in content
+    assert "Do not repeat gate coverage" in content

@@ -20,7 +20,11 @@ Run a validated use case by alias through the managed ProofSignal runtime.
 - Backward-compatible summary wording may still mention that a Core `passed` result can still be `coverageStatus: incomplete`; interpret that as Spec coverage, not browser execution.
 - When Core/browser execution fails, call Spec coverage diagnostic; do not summarize diagnostic coverage as browser validation passed.
 - Do not summarize `status: incomplete` as passed, even when `coreStatus` is `passed`; name the missing required gates and next action.
-- Include selected main skill, profile settings, gate coverage, and runtime contradiction recommendations in the run summary.
+- Use `runOutcomeSummary` as the primary source for the final user-facing run result. Fall back to top-level fields only when a key is absent from `runOutcomeSummary`.
+- Render exactly one final run result section. Do not repeat the same run status, run id, profile, or gate coverage in multiple tables/sections.
+- Do not build markdown tables from `gateCoverage`; summarize gate coverage in concise bullets using the already-computed `missingRequiredGates`, `partialCoverage`, `runtimeContradictions`, and `repairRecommendations` fields.
+- Do not repeat gate coverage after the final run result section. If detailed gate diagnostics are needed, point to `reportPath` and `evidenceDir` instead of reconstructing report internals.
+- Include selected main skill, profile settings, concise gate coverage status, and runtime contradiction recommendations in the run summary.
 - For an accepted Golden Path first run, present the structured stage cards from output using clear separators, status marker, one-line summary, why it matters, primary evidence, repair details when present, and next action.
 - Treat `firstRunStatus: passed` and `firstRunStatus: repaired-passed` with `strictPass: true` as Golden Path success. Treat `skipped`, `failed`, `blocked`, and `incomplete` as distinct non-success states.
 - Record report and evidence references, not raw report internals.
