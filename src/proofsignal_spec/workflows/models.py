@@ -1050,13 +1050,14 @@ class GoldenPathRunState:
 
 @dataclass(slots=True)
 class GoldenPathWorkspaceState:
-    status: Literal["ready", "blocked", "empty", "reset"]
+    status: Literal["ready", "blocked", "empty", "untracked", "reset"]
     firstRunStatus: str | None = None
     ownedArtifacts: list[str] = field(default_factory=list)
     preservedArtifacts: list[str] = field(default_factory=list)
     resetPreview: list[str] = field(default_factory=list)
     resumeHint: str | None = None
     warnings: list[str] = field(default_factory=list)
+    untrackedRuns: list[dict[str, Any]] | None = None
     nextAction: str = ""
     projectRoot: str | None = None
     firstRunState: dict[str, Any] | None = None

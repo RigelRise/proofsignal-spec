@@ -227,11 +227,17 @@ def inspect_golden_path_workspace_state(project: Path) -> dict[str, Any]:
     state = load_golden_path_state(project)
     owned = _golden_path_owned_artifacts(project)
     preserved = _golden_path_preserved_artifacts(project, owned)
+    untracked_runs = [] if state else _golden_path_untracked_runs(project)
     selected = state.get("selectedCandidate") if state else None
     first_run_status = state.get("firstRunStatus") if state else None
-    resume_hint = f"proofsignal run {selected} --json" if selected and first_run_status != "skipped" else "proofsignal workflow recommend-first-run --json"
+    if selected and first_run_status != "skipped":
+        resume_hint = f"proofsignal run {selected} --json"
+    elif untracked_runs:
+        resume_hint = f"proofsignal workflow accept-first-run {untracked_runs[0]['alias']} --json"
+    else:
+        resume_hint = "proofsignal workflow recommend-first-run --json"
     return GoldenPathWorkspaceState(
-        status="empty" if not state else "ready",
+        status="untracked" if untracked_runs else ("empty" if not state else "ready"),
         projectRoot=str(project),
         firstRunStatus=first_run_status,
         firstRunState=state.get("runState") if isinstance(state.get("runState"), dict) else state or None,
@@ -239,8 +245,13 @@ def inspect_golden_path_workspace_state(project: Path) -> dict[str, Any]:
         preservedArtifacts=preserved,
         resetPreview=[f"remove {path}" for path in owned],
         resumeHint=resume_hint,
-        warnings=[],
-        nextAction="proofsignal workflow reset-golden-path-state --preview --json" if owned else "proofsignal workflow recommend-first-run --json",
+        warnings=[
+            "Run history exists, but no Golden Path first run was explicitly accepted before execution; existing runs are not counted as Golden Path state."
+        ]
+        if untracked_runs
+        else [],
+        untrackedRuns=untracked_runs or None,
+        nextAction="proofsignal workflow reset-golden-path-state --preview --json" if owned else resume_hint,
     ).to_dict()
 
 
@@ -278,3 +289,30 @@ def _golden_path_preserved_artifacts(project: Path, owned: list[str]) -> list[st
         if rel not in owned_set:
             preserved.append(rel)
     return preserved
+
+
+def _golden_path_untracked_runs(project: Path) -> list[dict[str, Any]]:
+    runs: list[dict[str, Any]] = []
+    registry = load_registry(project)
+    for item in registry.get("useCases", []):
+        alias = item.get("alias") if isinstance(item, dict) else None
+        if not alias:
+            continue
+        try:
+            record = load_use_case(project, str(alias))
+        except Exception:
+            continue
+        last_run = record.lastRun if isinstance(record.lastRun, dict) else None
+        if not last_run:
+            continue
+        runs.append(
+            {
+                "alias": record.alias,
+                "runId": last_run.get("runId"),
+                "status": last_run.get("status"),
+                "coreStatus": last_run.get("coreStatus"),
+                "coverageStatus": last_run.get("coverageStatus"),
+                "profile": last_run.get("profile"),
+            }
+        )
+    return runs

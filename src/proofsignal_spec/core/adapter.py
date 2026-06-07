@@ -45,6 +45,9 @@ class CoreAdapter:
             raise CoreMissingError(f"ProofSignal Core executable not found: {self.executable}. {CORE_SETUP_HINT}")
         return [resolved]
 
+    def resolved_command(self) -> str:
+        return shlex.join(self._base_command())
+
     def _run(self, args: list[str], env: dict[str, str] | None = None) -> dict[str, Any]:
         base_command = self._base_command()
         proc = subprocess.run(

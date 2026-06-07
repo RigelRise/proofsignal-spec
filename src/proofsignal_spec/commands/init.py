@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.commands.integration import install as install_integration
-from proofsignal_spec.core.adapter import readiness
+from proofsignal_spec.core.adapter import CoreAdapter, readiness
 from proofsignal_spec.runtime.entitlement import resolve_entitlement_config
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.core_setup import run_core_setup
@@ -41,8 +41,12 @@ def run(project: Path, integration: str, force: bool = False, core_cmd: str | No
                 integration=integration,
                 context="init",
             )
-    core_setup = run_core_setup(project, explicit_core_cmd=core_cmd, persist=False) if core_cmd else run_core_setup(project, persist=False)
-    workspace = init_workspace(project, force=False, core_cmd=core_cmd, api_base_url=persisted_api_base_url)
+    workspace_core_cmd = core_cmd
+    if core_cmd and runtime.status == "ready":
+        workspace_core_cmd = _persistable_runtime_command(project, runtime.runtimeCommand or core_cmd)
+        runtime.runtimeCommand = workspace_core_cmd
+    core_setup = run_core_setup(project, explicit_core_cmd=workspace_core_cmd, persist=False) if workspace_core_cmd else run_core_setup(project, persist=False)
+    workspace = init_workspace(project, force=False, core_cmd=workspace_core_cmd, api_base_url=persisted_api_base_url)
     installed = install_integration(project, integration, force=force, default=True)
     if runtime.status == "ready":
         core = readiness(executable=runtime.runtimeCommand, cwd=project)
@@ -72,3 +76,10 @@ def _prompt(message: str) -> str:
     sys.stderr.write(message)
     sys.stderr.flush()
     return input()
+
+
+def _persistable_runtime_command(project: Path, command: str) -> str:
+    path = Path(command.strip()).expanduser()
+    if path.exists() and path.is_dir():
+        return CoreAdapter(executable=command, cwd=project).resolved_command()
+    return command
