@@ -7,10 +7,15 @@ from typing import Any
 
 from proofsignal_spec.commands.integration import install as install_integration
 from proofsignal_spec.core.adapter import readiness, resolve_persistable_core_command
+from proofsignal_spec.core.contracts import PUBLIC_CONTRACT_VERSION
 from proofsignal_spec.runtime.entitlement import resolve_entitlement_config
+from proofsignal_spec.runtime.models import ManagedRuntimeReadinessResult, RuntimeSourceAttempt
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
+from proofsignal_spec.workflows.models import CoreCandidateAttempt, CoreSetupResult
 from proofsignal_spec.workflows.core_setup import run_core_setup
 from proofsignal_spec.workspace.repository import init_workspace
+
+CORE_SETUP_ATTEMPT_SOURCES = {"explicit", "workspace", "env", "path", "ancestor-sibling"}
 
 
 def run(project: Path, integration: str, force: bool = False, core_cmd: str | None = None, api_base_url: str | None = None) -> dict[str, Any]:
@@ -45,7 +50,10 @@ def run(project: Path, integration: str, force: bool = False, core_cmd: str | No
     if core_cmd and runtime.status == "ready":
         workspace_core_cmd = resolve_persistable_core_command(runtime.runtimeCommand or core_cmd, cwd=project)
         runtime.runtimeCommand = workspace_core_cmd
-    core_setup = run_core_setup(project, explicit_core_cmd=workspace_core_cmd, persist=False) if workspace_core_cmd else run_core_setup(project, persist=False)
+    if runtime.status == "ready":
+        core_setup = run_core_setup(project, explicit_core_cmd=runtime.runtimeCommand, persist=False)
+    else:
+        core_setup = _core_setup_from_blocked_runtime(runtime)
     workspace = init_workspace(project, force=False, core_cmd=workspace_core_cmd, api_base_url=persisted_api_base_url)
     installed = install_integration(project, integration, force=force, default=True)
     if runtime.status == "ready":
@@ -76,3 +84,35 @@ def _prompt(message: str) -> str:
     sys.stderr.write(message)
     sys.stderr.flush()
     return input()
+
+
+def _core_setup_from_blocked_runtime(runtime: ManagedRuntimeReadinessResult) -> CoreSetupResult:
+    blocker_codes = {blocker.code for blocker in runtime.blockers}
+    if "core.missing" in blocker_codes:
+        status = "missing"
+    elif "core.incompatible" in blocker_codes or runtime.status == "incompatible":
+        status = "incompatible"
+    else:
+        status = "error"
+    blocker = runtime.blockers[0] if runtime.blockers else None
+    return CoreSetupResult(
+        status=status,  # type: ignore[arg-type]
+        coreCommand=runtime.runtimeCommand,
+        contractVersion=runtime.contractVersion or PUBLIC_CONTRACT_VERSION,
+        attempts=[_core_setup_attempt_from_runtime_attempt(attempt) for attempt in runtime.attempts if attempt.source in CORE_SETUP_ATTEMPT_SOURCES],
+        message=runtime.message,
+        nextAction=runtime.nextAction,
+        recoveryCommand=(blocker.recoveryCommand if blocker else runtime.nextAction) or "proofsignal core setup --json",
+    )
+
+
+def _core_setup_attempt_from_runtime_attempt(attempt: RuntimeSourceAttempt) -> CoreCandidateAttempt:
+    status = attempt.status if attempt.status in {"missing", "available", "compatible", "incompatible", "error", "skipped"} else "error"
+    return CoreCandidateAttempt(
+        source=attempt.source,  # type: ignore[arg-type]
+        command=attempt.command or "",
+        status=status,  # type: ignore[arg-type]
+        terminal=attempt.terminal,
+        version=attempt.runtimeVersion,
+        message=attempt.message,
+    )

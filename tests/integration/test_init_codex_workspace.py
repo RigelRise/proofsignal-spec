@@ -62,4 +62,6 @@ class InitCodexIntegrationTests(CliTestCase):
         payload = json.loads(out)
         workspace = load_document(self.project / ".proofsignal" / "workspace.yaml")
         self.assertEqual(payload["status"], "blocked")
+        self.assertNotEqual(payload["coreSetup"]["status"], "ready")
+        self.assertEqual(payload["coreSetup"]["coreCommand"], "missing-proofsignal-core-for-init")
         self.assertNotIn("coreCommand", workspace)
