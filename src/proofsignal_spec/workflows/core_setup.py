@@ -5,7 +5,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from proofsignal_spec.core.adapter import CoreAdapter
+from proofsignal_spec.core.adapter import CoreAdapter, resolve_persistable_core_command
 from proofsignal_spec.core.contracts import CompatibilityResult, PUBLIC_CONTRACT_VERSION, public_contract_summary
 from proofsignal_spec.core.errors import CoreExecutionError, CoreMissingError
 from proofsignal_spec.workspace.repository import (
@@ -141,7 +141,7 @@ def run_core_setup(project: Path, explicit_core_cmd: str | None = None, *, persi
         if attempt.status == "compatible" and compatibility:
             one_time = candidate.source == "explicit" and not persist
             persisted = False
-            core_command = _persistable_core_command(project, candidate.command)
+            core_command = resolve_persistable_core_command(candidate.command, cwd=project)
             if persist:
                 save_core_configuration(project, core_command, source=candidate.source, version=compatibility.proofsignalVersion)
                 persisted = True
@@ -316,13 +316,6 @@ def _display_path(command: str) -> str | None:
     if path.exists():
         return str(path.resolve())
     return None
-
-
-def _persistable_core_command(project: Path, command: str) -> str:
-    path = Path(command.strip()).expanduser()
-    if path.exists() and path.is_dir():
-        return CoreAdapter(executable=command, cwd=project).resolved_command()
-    return command
 
 
 def _looks_secret_like(value: str) -> bool:

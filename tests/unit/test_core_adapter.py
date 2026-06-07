@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from helpers import CliTestCase, FAKE_CORE
-from proofsignal_spec.core.adapter import CoreAdapter, readiness
+from proofsignal_spec.core.adapter import CoreAdapter, readiness, resolve_persistable_core_command
 from proofsignal_spec.core.errors import CoreIncompatibleError
 
 
@@ -29,6 +29,16 @@ class CoreAdapterTests(CliTestCase):
         (core_repo / "package.json").write_text("{}", encoding="utf-8")
         command = CoreAdapter(executable=str(core_repo), cwd=self.project)._base_command()
         self.assertEqual(command[:4], ["npm", "--silent", "--prefix", str(core_repo.resolve())])
+
+    def test_persistable_core_command_resolves_directories(self) -> None:
+        core_repo = self.project / "proofsignal"
+        core_repo.mkdir()
+        (core_repo / "package.json").write_text("{}", encoding="utf-8")
+
+        command = resolve_persistable_core_command(str(core_repo), cwd=self.project)
+
+        self.assertNotEqual(command, str(core_repo))
+        self.assertIn("proofsignal:dev", command)
 
     def test_command_string_is_supported(self) -> None:
         command = CoreAdapter(executable=f"{FAKE_CORE} version-wrapper", cwd=self.project)._base_command()

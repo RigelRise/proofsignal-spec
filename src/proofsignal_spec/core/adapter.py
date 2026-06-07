@@ -167,3 +167,10 @@ def readiness(executable: str | None = None, cwd: Path | None = None) -> dict[st
 
 def core_status(result: dict[str, Any]) -> str:
     return normalize_status(result)
+
+
+def resolve_persistable_core_command(command: str, *, cwd: Path | None = None) -> str:
+    path = Path(command.strip()).expanduser()
+    if path.exists() and path.is_dir():
+        return CoreAdapter(executable=command, cwd=cwd).resolved_command()
+    return command
