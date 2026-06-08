@@ -75,7 +75,19 @@ def assert_public_workflow_contract_guidance(content: str) -> None:
 
 def assert_no_core_contract_snapshots(project: Path) -> None:
     forbidden_roots = [project / ".proofsignal", project / "runtime-cache", project / "user-cache"]
-    suspicious_names = {"core-contract.json", "core-contract.yaml", "contracts.json", "contracts.yaml", "core-executable-contract.json"}
+    suspicious_names = {
+        "core-contract.json",
+        "core-contract.yaml",
+        "contracts.json",
+        "contracts.yaml",
+        "core-executable-contract.json",
+        "core-contract-projection.json",
+        "core-contract-projection.yaml",
+        "core-contract-cache.json",
+        "core-contract-cache.yaml",
+        "projection-cache.json",
+        "projection-cache.yaml",
+    }
     offenders: list[str] = []
     for root in forbidden_roots:
         if not root.exists():

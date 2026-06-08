@@ -113,6 +113,114 @@ def core_contract_fixture_payload(
     }
 
 
+def current_core_contract_fixture_payload(
+    *,
+    browser_actions: list[dict[str, Any]] | None = None,
+    extra_sections: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a fixture matching the current Core public contracts shape."""
+
+    data: dict[str, Any] = {
+        "operations": [
+            core_contract_operation("version", "proofsignal.version/v1", status="supported"),
+            core_contract_operation("contracts", "proofsignal.contracts/v1", status="supported"),
+            core_contract_operation("authoring-check", "proofsignal.authoring-check/v1", status="supported"),
+            core_contract_operation("run", "proofsignal.run/v1", status="supported"),
+            core_contract_operation("report.inspect", "proofsignal.report-inspection/v1", status="supported"),
+        ],
+        "runRequest": {
+            "schemaVersion": 1,
+            "status": "supported",
+            "fields": [
+                {"path": "schemaVersion", "status": "supported", "required": True, "allowedValues": ["qa-run-request/v1"]},
+                {"path": "request.id", "status": "supported", "required": True},
+                {"path": "request.name", "status": "supported", "required": True},
+                {"path": "target.url", "status": "supported", "required": True},
+                {"path": "credentialRefs", "status": "supported", "required": False},
+                {"path": "skills.main", "status": "supported", "required": True},
+            ],
+        },
+        "skill": {
+            "schemaVersion": 1,
+            "status": "supported",
+            "fields": [
+                {"path": "schemaVersion", "status": "supported", "required": True, "allowedValues": ["qa-skill/v1"]},
+                {"path": "skill.id", "status": "supported", "required": True},
+                {"path": "browser.targets", "status": "supported", "required": True},
+                {"path": "browser.steps", "status": "supported", "required": True},
+                {"path": "browser.assertions", "status": "supported", "required": False},
+            ],
+        },
+        "browserWorkflow": {
+            "actions": browser_actions
+            or [
+                {"name": "navigate", "status": "supported", "requiredFields": ["value"]},
+                {"name": "click", "status": "supported", "requiredFields": ["target"]},
+                {"name": "fill", "status": "supported", "requiredFields": ["target", "value"]},
+                {
+                    "name": "awaitNetwork",
+                    "status": "supported",
+                    "requiredFields": ["match"],
+                    "match": {
+                        "keys": [
+                            {"name": "urlContains", "status": "supported"},
+                            {"name": "method", "status": "supported"},
+                            {"name": "status", "status": "supported"},
+                            {"name": "requestBodyContains", "status": "supported"},
+                            {"name": "responseBodyContains", "status": "supported"},
+                        ]
+                    },
+                },
+            ],
+            "assertions": [
+                {"name": "text", "status": "supported", "requiredFields": ["target", "expected"]},
+                {"name": "visible", "status": "supported", "requiredFields": ["target"]},
+            ],
+            "targetSignals": ["testId", "label", "text", "css", "semanticLocator"],
+            "targets": {"composition": {"supportedSignals": ["testId", "css"]}},
+            "metadataKeys": [{"name": "operationName", "status": "supported"}, {"name": "expectedStatus", "status": "supported"}],
+        },
+        "credentials": {
+            "credentialRefs": {
+                "supportedSources": [{"name": "environment", "status": "supported"}, {"name": "prompt-cache", "status": "experimental"}],
+                "referenceShape": "credentialRefs.<group>.keys.<field>",
+                "placeholderSyntax": "{{credentials.<group>.<field>}}",
+            }
+        },
+        "placeholders": {
+            "credentialSyntax": "{{credentials.<group>.<field>}}",
+            "supportedNamespaces": [{"name": "parameters", "status": "supported"}, {"name": "credentials", "status": "supported"}],
+        },
+        "reportCoverage": {
+            "schemaVersion": "qa-report/v1",
+            "gateIdFields": ["gateId"],
+            "stepCollections": ["steps", "preconditions"],
+            "evidenceCollections": ["evidence"],
+        },
+        "publicRedactionPolicy": {
+            "publicErrorShape": {
+                "forbiddenFields": ["rawValue", "rawRequestBody", "rawResponseBody", "receipt", "receiptPayload", "privateKey", "signedUrl", "absolutePath", "rawPayload"],
+            },
+            "safeEvidenceReferences": {
+                "forbiddenFields": ["rawPayload", "absolutePath", "signedUrl", "storageState", "sessionCookies", "tracePayload", "screenshotPayload"],
+            },
+        },
+        "runtimeTrustHandoff": {
+            "entitlementReceiptEnv": "PROOFSIGNAL_ENTITLEMENT_RECEIPT",
+            "verificationKeysEnv": "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
+        },
+    }
+    if extra_sections:
+        data.update(extra_sections)
+    return {
+        "schema": "proofsignal.contracts/v1",
+        "schemaVersion": 1,
+        "operation": "contracts",
+        "status": "passed",
+        "data": {"sections": data},
+    }
+
+
 def write_fake_core_executable(path: Path, *, mode: str = "ok") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

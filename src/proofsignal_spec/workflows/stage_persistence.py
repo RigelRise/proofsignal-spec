@@ -442,11 +442,23 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     record.validation = {"status": coherence.status, "authoringCoherence": coherence.to_dict()}
     record.status = "draft"
 
-    run_request_content = _ensure_core_run_request_document(_artifact_content(content["runRequest"]), record, content)
-    _write_payload_artifact(project, run_request_path, run_request_content, lambda: artifacts.render_run_request(record))
+    run_request_schema = _artifact_schema_from_core_contract(core_contract, "runRequest", "qa-run-request/v1")
+    skill_schema = _artifact_schema_from_core_contract(core_contract, "skill", "qa-skill/v1")
+    run_request_content = _ensure_core_run_request_document(_artifact_content(content["runRequest"]), record, content, core_contract=core_contract)
+    _write_payload_artifact(
+        project,
+        run_request_path,
+        run_request_content,
+        lambda: artifacts.render_run_request(record, schema_version=run_request_schema),
+    )
     for item, skill in zip(content.get("skills", []), skills, strict=False):
         skill_content = _ensure_core_skill_document(_artifact_content(item), record, skill, item, credential_refs=credential_refs, core_contract=core_contract)
-        _write_payload_artifact(project, skill.path, skill_content, lambda record=record, skill=skill: artifacts.render_skill(record, skill))
+        _write_payload_artifact(
+            project,
+            skill.path,
+            skill_content,
+            lambda record=record, skill=skill: artifacts.render_skill(record, skill, schema_version=skill_schema),
+        )
 
     save_use_case(project, record)
     write_handoff(project, alias, "implement", "Draft canonical artifacts were persisted by proofsignal workflow persist implement. Validation is still required.")
@@ -851,13 +863,20 @@ def _artifact_content(value: Any) -> str | None:
     return None
 
 
-def _ensure_core_run_request_document(content: str | None, record: Any, payload: dict[str, Any]) -> str:
+def _ensure_core_run_request_document(
+    content: str | None,
+    record: Any,
+    payload: dict[str, Any],
+    *,
+    core_contract: dict[str, Any] | None = None,
+) -> str:
+    expected_schema = _artifact_schema_from_core_contract(core_contract, "runRequest", "qa-run-request/v1")
     schema_version = _schema_version_from_content(content)
-    if schema_version and schema_version != "qa-run-request/v1":
-        raise ValueError(f"Legacy executable artifact schemaVersion {schema_version!r}; expected 'qa-run-request/v1' from the Core public contract.")
-    if content and _looks_like_core_run_request(content):
+    if schema_version and schema_version != expected_schema:
+        raise ValueError(f"Legacy executable artifact schemaVersion {schema_version!r}; expected {expected_schema!r} from the Core public contract.")
+    if content and _looks_like_core_run_request(content, expected_schema):
         return _ensure_run_request_skill_order(content, record)
-    return artifacts.render_run_request(record, parameters=_parameters_from_payload(payload))
+    return artifacts.render_run_request(record, parameters=_parameters_from_payload(payload), schema_version=expected_schema)
 
 
 def _ensure_core_skill_document(
@@ -869,17 +888,32 @@ def _ensure_core_skill_document(
     credential_refs: dict[str, Any] | None = None,
     core_contract: dict[str, Any] | None = None,
 ) -> str:
+    expected_schema = _artifact_schema_from_core_contract(core_contract, "skill", "qa-skill/v1")
     schema_version = _schema_version_from_content(content)
-    if schema_version and schema_version != "qa-skill/v1":
-        raise ValueError(f"Legacy executable artifact schemaVersion {schema_version!r}; expected 'qa-skill/v1' from the Core public contract.")
-    if content and _looks_like_core_skill(content):
+    if schema_version and schema_version != expected_schema:
+        raise ValueError(f"Legacy executable artifact schemaVersion {schema_version!r}; expected {expected_schema!r} from the Core public contract.")
+    if content and _looks_like_core_skill(content, expected_schema):
         return content
     return artifacts.render_skill(
         record,
         skill,
         draft_notes=_skill_notes_from_payload(content, payload),
         browser=_browser_from_payload(payload, credential_refs=credential_refs, core_contract=core_contract),
+        schema_version=expected_schema,
     )
+
+
+def _artifact_schema_from_core_contract(core_contract: dict[str, Any] | None, section: str, default: str) -> str:
+    if isinstance(core_contract, dict):
+        metadata = core_contract.get("sections", {}).get(section, {})
+        if isinstance(metadata, dict):
+            artifact_schema = metadata.get("artifactSchemaVersion")
+            if isinstance(artifact_schema, str) and artifact_schema:
+                return artifact_schema
+            legacy_schema = metadata.get("schemaVersion")
+            if isinstance(legacy_schema, str) and legacy_schema.startswith("qa-"):
+                return legacy_schema
+    return default
 
 
 def _schema_version_from_content(content: str | None) -> str | None:
@@ -896,12 +930,14 @@ def _schema_version_from_content(content: str | None) -> str | None:
     return None
 
 
-def _looks_like_core_run_request(content: str) -> bool:
-    return all(token in content for token in ["schemaVersion: qa-run-request/v1", "request:", "id:", "name:", "target:", "validationScope:", "skills:"])
+def _looks_like_core_run_request(content: str, schema_version: str = "qa-run-request/v1") -> bool:
+    schema_tokens = [f"schemaVersion: {schema_version}", f'"schemaVersion": "{schema_version}"', f'"schemaVersion":"{schema_version}"']
+    return any(token in content for token in schema_tokens) and all(token in content for token in ["request", "id", "name", "target", "validationScope", "skills"])
 
 
-def _looks_like_core_skill(content: str) -> bool:
-    return all(token in content for token in ["schemaVersion: qa-skill/v1", "skill:", "kind: browser", "browser:"])
+def _looks_like_core_skill(content: str, schema_version: str = "qa-skill/v1") -> bool:
+    schema_tokens = [f"schemaVersion: {schema_version}", f'"schemaVersion": "{schema_version}"', f'"schemaVersion":"{schema_version}"']
+    return any(token in content for token in schema_tokens) and all(token in content for token in ["skill:", "kind: browser", "browser:"])
 
 
 def _ensure_run_request_skill_order(content: str, record: Any) -> str:

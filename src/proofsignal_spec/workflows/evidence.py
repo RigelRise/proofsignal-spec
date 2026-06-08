@@ -492,9 +492,9 @@ def _network_match_keys_from_contract(core_contract: dict[str, Any] | None) -> s
     if isinstance(core_contract, dict):
         browser = core_contract.get("sections", {}).get("browserWorkflow", {})
         if isinstance(browser, dict) and isinstance(browser.get("validNetworkMatchKeys"), list):
-            keys = {str(item) for item in browser["validNetworkMatchKeys"] if item}
-            if keys:
-                return keys
+            return {str(item) for item in browser["validNetworkMatchKeys"] if item}
+        if core_contract.get("source") == "core-public-contract":
+            return set()
     return set(VALID_NETWORK_MATCH_KEYS)
 
 

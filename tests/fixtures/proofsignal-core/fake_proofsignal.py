@@ -419,6 +419,89 @@ def _contracts_payload(mode: str) -> dict[str, object]:
         data.pop("browserWorkflow")
     if mode == "contracts-malformed-browser":
         data["browserWorkflow"] = []
+    if mode in {"current-contract", "canonical-legacy-conflict", "missing-canonical-metadata"}:
+        data["runRequest"] = {
+            "status": "supported",
+            "schemaVersion": 1,
+            "fields": [
+                {"path": "schemaVersion", "status": "supported", "required": True, "allowedValues": ["qa-run-request/v1"]},
+                {"path": "request.id", "status": "supported", "required": True},
+                {"path": "request.name", "status": "supported", "required": True},
+                {"path": "target.url", "status": "supported", "required": True},
+                {"path": "credentialRefs", "status": "supported", "required": False},
+                {"path": "skills.main", "status": "supported", "required": True},
+            ],
+        }
+        data["skill"] = {
+            "status": "supported",
+            "schemaVersion": 1,
+            "fields": [
+                {"path": "schemaVersion", "status": "supported", "required": True, "allowedValues": ["qa-skill/v1"]},
+                {"path": "skill.id", "status": "supported", "required": True},
+                {"path": "browser.targets", "status": "supported", "required": True},
+                {"path": "browser.steps", "status": "supported", "required": True},
+                {"path": "browser.assertions", "status": "supported", "required": False},
+            ],
+        }
+        current_actions = [
+            {"name": "navigate", "status": "supported", "requiredFields": ["value"]},
+            {"name": "click", "status": "supported", "requiredFields": ["target"]},
+            {"name": "fill", "status": "supported", "requiredFields": ["target", "value"]},
+            {
+                "name": "awaitNetwork",
+                "status": "supported",
+                "requiredFields": ["match"],
+                "match": {
+                    "keys": [
+                        {"name": "urlContains", "status": "supported"},
+                        {"name": "method", "status": "supported"},
+                        {"name": "status", "status": "supported"},
+                        {"name": "requestBodyContains", "status": "supported"},
+                        {"name": "responseBodyContains", "status": "supported"},
+                    ]
+                },
+            },
+        ]
+        if mode == "missing-canonical-metadata":
+            current_actions = [
+                {"name": "navigate", "status": "supported", "requiredFields": ["value"]},
+                {"name": "awaitNetwork", "status": "supported", "requiredFields": ["match"]},
+            ]
+        data["browserWorkflow"] = {
+            "actions": current_actions,
+            "assertions": [
+                {"name": "text", "status": "supported", "requiredFields": ["target", "expected"]},
+                {"name": "visible", "status": "supported", "requiredFields": ["target"]},
+            ],
+            "targetSignals": ["testId", "label", "text", "css", "semanticLocator"],
+            "targets": {"composition": {"supportedSignals": ["testId", "css"]}},
+            "metadataKeys": [{"name": "operationName", "status": "supported"}, {"name": "expectedStatus", "status": "supported"}],
+            "gateEvidenceRules": {
+                "gateId": "UI assertions, network waits, and screenshots must declare gateId to count toward planned gate coverage.",
+                "renderedResult": "Required page-view gates need a specific target plus expected text/state/count.",
+                "network": "awaitNetwork match uses stable public match keys and expected status.",
+            },
+        }
+        data["credentials"] = {
+            "credentialRefs": {
+                "supportedSources": [{"name": "environment", "status": "supported"}, {"name": "prompt-cache", "status": "experimental"}],
+                "referenceShape": "credentialRefs.<group>.keys.<field>",
+                "placeholderSyntax": "{{credentials.<group>.<field>}}",
+            }
+        }
+    if mode == "legacy-fallback":
+        pass
+    if mode == "canonical-legacy-conflict":
+        browser = data["browserWorkflow"]
+        if isinstance(browser, dict):
+            browser["networkMatchKeys"] = [{"name": "legacyOnly", "status": "stable"}]
+            browser["targetSignals"] = [
+                {"name": "testId", "status": "stable"},
+                {"name": "all", "status": "stable", "composition": ["aria"]},
+            ]
+        credentials = data["credentials"]
+        if isinstance(credentials, dict):
+            credentials["sources"] = [{"name": "vault", "status": "stable"}]
     return {
         "schema": "proofsignal.contracts/v1",
         "schemaVersion": 1,

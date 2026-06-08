@@ -7,7 +7,12 @@ from . import layout
 from .models import ArtifactReference, UseCaseRecord
 
 
-def render_run_request(record: UseCaseRecord, parameters: dict[str, Any] | None = None) -> str:
+def render_run_request(
+    record: UseCaseRecord,
+    parameters: dict[str, Any] | None = None,
+    *,
+    schema_version: str = "qa-run-request/v1",
+) -> str:
     skill_refs = [{"id": skill.id or f"skill.{record.alias}", "version": skill.version or "1.0.0"} for skill in record.skills]
     import json
 
@@ -17,7 +22,7 @@ def render_run_request(record: UseCaseRecord, parameters: dict[str, Any] | None 
             continue
         resolved_parameters.setdefault(item.name, "")
     document: dict[str, Any] = {
-        "schemaVersion": "qa-run-request/v1",
+        "schemaVersion": schema_version,
         "request": {"id": f"request.{record.alias}", "name": record.title},
         "target": "browser",
         "validationScope": "feature-level",
@@ -35,6 +40,7 @@ def render_skill(
     *,
     draft_notes: str | None = None,
     browser: dict[str, Any] | None = None,
+    schema_version: str = "qa-skill/v1",
 ) -> str:
     skill = skill or record.mainSkill
     skill_id = skill.id if skill and skill.id else f"skill.{record.alias}"
@@ -45,7 +51,7 @@ def render_skill(
     return f"""# {skill_name}
 
 ```yaml
-schemaVersion: qa-skill/v1
+schemaVersion: {schema_version}
 skill:
   id: {skill_id}
   version: 1.0.0

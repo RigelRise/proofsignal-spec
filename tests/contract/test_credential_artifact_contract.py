@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 
+from proofsignal_spec.core.executable_contract import project_core_contract
 from proofsignal_spec.workspace.artifacts import render_run_request, render_skill
 from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from tests.fixtures.managed_runtime import current_core_contract_fixture_payload
 
 
 def test_run_request_renders_core_credential_refs_without_values() -> None:
@@ -70,3 +73,21 @@ def test_skill_renders_group_field_credential_placeholders() -> None:
     assert "{{credentials.e2eUser.password}}" in rendered
     assert "{{env.E2E_USER_EMAIL}}" not in rendered
     assert "{{credentials.E2E_USER_EMAIL}}" not in rendered
+
+
+def test_core_credential_projection_does_not_include_environment_values() -> None:
+    old_value = os.environ.get("E2E_USER_PASSWORD")
+    os.environ["E2E_USER_PASSWORD"] = "super-secret-runtime-value"
+    try:
+        projection = project_core_contract(current_core_contract_fixture_payload())
+    finally:
+        if old_value is None:
+            os.environ.pop("E2E_USER_PASSWORD", None)
+        else:
+            os.environ["E2E_USER_PASSWORD"] = old_value
+
+    rendered = json.dumps(projection["sections"]["credentials"])
+
+    assert "environment" in rendered
+    assert "E2E_USER_PASSWORD" not in rendered
+    assert "super-secret-runtime-value" not in rendered

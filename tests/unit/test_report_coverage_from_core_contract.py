@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from proofsignal_spec.core.executable_contract import project_core_contract
 from proofsignal_spec.workflows.evidence import extract_browser_evidence, extract_core_runtime_evidence
-from tests.fixtures.managed_runtime import core_contract_fixture_payload
+from tests.fixtures.managed_runtime import core_contract_fixture_payload, current_core_contract_fixture_payload
 
 
 def test_runtime_report_coverage_uses_core_declared_report_sections() -> None:
@@ -69,3 +69,40 @@ def test_browser_network_evidence_uses_core_declared_match_keys() -> None:
 
     assert inventory.blockers == []
     assert inventory.networkChecks[0].publicMatchKeys == ["urlPattern"]
+
+
+def test_browser_network_evidence_uses_action_level_core_match_keys_without_local_fallback() -> None:
+    projection = project_core_contract(
+        current_core_contract_fixture_payload(
+            extra_sections={
+                "browserWorkflow": {
+                    "actions": [
+                        {
+                            "name": "awaitNetwork",
+                            "status": "supported",
+                            "requiredFields": ["match"],
+                            "match": {"keys": [{"name": "urlPattern", "status": "supported"}, {"name": "method", "status": "supported"}]},
+                        }
+                    ],
+                    "assertions": [{"name": "visible", "status": "supported", "requiredFields": ["target"]}],
+                    "targetSignals": ["testId"],
+                    "metadataKeys": [{"name": "expectedStatus", "status": "supported"}],
+                }
+            }
+        )
+    )
+    browser = {
+        "steps": [
+            {
+                "id": "wait-publish",
+                "action": "awaitNetwork",
+                "gateId": "project-publish-mutation",
+                "match": {"method": "POST", "urlPattern": "/graphql", "expectedStatus": 200},
+            }
+        ]
+    }
+
+    inventory = extract_browser_evidence(browser, known_gate_ids={"project-publish-mutation"}, core_contract=projection)
+
+    assert inventory.blockers == []
+    assert inventory.networkChecks[0].publicMatchKeys == ["method", "urlPattern"]

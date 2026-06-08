@@ -291,12 +291,16 @@ def _rules_from_contract(core_contract: dict[str, Any] | None) -> dict[str, Any]
             "compositionSignals": {"testId", "css"},
         }
     browser = core_contract.get("sections", {}).get("browserWorkflow", {})
-    target_signals = set(browser.get("targetSignalPriority") or TARGET_SIGNAL_KEYS)
+    target_signals = set(browser.get("targetSignalPriority") or [])
+    target_rules = browser.get("targetRules") if isinstance(browser.get("targetRules"), dict) else {}
+    composition_signals = set(target_rules.get("compositionSignals") or [])
+    if composition_signals:
+        target_signals.add("all")
     return {
         "actions": set(browser.get("validActions") or []),
         "assertions": set(browser.get("validAssertionKinds") or []),
         "networkKeys": set(browser.get("validNetworkMatchKeys") or []),
-        "networkMetadataKeys": set(browser.get("networkMetadataKeys") or NETWORK_METADATA_KEYS),
+        "networkMetadataKeys": set(browser.get("networkMetadataKeys") or []),
         "targetSignals": target_signals,
-        "compositionSignals": {"testId", "css"},
+        "compositionSignals": composition_signals,
     }

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 
-from helpers import CliTestCase
+from helpers import CliTestCase, assert_no_core_contract_snapshots
 
 from tests.fixtures.workflows.main_skill_run_coverage import HELPER_SKILL_PATH, MAIN_SKILL_PATH, create_main_skill_coverage_workspace
 from tests.fixtures.workflows.guardrails import stage_payload, write_payload
@@ -29,6 +30,44 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         self.assertEqual(result["coreExecutableContract"]["source"], "core-public-contract")
         self.assertIn("runRequest", result["coreExecutableContract"]["sections"])
         self.assertIn("skill", result["coreExecutableContract"]["sections"])
+
+    def test_workflow_info_projects_current_core_contract_shape(self) -> None:
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "current-contract"
+        self.cli(["init", str(self.project), "--integration", "codex", "--json"])
+
+        code, out, err = self.cli(["workflow", "info", "--project", str(self.project), "--json"])
+
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        authoring = result["browserAuthoringContract"]
+        core = result["coreExecutableContract"]
+        self.assertIn("urlContains", authoring["validNetworkMatchKeys"])
+        self.assertIn("request.id", core["sections"]["runRequest"]["fieldNames"])
+
+    def test_workflow_info_projects_current_field_schema_and_credential_metadata(self) -> None:
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "current-contract"
+        self.cli(["init", str(self.project), "--integration", "codex", "--json"])
+
+        code, out, err = self.cli(["workflow", "info", "--project", str(self.project), "--json"])
+
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        core = result["coreExecutableContract"]
+        self.assertEqual(core["sections"]["runRequest"]["artifactSchemaVersion"], "qa-run-request/v1")
+        self.assertEqual(core["sections"]["skill"]["artifactSchemaVersion"], "qa-skill/v1")
+        self.assertIn("request.id", core["sections"]["runRequest"]["fieldNames"])
+        self.assertIn("browser.targets", core["sections"]["skill"]["fieldNames"])
+        self.assertIn("environment", core["sections"]["credentials"]["sourceNames"])
+        self.assertEqual(core["sections"]["credentials"]["placeholderSyntax"], "{{credentials.<group>.<field>}}")
+
+    def test_workflow_info_does_not_persist_core_contract_projection_cache(self) -> None:
+        os.environ["FAKE_PROOFSIGNAL_MODE"] = "current-contract"
+        self.cli(["init", str(self.project), "--integration", "codex", "--json"])
+
+        code, _out, err = self.cli(["workflow", "info", "--project", str(self.project), "--json"])
+
+        self.assertEqual(code, 0, err)
+        assert_no_core_contract_snapshots(self.project)
 
     def test_understand_persists_product_context_and_inventory(self) -> None:
         payload = stage_payload(
