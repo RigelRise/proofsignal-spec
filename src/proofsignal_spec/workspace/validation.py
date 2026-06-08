@@ -163,7 +163,11 @@ def validate_use_case(project: Path, record: UseCaseRecord) -> list[dict[str, st
         findings.append({"severity": "blocking", "code": "missing-main-skill", "path": record.alias, "message": "Use case must reference a main skill."})
     else:
         findings.extend(_validate_artifact(project, record.mainSkill, generated_dir=layout.SKILLS_DIR))
-    for skill in record.skills:
+    seen_skills: set[str] = set()
+    for skill in [*record.skills, *record.sourceOnlySkills]:
+        if skill.path in seen_skills:
+            continue
+        seen_skills.add(skill.path)
         findings.extend(_validate_artifact(project, skill, generated_dir=layout.SKILLS_DIR))
     for question in record.authoringQuestions:
         if question.status == "deferred" and record.status == "ready":

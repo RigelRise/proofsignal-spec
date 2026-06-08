@@ -2,7 +2,7 @@
 Follow `.specify/memory/constitution.md` as the governing project rules.
 For additional context about technologies to be used, project structure,
 shell commands, and other important information for the active feature, read
-`specs/016-core-contract-projection/plan.md`.
+`specs/017-skill-execution-boundary/plan.md`.
 
 Write project documentation, specs, plans, tasks, generated agent instructions,
 runtime guidance, run requests, and skills in English.

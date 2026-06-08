@@ -39,6 +39,7 @@ from .repository import (
     save_workflow_state,
     state_document,
 )
+from .skill_execution_boundary import multi_skill_capability, resolve_execution_boundary
 from .stage_documents import (
     write_artifact_plan,
     write_clarifications,
@@ -333,7 +334,10 @@ def _persist_plan(project: Path, alias: str, content: dict[str, Any]) -> StagePe
         runRequest=run_request,
         mainSkill=main_skill,
         supportingSkills=supporting,
+        sourceOnlySkills=[_skill_path(item) for item in content.get("sourceOnlySkills", [])] or supporting,
         skillReuse=list(content.get("skillReuse", [])),
+        skillComposition=content.get("skillComposition") if isinstance(content.get("skillComposition"), dict) else None,
+        gateEvidenceMappings=[item for item in content.get("gateEvidenceMappings", []) if isinstance(item, dict)],
         runtimeInputs=list(content.get("runtimeInputs", [])),
         preconditions=[str(item) for item in content.get("preconditions", [])],
         validationGates=list(content.get("validationGates", ["authoring-check", "runtime-readiness"])),
@@ -391,6 +395,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     _require_fields(content, ["runRequest", "skills"], stage="implement")
     record = load_use_case(project, alias)
     core_contract = _core_contract_for_browser_authoring(project)
+    content = _apply_skill_boundary_composition(project, alias, content, core_contract=core_contract)
     coherence = evaluate_implementation_coherence(project, alias, content, new_artifacts=True, core_contract=core_contract)
     if coherence.status == "blocked":
         return StagePersistenceResult(
@@ -415,6 +420,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     if not skills:
         raise ValueError("Implementation requires at least one browser skill.")
     credential_refs = _credential_refs_from_payload(content)
+    plan = None
     try:
         plan = load_artifact_plan(project, alias)
         planned_main = next((skill for skill in skills if skill.path == plan.mainSkill), None)
@@ -427,6 +433,16 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     record.runRequest = ArtifactReference(path=run_request_path, kind="run-request", generated=True, id=f"request.{alias}", version="1.0.0")
     record.mainSkill = skills[0]
     record.skills = skills
+    source_only_paths = set(plan.sourceOnlySkills if plan else [])
+    capability = multi_skill_capability(core_contract)
+    if not capability.supported:
+        source_only_paths.update(skill.path for skill in skills[1:])
+    record.sourceOnlySkills = [skill for skill in skills if skill.path in source_only_paths and skill.path != record.mainSkill.path]
+    composition = content.get("skillComposition") if isinstance(content.get("skillComposition"), dict) else None
+    if not composition and plan and isinstance(plan.skillComposition, dict):
+        composition = plan.skillComposition
+    if composition:
+        record.skillComposition = composition
     runtime_inputs = content.get("runtimeInputs") or _runtime_inputs_from_run_request_payload(content.get("runRequest")) or _planned_runtime_inputs(project, alias)
     runtime_inputs = _merge_resolved_target_runtime_input(runtime_inputs, _stage_handoff_target(record))
     runtime_inputs = _filter_runtime_credential_inputs(runtime_inputs, credential_refs)
@@ -449,7 +465,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
         project,
         run_request_path,
         run_request_content,
-        lambda: artifacts.render_run_request(record, schema_version=run_request_schema),
+        lambda: artifacts.render_run_request(record, schema_version=run_request_schema, core_contract=core_contract),
     )
     for item, skill in zip(content.get("skills", []), skills, strict=False):
         skill_content = _ensure_core_skill_document(_artifact_content(item), record, skill, item, credential_refs=credential_refs, core_contract=core_contract)
@@ -810,6 +826,83 @@ def _target_from_questions(questions: list[AuthoringQuestion]) -> str | None:
     return None
 
 
+def _apply_skill_boundary_composition(
+    project: Path,
+    alias: str,
+    content: dict[str, Any],
+    *,
+    core_contract: dict[str, Any] | None,
+) -> dict[str, Any]:
+    capability = multi_skill_capability(core_contract)
+    if capability.supported:
+        return content
+    try:
+        plan = load_artifact_plan(project, alias)
+    except Exception:
+        plan = None
+    composition = content.get("skillComposition") if isinstance(content.get("skillComposition"), dict) else None
+    if not composition and plan and isinstance(plan.skillComposition, dict):
+        composition = plan.skillComposition
+    if not isinstance(composition, dict):
+        return content
+    if str(composition.get("mode") or "") != "inline-into-main":
+        return content
+    skills = [item for item in content.get("skills", []) if isinstance(item, dict)]
+    main_path = str(composition.get("mainSkillPath") or (plan.mainSkill if plan else ""))
+    source_paths = [str(item) for item in composition.get("sourceSkillPaths", [])]
+    if not source_paths and plan:
+        source_paths = list(plan.sourceOnlySkills or plan.supportingSkills)
+    main = next((item for item in skills if _artifact_path(item) == main_path), None)
+    if main is None:
+        return content
+    main_browser = _browser_from_payload(main, credential_refs=_credential_refs_from_payload(content), core_contract=core_contract)
+    source_browsers = [
+        _browser_from_payload(item, credential_refs=_credential_refs_from_payload(content), core_contract=core_contract)
+        for item in skills
+        if _artifact_path(item) in set(source_paths)
+    ]
+    if not source_browsers:
+        return content
+    composed = _compose_browser(main_browser, source_browsers)
+    updated_skills = []
+    for item in skills:
+        updated = dict(item)
+        if _artifact_path(item) == main_path:
+            updated["browser"] = composed
+        updated_skills.append(updated)
+    updated_content = dict(content)
+    updated_content["skills"] = updated_skills
+    updated_content["skillComposition"] = {
+        **composition,
+        "status": "ready",
+        "mode": "inline-into-main",
+    }
+    return updated_content
+
+
+def _compose_browser(main_browser: dict[str, Any], source_browsers: list[dict[str, Any]]) -> dict[str, Any]:
+    targets: dict[str, Any] = {}
+    steps: list[Any] = []
+    assertions: list[Any] = []
+    for browser in source_browsers:
+        targets.update(browser.get("targets") if isinstance(browser.get("targets"), dict) else {})
+        steps.extend(item for item in browser.get("steps", []) if isinstance(item, dict))
+        assertions.extend(item for item in browser.get("assertions", []) if isinstance(item, dict))
+    targets.update(main_browser.get("targets") if isinstance(main_browser.get("targets"), dict) else {})
+    main_steps = [item for item in main_browser.get("steps", []) if isinstance(item, dict)]
+    main_assertions = [item for item in main_browser.get("assertions", []) if isinstance(item, dict)]
+    existing_step_ids = {str(item.get("id")) for item in main_steps}
+    source_steps = [item for item in steps if str(item.get("id")) not in existing_step_ids]
+    existing_assertion_ids = {str(item.get("id")) for item in main_assertions}
+    source_assertions = [item for item in assertions if str(item.get("id")) not in existing_assertion_ids]
+    return {
+        **{key: value for key, value in main_browser.items() if key not in {"targets", "steps", "assertions"}},
+        "targets": targets,
+        "steps": [*source_steps, *main_steps],
+        "assertions": [*source_assertions, *main_assertions],
+    }
+
+
 def _stage_handoff_target(record: Any) -> str | None:
     workflow = record.workflow if isinstance(record.workflow, dict) else {}
     for decision in workflow.get("stageHandoffDecisions", []):
@@ -875,8 +968,8 @@ def _ensure_core_run_request_document(
     if schema_version and schema_version != expected_schema:
         raise ValueError(f"Legacy executable artifact schemaVersion {schema_version!r}; expected {expected_schema!r} from the Core public contract.")
     if content and _looks_like_core_run_request(content, expected_schema):
-        return _ensure_run_request_skill_order(content, record)
-    return artifacts.render_run_request(record, parameters=_parameters_from_payload(payload), schema_version=expected_schema)
+        return _ensure_run_request_skill_order(content, record, core_contract=core_contract)
+    return artifacts.render_run_request(record, parameters=_parameters_from_payload(payload), schema_version=expected_schema, core_contract=core_contract)
 
 
 def _ensure_core_skill_document(
@@ -940,7 +1033,7 @@ def _looks_like_core_skill(content: str, schema_version: str = "qa-skill/v1") ->
     return any(token in content for token in schema_tokens) and all(token in content for token in ["skill:", "kind: browser", "browser:"])
 
 
-def _ensure_run_request_skill_order(content: str, record: Any) -> str:
+def _ensure_run_request_skill_order(content: str, record: Any, *, core_contract: dict[str, Any] | None = None) -> str:
     try:
         import yaml  # type: ignore
 
@@ -949,7 +1042,8 @@ def _ensure_run_request_skill_order(content: str, record: Any) -> str:
         return content
     if not isinstance(parsed, dict):
         return content
-    parsed["skills"] = [{"id": skill.id or f"skill.{record.alias}", "version": skill.version or "1.0.0"} for skill in record.skills]
+    decision = resolve_execution_boundary(record, core_contract=core_contract, run_request=parsed)
+    parsed["skills"] = [{"id": skill.id or f"skill.{record.alias}", "version": skill.version or "1.0.0"} for skill in decision.executableSkills]
     if record.credentialRefs:
         parsed["credentialRefs"] = record.credentialRefs
     try:

@@ -75,6 +75,7 @@ def test_projection_preserves_required_contract_sections() -> None:
         "operations",
         "runRequest",
         "skill",
+        "skillExecution",
         "browserWorkflow",
         "credentials",
         "placeholders",

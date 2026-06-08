@@ -15,6 +15,13 @@ Stage authoring templates must point agents to the public workflow contract from
 `proofsignal workflow info proofsignal-use-case --json`. Payload shape
 guidance comes from `stagePayloadContracts`, not installed package source.
 
+Executable skill boundary guidance must distinguish executable skills from
+source-only reusable skills. A run request lists only the skills that Spec has
+resolved as executable for the current Core public contract. When Core does not
+declare deterministic multi-skill roles, ordering, and evidence semantics,
+agents must compose required reusable behavior into the main skill and preserve
+helper skills only as source-only metadata.
+
 Real-run guardrail templates must also preserve the planned main skill, require
 explicit `gateId` evidence mappings, distinguish Core technical status from
 Spec planned coverage status, and route runtime contradictions through repair or
@@ -44,6 +51,12 @@ wait, ordering, target-specificity, equivalent-flow, and run-profile repairs may
 auto-apply only when validation intent is preserved. Data, credential, required
 gate, target-selection, and expected-behavior changes still require
 confirmation.
+
+Execution-boundary repair guidance must not weaken required gates when a helper
+or source-only skill passed without mapped evidence. The correct recovery is to
+compose helper behavior into the main executable skill, reclassify the helper as
+source-only, or use a Core runtime whose public contract declares supported
+multi-skill execution.
 
 Human-observable debug/browser runs default to `slowMoMs: 900`; explicit
 `--slow-mo` values still win.

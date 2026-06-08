@@ -14,3 +14,12 @@ stages:
   - validate
   - run
   - repair
+guidance:
+  skillExecutionBoundary:
+    defaultMode: single-main
+    sourceOfTruth: stagePayloadContracts.skillExecutionBoundary
+    rules:
+      - Spec decides which skills enter the executable run request.
+      - Reusable skills are source-only unless Core declares deterministic multi-skill support.
+      - When Core lacks multi-skill support, reusable behavior required by the use case is inlined into the main skill.
+      - Source-only gate evidence counts only through explicit composition mapping.

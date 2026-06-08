@@ -16,11 +16,20 @@ MAIN_SKILL_PATH = ".proofsignal/skills/validate-profile-view-unauth-flow.browser
 HELPER_SKILL_PATH = ".proofsignal/skills/discover-profile.browser.md"
 
 
-def create_main_skill_coverage_workspace(project: Path, *, alias: str = ALIAS, helper_first: bool = True) -> Path:
+def create_main_skill_coverage_workspace(
+    project: Path,
+    *,
+    alias: str = ALIAS,
+    helper_first: bool = True,
+    legacy_multi_skill_run_request: bool = False,
+) -> Path:
     init_workspace(project)
     (project / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
     (project / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
-    (project / f".proofsignal/run-requests/{alias}.yaml").write_text(json.dumps(run_request(alias, helper_first=helper_first)), encoding="utf-8")
+    (project / f".proofsignal/run-requests/{alias}.yaml").write_text(
+        json.dumps(run_request(alias, helper_first=helper_first, include_helper=legacy_multi_skill_run_request)),
+        encoding="utf-8",
+    )
     (project / HELPER_SKILL_PATH).write_text(skill_markdown(HELPER_SKILL_ID, "Discover Profile", []), encoding="utf-8")
     (project / MAIN_SKILL_PATH).write_text(
         skill_markdown(MAIN_SKILL_ID, "Validate Profile View Unauth", ["overview-data-card", "projects-tab-content", "overview-profile-query"]),
@@ -41,6 +50,7 @@ def create_main_skill_coverage_workspace(project: Path, *, alias: str = ALIAS, h
             runRequest=ArtifactReference(path=f".proofsignal/run-requests/{alias}.yaml", kind="run-request", id=f"request.{alias}", version="1.0.0"),
             mainSkill=ArtifactReference(path=MAIN_SKILL_PATH, kind="skill", id=MAIN_SKILL_ID, version="2.1.0"),
             skills=skills,
+            sourceOnlySkills=[ArtifactReference(path=HELPER_SKILL_PATH, kind="skill", id=HELPER_SKILL_ID, version="1.0.0")],
         ),
     )
     save_artifact_plan(
@@ -62,13 +72,15 @@ def create_main_skill_coverage_workspace(project: Path, *, alias: str = ALIAS, h
     return project
 
 
-def run_request(alias: str = ALIAS, *, helper_first: bool = True) -> dict[str, object]:
+def run_request(alias: str = ALIAS, *, helper_first: bool = True, include_helper: bool = False) -> dict[str, object]:
     skills = [
         {"id": HELPER_SKILL_ID, "version": "1.0.0"},
         {"id": MAIN_SKILL_ID, "version": "2.1.0"},
     ]
     if not helper_first:
         skills.reverse()
+    if not include_helper:
+        skills = [{"id": MAIN_SKILL_ID, "version": "2.1.0"}]
     return {
         "schemaVersion": "qa-run-request/v1",
         "request": {"id": f"request.{alias}", "name": "Profile View Unauth"},

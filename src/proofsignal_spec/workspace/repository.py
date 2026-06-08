@@ -311,7 +311,7 @@ def create_default_use_case(project: Path, alias: str, description: str) -> UseC
     )
 
 
-def resolve_artifacts(project: Path, alias: str) -> tuple[UseCaseRecord, Path, Path, list[Path]]:
+def resolve_artifacts(project: Path, alias: str, *, core_contract: dict[str, Any] | None = None) -> tuple[UseCaseRecord, Path, Path, list[Path]]:
     record = load_use_case(project, alias)
     if not record.runRequest:
         raise ValueError(f"Use case {alias} does not reference a run request.")
@@ -319,8 +319,12 @@ def resolve_artifacts(project: Path, alias: str) -> tuple[UseCaseRecord, Path, P
         raise ValueError(f"Use case {alias} does not reference a main skill.")
     run_request = layout.project_relative_path(project, record.runRequest.path)
     main_skill = layout.project_relative_path(project, record.mainSkill.path)
-    skills = [layout.project_relative_path(project, skill.path) for skill in record.skills]
-    for path in [run_request, main_skill, *skills]:
+    from proofsignal_spec.workflows.skill_execution_boundary import executable_skill_refs
+
+    executable_refs = executable_skill_refs(record, core_contract=core_contract)
+    skills = [layout.project_relative_path(project, skill.path) for skill in executable_refs]
+    authored = [layout.project_relative_path(project, skill.path) for skill in [*record.skills, *record.sourceOnlySkills]]
+    for path in [run_request, main_skill, *authored]:
         if not path.exists():
             raise FileNotFoundError(path)
     return record, run_request, main_skill, skills

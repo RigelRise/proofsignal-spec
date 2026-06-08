@@ -14,6 +14,9 @@ Create or update only planned draft artifacts.
 - Follow `.proofsignal/workflows/use-cases/<alias>/tasks.md`.
 - Prepare structured artifact intent for `.proofsignal/run-requests/<alias>.yaml` and `.proofsignal/skills/<name>.browser.md`; the CLI owns the final `qa-run-request/v1` and `qa-skill/v1` envelopes.
 - Preserve the planned `mainSkill` from the artifact plan. Do not rely on `skills[0]`; reusable helper skills may appear before the main skill in submitted payloads.
+- Use `stagePayloadContracts.skillExecutionBoundary` as the source of truth for executable versus source-only skills. A reusable skill is not automatically executable.
+- When `coreExecutableContract.sections.skillExecution.multiSkillSupported` is not true, inline required reusable behavior into the planned main skill and keep reusable helpers as source-only artifacts/metadata. Do not list helper skills as executable run-request participants.
+- If Core declares deterministic multi-skill support, use only the roles, ordering, and evidence semantics declared by `coreExecutableContract.sections.skillExecution`; otherwise fail closed to single-main mode.
 - Browser skills with detailed validation intent must include executable Core browser actions under `intent.browser.steps` and final checks under `intent.browser.assertions`. Natural-language `intent.body` or `intent.steps` are preserved as notes, but they are not a substitute for executable browser steps.
 - Browser step `target` values must reference named entries under `intent.browser.targets`; do not put inline selectors such as `input#search`, `text=Teams`, `placeholder=Search people`, XPath, or role syntax directly in a step target.
 - Each named browser target should use one primary selector signal from `browserAuthoringContract.targetRules.targetSignalPriority`. Do not combine two primary signals as fallback signals unless Core declares that composition form.

@@ -115,6 +115,9 @@ def write_artifact_plan(project: Path, plan: ArtifactPlan) -> str:
         {
             "Run Request": plan.runRequest,
             "Reusable Skills": skills,
+            "Source-Only Skills": plan.sourceOnlySkills,
+            "Skill Composition": _render_skill_composition(plan.skillComposition),
+            "Gate Evidence Mappings": _render_gate_evidence_mappings(plan.gateEvidenceMappings),
             "Skill Reuse": [str(item) for item in plan.skillReuse],
             "Runtime Inputs": _render_runtime_inputs(plan.runtimeInputs),
             "Preconditions": plan.preconditions,
@@ -227,6 +230,38 @@ def _render_runtime_inputs(runtime_inputs: list[dict[str, Any]]) -> list[str]:
             rendered.append(f"{name}: resolved target ({value})")
         else:
             rendered.append(str(name))
+    return rendered
+
+
+def _render_skill_composition(composition: dict[str, Any] | None) -> list[str]:
+    if not composition:
+        return []
+    rendered: list[str] = []
+    mode = composition.get("mode")
+    if mode:
+        rendered.append(f"mode: {mode}")
+    main = composition.get("mainSkillPath")
+    if main:
+        rendered.append(f"mainSkillPath: {main}")
+    sources = composition.get("sourceSkillPaths")
+    if isinstance(sources, list) and sources:
+        rendered.append("sourceSkillPaths: " + ", ".join(str(item) for item in sources))
+    policy = composition.get("credentialReferencePolicy")
+    if policy:
+        rendered.append(f"credentialReferencePolicy: {policy}")
+    return rendered or [str(composition)]
+
+
+def _render_gate_evidence_mappings(mappings: list[dict[str, Any]]) -> list[str]:
+    rendered: list[str] = []
+    for item in mappings:
+        source = item.get("sourceSkillPath") or item.get("source")
+        source_gate = item.get("sourceGateId") or item.get("sourceGate")
+        gate = item.get("gateId") or item.get("targetGateId")
+        if source or source_gate or gate:
+            rendered.append(f"{source or 'source'}:{source_gate or '*'} -> {gate or 'gate'}")
+        else:
+            rendered.append(str(item))
     return rendered
 
 

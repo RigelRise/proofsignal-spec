@@ -9,6 +9,7 @@ from .evidence import browser_from_skill_content, browser_from_skill_path, extra
 from .gate_coverage import calculate_gate_coverage
 from .models import AuthoringCoherenceResult
 from .repository import load_artifact_plan
+from .skill_execution_boundary import multi_skill_capability
 
 ACCEPTED_ARTIFACT_FIELDS = ["path", "kind", "content", "intent", "browser"]
 NORMALIZED_ALIASES = {"artifactPath": "path", "artifactKind": "kind"}
@@ -69,6 +70,13 @@ def evaluate_implementation_coherence(
             f"Accepted field names include path/kind; aliases artifactPath/artifactKind are normalized. Planned main skill: {plan.mainSkill}."
         )
 
+    executable_artifacts = _executable_skill_artifacts(skill_artifacts, plan, core_contract=core_contract)
+    source_only_artifacts = [item for item in skill_artifacts if item not in executable_artifacts]
+    if source_only_artifacts:
+        result.warnings.append(
+            f"{len(source_only_artifacts)} source-only skill artifact(s) are excluded from executable gate coverage."
+        )
+
     evidence = merge_evidence(
         [
             extract_browser_evidence(
@@ -77,7 +85,7 @@ def evaluate_implementation_coherence(
                 known_gate_ids={gate.id for gate in gates},
                 core_contract=core_contract,
             )
-            for artifact in skill_artifacts
+            for artifact in executable_artifacts
             if _artifact_path(artifact)
         ]
     )
@@ -145,6 +153,19 @@ def _skill_artifacts(content: dict[str, Any]) -> list[dict[str, Any]]:
             and (_artifact_kind(item) == "skill" or str(_artifact_path(item)).endswith(".browser.md"))
         ]
     return []
+
+
+def _executable_skill_artifacts(
+    skill_artifacts: list[dict[str, Any]],
+    plan: Any,
+    *,
+    core_contract: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    capability = multi_skill_capability(core_contract)
+    if capability.supported:
+        source_only_paths = set(getattr(plan, "sourceOnlySkills", []) or [])
+        return [item for item in skill_artifacts if _artifact_path(item) not in source_only_paths]
+    return [item for item in skill_artifacts if _artifact_path(item) == plan.mainSkill]
 
 
 def _browser_for_artifact(project: Path, artifact: dict[str, Any]) -> dict[str, Any]:

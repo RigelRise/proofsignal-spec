@@ -13,6 +13,7 @@ Validate draft artifacts through ProofSignal Spec and the managed ProofSignal ru
 - If recoverable migration plans are present, ask the developer before invoking `proofsignal workflow migrate --approve <migration-id> --json`.
 - If the managed runtime or entitlement is missing or blocked, state that structural validation can still run, but a verified ProofSignal runtime plus valid entitlement receipt is required for complete validation and browser execution. Route happy-path recovery to `proofsignal init --here --integration codex`; use `proofsignal core setup --core-cmd <path>` only for diagnostics, offline environments, and development overrides. Do not suggest artifact repair for environment, API, distribution, token, receipt, or Core entitlement rejection blockers.
 - Treat `api.*`, `entitlement.*`, `distribution.*`, `artifact.*`, `cache.*`, `platform.unsupported`, and `core.incompatible` readiness blockers as non-repairable runtime setup/security issues unless a later Core validation or run produces deterministic artifact findings.
+- Treat `skill-execution.*` readiness blockers as execution-boundary issues: the run request exposes the wrong executable skill set for the current Core contract. Report the blocker and recovery command; do not suggest gate weakening.
 - Do not print raw email addresses, email unlock tokens, signed download URLs, receipt payloads, credentials, local env-file values, screenshots, browser storage, source snapshots, or private runtime contents.
 - Backward-compatible wording may still state: "ProofSignal Core is required for the complete ProofSignal validation and browser execution experience"; interpret that as the private runtime boundary, not a manual happy-path install step.
 - Delegate Core-dependent behavior through `proofsignal validate <alias> --runtime-readiness` .
@@ -21,6 +22,7 @@ Validate draft artifacts through ProofSignal Spec and the managed ProofSignal ru
 - Report the selected main skill shown by validation output before discussing Core results.
 - For later browser inspection, remind users that `proofsignal run <alias> --profile debug` uses 900ms slow motion by default unless `--slow-mo` is explicitly set.
 - Review `authoringCoherence`. If it is blocked, treat the artifact as not ready even if individual browser steps look executable.
+- Review execution-boundary guidance before Core validation. A reusable/source-only skill is not executable unless the public Core contract declares supported multi-skill roles, ordering, and evidence semantics.
 - Distinguish coherent planned validation from a narrow technical pass. A page-view validation requires mapped rendered-result UI evidence and declared backend checks, not only navigation or HTTP 200.
 - Preserve Core verdicts exactly and do not reinterpret passed, failed, blocked, or error outcomes.
 - Record redacted validation summaries in workflow state and stage documents.

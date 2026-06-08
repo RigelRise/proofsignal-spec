@@ -205,7 +205,11 @@ def index_skill_reuse(project: Path) -> dict[str, list[dict[str, str]]]:
             record = load_use_case(project, alias)
         except Exception:
             continue
-        for skill in record.skills:
+        seen_paths: set[str] = set()
+        for skill in [*record.skills, *record.sourceOnlySkills]:
+            if skill.path in seen_paths:
+                continue
+            seen_paths.add(skill.path)
             index.setdefault(skill.path, []).append({"useCaseAlias": alias, "runRequest": record.runRequest.path if record.runRequest else ""})
     return index
 

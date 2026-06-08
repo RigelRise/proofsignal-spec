@@ -14,6 +14,7 @@ Repair invalid or failed use cases through the workflow.
 - Do not edit artifacts when no deterministic validation/run finding exists; runtime setup, API, entitlement, distribution, package verification, and missing Core blockers must remain no-op repair results.
 - Classify the root cause before proposing edits. Name whether the finding is a missing prerequisite, environment recovery, wait/flow issue, selector issue, data/product-state issue, coverage-mapping issue, or unsupported feedback.
 - Treat missing coverage from an aborted Core/browser run as diagnostic. Required gates remain required unless clarify/plan or an explicit gate-intent confirmation changes product intent.
+- Treat `skill-execution.*` and execution-boundary findings as skill-set/composition problems. Prefer composing required helper behavior into the main skill or reclassifying helpers as source-only metadata; do not weaken required gates to compensate for helper-skill misexecution.
 - Treat runtime contradictions and incomplete planned gate coverage as repair/replan inputs. Do not silently weaken browser skills when a planned gate is absent in the target product state.
 - Safe mechanical selector, wait strategy, step ordering, target specificity, equivalent-flow, and run-profile repairs may auto-apply only when the result classifies them as intent-preserving.
 - If a safe mechanical repair is auto-applied, show before/after repair feedback, revalidation status, rerun status, and the next command. Do not report success until validate and rerun produce strict pass.
@@ -23,7 +24,7 @@ Repair invalid or failed use cases through the workflow.
 - After any auto-applied or approved repair, require revalidation and rerun before a trusted success report.
 - Decide whether the finding should return to clarification, planning, task generation, or implementation before proposing edits.
 - For absent planned gates, propose one of: update target data/runtime assumptions, mark the gate conditional with an explicit condition, or replan the use case.
-- Identify every use case affected by an edit to a reusable skill.
+- Identify every use case affected by an edit to a reusable or source-only skill.
 - Require user approval before applying edits.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through ProofSignal Spec CLI operations only.
 - Preserve original specification, plan, task history, and skill reuse relationships.

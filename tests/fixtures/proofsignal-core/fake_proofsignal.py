@@ -415,6 +415,25 @@ def _contracts_payload(mode: str) -> dict[str, object]:
             "verificationKeysEnv": "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
         },
     }
+    if mode == "multi-skill-supported":
+        data["skillExecution"] = {
+            "status": "stable",
+            "roles": [
+                {"name": "main", "status": "stable"},
+                {"name": "precondition", "status": "stable"},
+            ],
+            "ordering": "declared-list-order",
+            "evidenceSemantics": "gateId-attributed-per-participant",
+        }
+    if mode == "partial-skill-support":
+        data["skillExecution"] = {
+            "status": "partial",
+            "roles": [
+                {"name": "precondition", "status": "stable"},
+            ],
+            "ordering": "preconditions-before-main",
+            "evidenceSemantics": "preconditions-do-not-satisfy-required-gates",
+        }
     if mode == "contracts-missing-browser":
         data.pop("browserWorkflow")
     if mode == "contracts-malformed-browser":

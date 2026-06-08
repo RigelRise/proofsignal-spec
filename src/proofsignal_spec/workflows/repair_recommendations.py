@@ -115,6 +115,24 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                 )
             )
             continue
+        if classified.category == "execution-boundary-issue":
+            recommendations.append(
+                RepairRecommendation(
+                    id=f"repair-{index}-skill-execution-boundary",
+                    category="safe-artifact-repair",
+                    runtimeCategory=classified.category,
+                    safeCategory="main-skill-ordering",
+                    summary=classified.summary,
+                    action="Compose required helper behavior into the main skill or reclassify helper skills as source-only metadata; do not weaken required gates.",
+                    affectedArtifacts=affected,
+                    requiresUserDecision=False,
+                    sourceFeedback=[*source_feedback, *classified.evidence],
+                    autonomy="auto-applied",
+                    safeMechanical=True,
+                    intentPreserved=True,
+                )
+            )
+            continue
         if classified.category in {"missing-prerequisite", "environment-recovery"}:
             recommendations.append(
                 RepairRecommendation(
@@ -201,6 +219,8 @@ def _expected_effect(recommendation: str) -> str:
 
 
 def _safe_category(text: str) -> str | None:
+    if any(term in text for term in ["skill-execution.", "execution-boundary", "source-only", "helper-skill"]):
+        return "main-skill-ordering"
     if any(term in text for term in ["strict-mode", "strict mode", "multiple elements", "selector ambiguity", "locator matched", "resolved to", "selector did not match", "did not match"]):
         return "selector-ambiguity"
     if any(term in text for term in ["wait-timeout", "timeout", "timed out", "wait strategy", "client-side graphql", "ssr"]):

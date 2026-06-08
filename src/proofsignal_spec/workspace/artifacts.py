@@ -12,8 +12,14 @@ def render_run_request(
     parameters: dict[str, Any] | None = None,
     *,
     schema_version: str = "qa-run-request/v1",
+    core_contract: dict[str, Any] | None = None,
 ) -> str:
-    skill_refs = [{"id": skill.id or f"skill.{record.alias}", "version": skill.version or "1.0.0"} for skill in record.skills]
+    from proofsignal_spec.workflows.skill_execution_boundary import executable_skill_refs
+
+    skill_refs = [
+        {"id": skill.id or f"skill.{record.alias}", "version": skill.version or "1.0.0"}
+        for skill in executable_skill_refs(record, core_contract=core_contract)
+    ]
     import json
 
     resolved_parameters = dict(parameters or {})
@@ -87,7 +93,8 @@ def write_generated_artifacts(project: Path, record: UseCaseRecord, overwrite: b
         if overwrite or not run_path.exists():
             run_path.parent.mkdir(parents=True, exist_ok=True)
             run_path.write_text(render_run_request(record), encoding="utf-8")
-    for skill in record.skills:
+    skills = _dedupe_skill_refs([*record.skills, *record.sourceOnlySkills])
+    for skill in skills:
         if skill.generated:
             skill_path = layout.project_relative_path(project, skill.path)
             if overwrite or not skill_path.exists():
@@ -104,6 +111,17 @@ def link_external_artifact(path: str, kind: str, artifact_id: str | None = None,
 def _skill_name(skill_id: str, fallback: str) -> str:
     name = skill_id.removeprefix("skill.").replace("-", " ").replace("_", " ").strip()
     return name.title() if name else fallback
+
+
+def _dedupe_skill_refs(skills: list[ArtifactReference]) -> list[ArtifactReference]:
+    deduped: list[ArtifactReference] = []
+    seen: set[str] = set()
+    for skill in skills:
+        if skill.path in seen:
+            continue
+        seen.add(skill.path)
+        deduped.append(skill)
+    return deduped
 
 
 def _render_skill_parameters(record: UseCaseRecord) -> str:

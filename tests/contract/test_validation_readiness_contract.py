@@ -7,6 +7,8 @@ from helpers import CliTestCase
 
 from tests.fixtures.workflows.guardrails import create_ready_use_case_workspace, create_registry_missing_record_path
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
+from tests.fixtures.workflows.skill_execution_boundary import ALIAS, LOGIN_SKILL_ID, MAIN_SKILL_ID, create_planned_workspace, implementation_payload
+from proofsignal_spec.workflows.stage_persistence import persist_stage
 from proofsignal_spec.workspace.repository import load_document, save_document
 
 
@@ -146,3 +148,33 @@ class ValidationReadinessContractTests(CliTestCase):
         self.assertFalse(result["fullBrowserFlowExecuted"])
         self.assertIn("mapped authored evidence", result["readinessSummary"])
         self.assertIn("full browser flow has not executed", result["readinessSummary"])
+
+    def test_execution_boundary_blocks_legacy_multi_skill_run_request_when_core_is_unsupported(self) -> None:
+        create_planned_workspace(self.project)
+        result = persist_stage(self.project, "implement", alias=ALIAS, payload=implementation_payload(composed_main=True))
+        self.assertEqual(result["status"], "persisted")
+        run_request_path = self.project / f".proofsignal/run-requests/{ALIAS}.yaml"
+        run_request = load_document(run_request_path)
+        run_request["skills"] = [
+            {"id": MAIN_SKILL_ID, "version": "1.0.0"},
+            {"id": LOGIN_SKILL_ID, "version": "1.0.0"},
+        ]
+        save_document(run_request_path, run_request)
+
+        code, out, err = self.cli([
+            "workflow",
+            "check",
+            "validate",
+            "--alias",
+            ALIAS,
+            "--project",
+            str(self.project),
+            "--json",
+        ])
+
+        self.assertEqual(code, 2, err)
+        payload = json.loads(out)
+        self.assertEqual(payload["status"], "blocked")
+        blocker = next(item for item in payload["blockers"] if item["code"] == "skill-execution.legacy-migration-required")
+        self.assertEqual(blocker["category"], "skill-execution-boundary")
+        self.assertIn("source-only", blocker["message"])

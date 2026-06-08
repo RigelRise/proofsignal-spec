@@ -29,6 +29,38 @@ def test_core_contract_projection_exposes_run_request_and_skill_sections() -> No
     assert "dragAndDrop" not in projection["sections"]["browserWorkflow"]["validActions"]
 
 
+def test_core_contract_projection_defaults_multi_skill_to_unsupported() -> None:
+    from proofsignal_spec.core.executable_contract import project_core_contract
+
+    raw = CoreAdapter(executable=str(FAKE_CORE)).contracts()
+    projection = project_core_contract(raw, runtime_identity=str(FAKE_CORE), core_version="0.1.0")
+
+    skill_execution = projection["sections"]["skillExecution"]
+    assert skill_execution["multiSkillSupported"] is False
+    assert skill_execution["mode"] == "single-main"
+
+
+def test_core_contract_projection_accepts_declared_multi_skill_support() -> None:
+    from proofsignal_spec.core.executable_contract import project_core_contract
+
+    old_mode = os.environ.get("FAKE_PROOFSIGNAL_MODE")
+    os.environ["FAKE_PROOFSIGNAL_MODE"] = "multi-skill-supported"
+    try:
+        raw = CoreAdapter(executable=str(FAKE_CORE)).contracts()
+    finally:
+        if old_mode is None:
+            os.environ.pop("FAKE_PROOFSIGNAL_MODE", None)
+        else:
+            os.environ["FAKE_PROOFSIGNAL_MODE"] = old_mode
+
+    projection = project_core_contract(raw, runtime_identity=str(FAKE_CORE), core_version="0.1.0")
+
+    skill_execution = projection["sections"]["skillExecution"]
+    assert skill_execution["multiSkillSupported"] is True
+    assert skill_execution["mode"] == "core-declared-multi-skill"
+    assert skill_execution["roleNames"] == ["main", "precondition"]
+
+
 def test_core_contract_projection_filters_experimental_items() -> None:
     from proofsignal_spec.core.executable_contract import project_core_contract
 

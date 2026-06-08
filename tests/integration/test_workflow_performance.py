@@ -14,6 +14,7 @@ from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_
 from proofsignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, specify, workflow_list
 from proofsignal_spec.workflows.prerequisites import check_prerequisites
 from tests.fixtures.workflows.real_run_guardrails import coherent_profile_skill, create_real_run_guardrail_workspace, run_request_payload
+from tests.fixtures.workflows.skill_execution_boundary import create_planned_workspace
 
 
 def test_workflow_status_list_handles_50_runs_under_one_second(tmp_path) -> None:
@@ -134,3 +135,24 @@ def test_core_contract_projection_reuses_discovery_within_one_command_only() -> 
     assert third_projection == first_projection
     assert first_command.discovery_count == 1
     assert second_command.discovery_count == 1
+
+
+def test_execution_boundary_overhead_adds_less_than_fifty_ms_without_core_discovery(tmp_path, monkeypatch) -> None:
+    from proofsignal_spec.workspace.repository import load_use_case
+    from proofsignal_spec.workflows.skill_execution_boundary import resolve_execution_boundary
+
+    create_planned_workspace(tmp_path)
+    record = load_use_case(tmp_path, "brands-search-authenticated")
+    core_contract = {"sections": {"skillExecution": {"status": "unsupported", "multiSkillSupported": False}}}
+
+    def fail_contracts(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise AssertionError("execution-boundary resolution must not discover Core contracts")
+
+    monkeypatch.setattr(CoreAdapter, "contracts", fail_contracts)
+    started = time.monotonic()
+    for _ in range(100):
+        decision = resolve_execution_boundary(record, core_contract=core_contract)
+    elapsed = time.monotonic() - started
+
+    assert decision.executableSkills[0].path.endswith("validate-brands-search-authenticated-flow.browser.md")
+    assert elapsed < 0.05

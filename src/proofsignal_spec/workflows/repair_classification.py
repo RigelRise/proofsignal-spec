@@ -48,6 +48,18 @@ def classify_runtime_feedback(finding: dict[str, Any], *, source: str = "report-
             recommendedAction="blocked",
             confidence="high",
         )
+    if code.startswith("skill-execution.") or any(term in text for term in ["helper-skill", "helper skill", "source-only", "execution-boundary", "executable skill boundary"]):
+        return RuntimeFeedbackFinding(
+            id=_id("skill-execution-boundary", code),
+            source=source,  # type: ignore[arg-type]
+            category="execution-boundary-issue",
+            severity="blocked",
+            summary=message or "Executable skill boundary must be repaired before weakening gates.",
+            evidence=evidence,
+            affectedGates=[gate_id] if gate_id else [],
+            recommendedAction="implement-repair",
+            confidence="high",
+        )
     if any(term in text for term in ["strict-mode", "strict mode", "multiple elements", "locator matched", "resolved to", "selector did not match", "did not match"]):
         return RuntimeFeedbackFinding(
             id=_id("selector", code),

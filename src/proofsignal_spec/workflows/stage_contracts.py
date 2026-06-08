@@ -64,6 +64,9 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
             "supportingSkills",
             "skills",
             "skillReuse",
+            "sourceOnlySkills",
+            "skillComposition",
+            "gateEvidenceMappings",
             "preconditions",
             "validationGates",
             "gateIntentChanges",
@@ -104,7 +107,7 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
     "implement": WorkflowStageContract(
         stage="implement",
         requiredFields=["runRequest", "skills"],
-        optionalFields=["alias", "runtimeInputs", "profiles", "artifacts", "credentialGroups", "credentialRefs"],
+        optionalFields=["alias", "runtimeInputs", "profiles", "artifacts", "credentialGroups", "credentialRefs", "skillComposition"],
         examples=[
             {
                 "runRequest": {"path": ".proofsignal/run-requests/home-page-unauth.yaml"},
@@ -152,6 +155,25 @@ def stage_contracts_payload() -> dict[str, Any]:
         "stages": list(_STAGE_CONTRACTS),
         "byStage": contracts,
         "guidance": "Use these public workflow contracts; do not inspect installed package source to infer payload schemas.",
+        "skillExecutionBoundary": {
+            "source": "spec-public-workflow-contract",
+            "defaultMode": "single-main",
+            "rules": [
+                "Spec decides the executable run-request skill set before validate/run readiness.",
+                "Reusable source skills are authored and preserved outside the executable run-request skill list unless Core declares deterministic multi-skill support.",
+                "When Core does not declare multi-skill support, reusable behavior required by the use case must be inlined into the main executable skill.",
+                "Gate evidence from source-only skills counts only through explicit composition mapping; otherwise it is supporting or diagnostic.",
+            ],
+            "planFields": ["mainSkill", "sourceOnlySkills", "skillComposition", "gateEvidenceMappings"],
+            "implementFields": ["runRequest", "skills", "skillComposition"],
+            "findingCodes": [
+                "skill-execution.multiple-unsupported",
+                "skill-execution.reusable-marked-executable",
+                "skill-execution.legacy-migration-required",
+                "skill-execution.gate-evidence-unmapped",
+                "skill-execution.source-only-excluded",
+            ],
+        },
     }
 
 

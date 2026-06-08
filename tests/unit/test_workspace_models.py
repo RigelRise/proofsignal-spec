@@ -64,3 +64,30 @@ class WorkspaceModelTests(CliTestCase):
         self.assertIn("schemaVersion: qa-skill/v1", skill)
         self.assertIn("browser:", skill)
         self.assertIn("value: \"{{parameters.baseUrl}}\"", skill)
+
+    def test_use_case_serializes_source_only_skills_and_composition_decisions(self) -> None:
+        record = UseCaseRecord(
+            alias="brands-search-authenticated",
+            title="Brands Search Authenticated",
+            description="Validate authenticated brands search.",
+            runRequest=ArtifactReference(path=".proofsignal/run-requests/brands.yaml", kind="run-request"),
+            mainSkill=ArtifactReference(path=".proofsignal/skills/brands-main.browser.md", kind="skill", id="skill.brands-main"),
+            skills=[
+                ArtifactReference(path=".proofsignal/skills/brands-main.browser.md", kind="skill", id="skill.brands-main"),
+                ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login"),
+            ],
+            sourceOnlySkills=[
+                ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login"),
+            ],
+            skillComposition={
+                "mode": "inline-into-main",
+                "sourceSkillPaths": [".proofsignal/skills/login.browser.md"],
+                "mainSkillPath": ".proofsignal/skills/brands-main.browser.md",
+                "credentialReferencePolicy": "preserve-placeholders",
+            },
+        )
+
+        restored = UseCaseRecord.from_dict(record.to_dict())
+
+        self.assertEqual(restored.sourceOnlySkills[0].path, ".proofsignal/skills/login.browser.md")
+        self.assertEqual(restored.skillComposition["mode"], "inline-into-main")

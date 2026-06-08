@@ -1308,7 +1308,10 @@ class ArtifactPlan:
     runRequest: str
     mainSkill: str
     supportingSkills: list[str] = field(default_factory=list)
+    sourceOnlySkills: list[str] = field(default_factory=list)
     skillReuse: list[dict[str, Any]] = field(default_factory=list)
+    skillComposition: dict[str, Any] | None = None
+    gateEvidenceMappings: list[dict[str, Any]] = field(default_factory=list)
     runtimeInputs: list[dict[str, Any]] = field(default_factory=list)
     preconditions: list[str] = field(default_factory=list)
     validationGates: list[Any] = field(default_factory=list)
@@ -1321,7 +1324,10 @@ class ArtifactPlan:
             runRequest=str(data.get("runRequest", "")),
             mainSkill=str(data.get("mainSkill", "")),
             supportingSkills=[str(item) for item in data.get("supportingSkills", [])],
+            sourceOnlySkills=[str(item) for item in data.get("sourceOnlySkills", [])],
             skillReuse=list(data.get("skillReuse", [])),
+            skillComposition=data.get("skillComposition") if isinstance(data.get("skillComposition"), dict) else None,
+            gateEvidenceMappings=list(data.get("gateEvidenceMappings", [])),
             runtimeInputs=list(data.get("runtimeInputs", [])),
             preconditions=[str(item) for item in data.get("preconditions", [])],
             validationGates=list(data.get("validationGates", [])),

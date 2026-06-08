@@ -123,3 +123,26 @@ class RepairContractTests(CliTestCase):
         self.assertEqual(payload["specCoverageStatus"], "diagnostic")
         self.assertEqual(payload["runtimeContradictions"], [])
         self.assertFalse(any(item.get("action") == "mark-conditional" for item in payload["repairRecommendations"]))
+
+    def test_execution_boundary_repair_does_not_recommend_gate_weakening(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        record = load_use_case(self.project, "profile-view-unauth")
+        record.validation = {
+            "findings": [
+                {
+                    "code": "skill-execution.legacy-migration-required",
+                    "message": "Helper skill executed as an unintended executable participant while required gates were missing.",
+                    "artifact": ".proofsignal/run-requests/profile-view-unauth.yaml",
+                    "path": "skills",
+                }
+            ]
+        }
+        save_use_case(self.project, record)
+
+        code, out, _err = self.cli(["repair", "profile-view-unauth", "--project", str(self.project), "--json"])
+
+        self.assertEqual(code, 0)
+        recommendations = json.loads(out)["repair"]["recommendations"]
+        self.assertEqual(recommendations[0]["runtimeCategory"], "execution-boundary-issue")
+        self.assertEqual(recommendations[0]["safeCategory"], "main-skill-ordering")
+        self.assertIn("do not weaken required gates", recommendations[0]["action"])

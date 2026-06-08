@@ -107,6 +107,7 @@ def project_core_contract(
         "skill": _project_schema_section(section_data.get("skill"), "skill", projection_findings),
         "browserWorkflow": _project_browser_workflow(section_data.get("browserWorkflow"), projection_findings),
         "credentials": _project_credentials(section_data.get("credentials"), projection_findings),
+        "skillExecution": _project_skill_execution(section_data.get("skillExecution") or section_data.get("multiSkillExecution")),
         "placeholders": _project_placeholders(section_data.get("placeholders")),
         "reportCoverage": _project_report_coverage(section_data.get("reportCoverage")),
         "publicRedactionPolicy": _project_plain_section(section_data.get("publicRedactionPolicy")),
@@ -432,6 +433,42 @@ def _project_credentials(value: Any, findings: list[ContractCompatibilityFinding
         "experimentalSources": [item for item in sources if _status(item) == "experimental"],
         "referenceShape": reference_shape,
         "placeholderSyntax": placeholder_syntax,
+    }
+
+
+def _project_skill_execution(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {
+            "status": "unsupported",
+            "multiSkillSupported": False,
+            "mode": "single-main",
+        }
+    status = str(value.get("status") or value.get("supportStatus") or "").lower()
+    raw_roles = [item for item in _items(value.get("roles") or value.get("supportedRoles")) if isinstance(item, dict)]
+    stable_roles = [item for item in raw_roles if _status(item) in {"stable", "supported"}]
+    role_names = [str(_name(item) or item.get("role") or "") for item in stable_roles]
+    role_names = [item for item in role_names if item]
+    ordering = value.get("ordering") or value.get("order") or value.get("executionOrder")
+    evidence = value.get("evidenceSemantics") or value.get("evidence") or value.get("gateEvidence")
+    if status in {"partial", "partially-supported", "preconditions-only"}:
+        return {
+            **{key: val for key, val in value.items() if key not in {"roles", "supportedRoles"}},
+            "status": "partial",
+            "multiSkillSupported": False,
+            "mode": "partial-support",
+            "roles": stable_roles,
+            "roleNames": role_names,
+        }
+    supported = status in {"stable", "supported"} and bool(role_names) and bool(ordering) and bool(evidence)
+    return {
+        **{key: val for key, val in value.items() if key not in {"roles", "supportedRoles"}},
+        "status": status or "unsupported",
+        "multiSkillSupported": supported,
+        "mode": "core-declared-multi-skill" if supported else "single-main",
+        "roles": stable_roles,
+        "roleNames": role_names,
+        "ordering": ordering,
+        "evidenceSemantics": evidence,
     }
 
 

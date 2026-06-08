@@ -9,6 +9,7 @@ from proofsignal_spec.core.errors import CoreExecutionError, CoreIncompatibleErr
 from proofsignal_spec.core.executable_contract import project_core_contract
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workspace import layout
+from proofsignal_spec.workspace.repository import load_document, load_use_case
 from proofsignal_spec.workspace.validation import validate_use_case, validate_workspace
 
 from .migration import migration_plans
@@ -20,12 +21,13 @@ from .models import (
     ReadinessBlocker,
     StructuralWorkspaceValidation,
 )
+from .skill_execution_boundary import resolve_execution_boundary
 
 
 def validation_readiness(project: Path, alias: str | None = None, core_cmd: str | None = None) -> dict[str, Any]:
     structural = structural_validation(project, alias=alias)
     core = core_readiness(project, core_cmd=core_cmd)
-    contract_blockers = executable_contract_blockers(project, core.coreCommand) if core.status == "available" else []
+    contract_blockers = executable_contract_blockers(project, core.coreCommand, alias=alias) if core.status == "available" else []
     blockers = [*_blockers(structural, core), *contract_blockers]
     status = "blocked" if contract_blockers else _overall_status(structural, core)
     return {
@@ -54,7 +56,7 @@ def structural_validation(project: Path, alias: str | None = None) -> Structural
             findings.extend(validate_use_case(project, record))
             if record.runRequest:
                 checked.append(record.runRequest.path)
-            checked.extend(skill.path for skill in record.skills)
+            checked.extend(skill.path for skill in [*record.skills, *record.sourceOnlySkills])
         except Exception as exc:
             findings.append(
                 {
@@ -129,8 +131,14 @@ def core_readiness(project: Path, core_cmd: str | None = None) -> CoreReadiness:
     return CoreReadiness(status="error", coreCommand=command, requiredOperations=contract["requiredOperations"], message=message)
 
 
-def executable_contract_blockers(project: Path, core_command: str | None) -> list[ReadinessBlocker]:
-    if not core_command:
+def executable_contract_blockers(
+    project: Path,
+    core_command: str | None,
+    *,
+    alias: str | None = None,
+    core_contract: dict[str, Any] | None = None,
+) -> list[ReadinessBlocker]:
+    if not core_command and core_contract is None:
         return [
             ReadinessBlocker(
                 code="core-contract.bootstrap-incompatible",
@@ -139,28 +147,30 @@ def executable_contract_blockers(project: Path, core_command: str | None) -> lis
                 documentationRef="coreExecutableContract",
             )
         ]
-    adapter = CoreAdapter(executable=core_command, cwd=project)
-    try:
-        raw = adapter.contracts()
-    except CoreIncompatibleError as exc:
-        return [
-            ReadinessBlocker(
-                code="core-contract.bootstrap-incompatible",
-                message=str(exc),
-                repairable=False,
-                documentationRef="coreExecutableContract",
-            )
-        ]
-    except (CoreMissingError, CoreExecutionError) as exc:
-        return [
-            ReadinessBlocker(
-                code="core-contract.discovery-failed",
-                message=str(exc),
-                repairable=False,
-                documentationRef="coreExecutableContract",
-            )
-        ]
-    projection = project_core_contract(raw)
+    projection = core_contract
+    if projection is None:
+        adapter = CoreAdapter(executable=str(core_command), cwd=project)
+        try:
+            raw = adapter.contracts()
+        except CoreIncompatibleError as exc:
+            return [
+                ReadinessBlocker(
+                    code="core-contract.bootstrap-incompatible",
+                    message=str(exc),
+                    repairable=False,
+                    documentationRef="coreExecutableContract",
+                )
+            ]
+        except (CoreMissingError, CoreExecutionError) as exc:
+            return [
+                ReadinessBlocker(
+                    code="core-contract.discovery-failed",
+                    message=str(exc),
+                    repairable=False,
+                    documentationRef="coreExecutableContract",
+                )
+            ]
+        projection = project_core_contract(raw)
     blockers: list[ReadinessBlocker] = []
     for finding in projection.get("findings", []):
         if finding.get("severity") != "blocking":
@@ -171,6 +181,34 @@ def executable_contract_blockers(project: Path, core_command: str | None) -> lis
                 message=str(finding.get("message") or "Core executable contract is incompatible."),
                 repairable=False,
                 documentationRef="coreExecutableContract",
+            )
+        )
+    if alias:
+        blockers.extend(execution_boundary_blockers(project, alias, core_contract=projection))
+    return blockers
+
+
+def execution_boundary_blockers(project: Path, alias: str, *, core_contract: dict[str, Any] | None = None) -> list[ReadinessBlocker]:
+    try:
+        record = load_use_case(project, alias)
+    except Exception:
+        return []
+    run_request = None
+    if record.runRequest:
+        run_request = load_document(project / record.runRequest.path, default={}) or {}
+    decision = resolve_execution_boundary(record, core_contract=core_contract, run_request=run_request)
+    blockers: list[ReadinessBlocker] = []
+    for finding in decision.findings:
+        if finding.get("severity") != "blocking":
+            continue
+        blockers.append(
+            ReadinessBlocker(
+                code=str(finding.get("code") or "skill-execution.boundary-blocked"),
+                category="skill-execution-boundary",
+                message=str(finding.get("message") or "Skill execution boundary is blocked."),
+                recoveryCommand=f"proofsignal workflow persist implement --alias {alias} --payload <payload.json> --json",
+                repairable=bool(finding.get("repairable", True)),
+                documentationRef="coreExecutableContract.sections.skillExecution",
             )
         )
     return blockers

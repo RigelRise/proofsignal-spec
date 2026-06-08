@@ -7,6 +7,7 @@ from typing import Any
 from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
 from proofsignal_spec.core.adapter import CoreAdapter, core_status
 from proofsignal_spec.core.errors import CoreMissingError
+from proofsignal_spec.core.executable_contract import project_core_contract
 from proofsignal_spec.runtime.entitlement import load_receipt, receipt_status
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.browser_authoring import resolve_effective_profile_settings
@@ -36,7 +37,6 @@ def run(
     if profile is None:
         available = ", ".join(item.name for item in record.profiles) or "normal"
         raise ValueError(f"Unknown profile for {alias}: {profile_name}. Available profiles: {available}.")
-    record, run_request, main_skill, skills = resolve_artifacts(project, alias)
     managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="run")
     if managed_runtime.status != "ready":
         contract_blockers = managed_runtime_contract_blockers(managed_runtime)
@@ -67,10 +67,12 @@ def run(
             "reason": managed_runtime.message,
             "nextAction": managed_runtime.nextAction,
         }
+    core_contract = _core_contract(project, managed_runtime.runtimeCommand)
+    record, run_request, main_skill, skills = resolve_artifacts(project, alias, core_contract=core_contract)
     profile_settings_model = resolve_effective_profile_settings(profile, slow_mo_override=slow_mo_override)
     contract_blockers = [
         *legacy_executable_artifact_blockers(run_request, main_skill, skills),
-        *executable_contract_blockers(project, managed_runtime.runtimeCommand),
+        *executable_contract_blockers(project, managed_runtime.runtimeCommand, alias=alias, core_contract=core_contract),
     ]
     if contract_blockers:
         return {
@@ -270,6 +272,15 @@ def _first_run_payload(
         "strictPass": strict_pass,
         "stageCards": stage_cards,
     }
+
+
+def _core_contract(project: Path, core_command: str | None) -> dict[str, Any] | None:
+    if not core_command:
+        return None
+    try:
+        return project_core_contract(CoreAdapter(executable=core_command, cwd=project).contracts())
+    except Exception:
+        return None
 
 
 def _planned_gates(project: Path, alias: str) -> list[Any]:

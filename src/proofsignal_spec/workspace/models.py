@@ -223,6 +223,8 @@ class UseCaseRecord:
     runRequest: ArtifactReference | None = None
     mainSkill: ArtifactReference | None = None
     skills: list[ArtifactReference] = field(default_factory=list)
+    sourceOnlySkills: list[ArtifactReference] = field(default_factory=list)
+    skillComposition: dict[str, Any] | None = None
     runtimeInputs: list[RuntimeInputRequirement] = field(default_factory=list)
     credentialRefs: dict[str, Any] = field(default_factory=dict)
     credentialGroups: list[dict[str, Any] | str] = field(default_factory=list)
@@ -252,6 +254,8 @@ class UseCaseRecord:
             runRequest=ArtifactReference.from_dict(data["runRequest"]) if data.get("runRequest") else None,
             mainSkill=ArtifactReference.from_dict(data["mainSkill"]) if data.get("mainSkill") else None,
             skills=[ArtifactReference.from_dict(item) for item in data.get("skills", [])],
+            sourceOnlySkills=[ArtifactReference.from_dict(item) for item in data.get("sourceOnlySkills", [])],
+            skillComposition=data.get("skillComposition") if isinstance(data.get("skillComposition"), dict) else None,
             runtimeInputs=[RuntimeInputRequirement.from_dict(item) for item in data.get("runtimeInputs", [])],
             credentialRefs=dict(data.get("credentialRefs", {})),
             credentialGroups=list(data.get("credentialGroups", [])),
@@ -268,6 +272,7 @@ class UseCaseRecord:
         data["runRequest"] = self.runRequest.to_dict() if self.runRequest else None
         data["mainSkill"] = self.mainSkill.to_dict() if self.mainSkill else None
         data["skills"] = [item.to_dict() for item in self.skills]
+        data["sourceOnlySkills"] = [item.to_dict() for item in self.sourceOnlySkills]
         data["runtimeInputs"] = [item.to_dict() for item in self.runtimeInputs]
         data["credentialRefs"] = dict(self.credentialRefs)
         data["profiles"] = [item.to_dict() for item in self.profiles]

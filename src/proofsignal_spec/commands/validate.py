@@ -89,10 +89,11 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         }
         update_validation(project, alias, result)
         return result
-    record, run_request, main_skill, skills = resolve_artifacts(project, alias)
+    core_contract = _core_contract_for_coherence(project, managed_runtime.runtimeCommand)
+    record, run_request, main_skill, skills = resolve_artifacts(project, alias, core_contract=core_contract)
     contract_blockers = [
         *legacy_executable_artifact_blockers(run_request, main_skill, skills),
-        *executable_contract_blockers(project, managed_runtime.runtimeCommand),
+        *executable_contract_blockers(project, managed_runtime.runtimeCommand, alias=alias, core_contract=core_contract),
     ]
     if contract_blockers:
         result = {
@@ -108,7 +109,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
     coherence = evaluate_persisted_coherence(
         project,
         alias,
-        core_contract=_core_contract_for_coherence(project, managed_runtime.runtimeCommand),
+        core_contract=core_contract,
     )
     if coherence.status == "blocked":
         result = {

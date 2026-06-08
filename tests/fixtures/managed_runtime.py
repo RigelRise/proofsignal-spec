@@ -20,6 +20,30 @@ def core_contract_operation(name: str, schema: str, schema_version: int = 1, *, 
     return {"name": name, "schema": schema, "schemaVersion": schema_version, "status": status}
 
 
+def unsupported_multi_skill_section() -> dict[str, Any]:
+    return {"status": "unsupported", "multiSkillSupported": False, "mode": "single-main"}
+
+
+def supported_multi_skill_section() -> dict[str, Any]:
+    return {
+        "status": "stable",
+        "multiSkillSupported": True,
+        "roles": [{"name": "main", "status": "stable"}, {"name": "precondition", "status": "stable"}],
+        "ordering": "declared-list-order",
+        "evidenceSemantics": "gateId-attributed-per-participant",
+    }
+
+
+def partial_multi_skill_section() -> dict[str, Any]:
+    return {
+        "status": "partial",
+        "multiSkillSupported": False,
+        "roles": [{"name": "precondition", "status": "stable"}],
+        "ordering": "preconditions-before-main",
+        "evidenceSemantics": None,
+    }
+
+
 def core_contract_fixture_payload(
     *,
     browser_actions: list[dict[str, Any]] | None = None,
