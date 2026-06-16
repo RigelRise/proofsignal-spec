@@ -22,6 +22,7 @@ SECRET_FIELD_RE = re.compile(r"(password|secret|token|api[_-]?key|access[_-]?key
 BEARER_RE = re.compile(r"\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}", re.I)
 HIGH_ENTROPY_RE = re.compile(r"^[A-Za-z0-9_./+=-]{32,}$")
 HEX_IDENTIFIER_RE = re.compile(r"^[a-f0-9]{7,64}$", re.I)
+PUBLIC_DIGEST_RE = re.compile(r"^(sha256:)?[a-f0-9]{64}$", re.I)
 DUMMY_VALUES = {"example", "dummy", "placeholder", "changeme", "test", "sample", "qa@example.com"}
 SECRET_QUERY_PARAM_RE = re.compile(r"(token|secret|api[_-]?key|access[_-]?key|client[_-]?secret|authorization|auth|password|pwd)", re.I)
 ENV_VAR_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
@@ -114,6 +115,8 @@ def validate_no_secret_values(data: Any, path: str = "") -> list[dict[str, str]]
                 findings.extend(validate_no_secret_values(value, child_path))
             elif _is_public_credential_ref_key_name(child_path, value):
                 continue
+            elif _is_public_artifact_fingerprint(child_path, value):
+                continue
             elif looks_secret(value, str(key)):
                 findings.append({"severity": "blocking", "code": "secret-looking-value", "path": child_path, "message": "Secret-looking value must not be persisted."})
     elif isinstance(data, list):
@@ -162,6 +165,13 @@ def _is_public_credential_ref_key_name(path: str, value: Any) -> bool:
     if ".credentialRefs." not in marker_path or ".keys." not in marker_path:
         return False
     return isinstance(value, str) and bool(ENV_VAR_NAME_RE.match(value.strip()))
+
+
+def _is_public_artifact_fingerprint(path: str, value: Any) -> bool:
+    marker_path = f".{path}"
+    if ".artifactFingerprints." not in marker_path:
+        return False
+    return isinstance(value, str) and bool(PUBLIC_DIGEST_RE.match(value.strip()))
 
 
 def validate_workspace(project: Path) -> list[dict[str, str]]:

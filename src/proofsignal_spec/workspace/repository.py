@@ -606,6 +606,7 @@ def list_requirements(record: UseCaseRecord) -> dict[str, Any]:
 def list_risk(project: Path, record: UseCaseRecord) -> dict[str, Any]:
     confirmation = load_confirmation_requirement(project, record.alias)
     capability = record.artifactCapabilities if isinstance(record.artifactCapabilities, dict) else {}
+    risk_assertions = side_effect_risk_assertions(record)
     return {
         "classes": _risk_classes(record),
         "write": side_effect_class(record) in {"write", "external-notification"},
@@ -614,6 +615,7 @@ def list_risk(project: Path, record: UseCaseRecord) -> dict[str, Any]:
         "capabilityStatus": capability.get("status", "legacy-or-unknown" if not capability else "unknown"),
         "requiresConfirmation": bool(confirmation and confirmation.blocksExecution),
         "confirmationId": confirmation.id if confirmation else None,
+        "riskAssertions": risk_assertions,
     }
 
 
@@ -642,6 +644,27 @@ def credential_runtime_requirements(record: UseCaseRecord) -> list[dict[str, Any
 def side_effect_class(record: UseCaseRecord) -> str:
     data = record.sideEffects if isinstance(record.sideEffects, dict) else {}
     return str(data.get("class") or data.get("sideEffectClass") or "none")
+
+
+def side_effect_risk_assertions(record: UseCaseRecord) -> list[dict[str, Any]]:
+    """Normalize persisted public side-effect risk signals.
+
+    Consumers should depend on this assertion shape instead of branching on
+    every historical or future field that may carry risk evidence.
+    """
+
+    last_run = record.lastRun if isinstance(record.lastRun, dict) else {}
+    assertions: list[dict[str, Any]] = []
+    for item in last_run.get("riskAssertions", []):
+        if isinstance(item, dict):
+            assertions.append(_normalize_risk_assertion(item, source="prior-run"))
+    for key in ["writeRisk", "sideEffectRisk"]:
+        if isinstance(last_run.get(key), dict):
+            assertions.append(_normalize_risk_assertion(last_run[key], source=key))
+    legacy = _legacy_post_commit_risk_assertion(last_run)
+    if legacy:
+        assertions.append(legacy)
+    return [assertion for assertion in assertions if _risk_assertion_requires_confirmation(assertion)]
 
 
 def lifecycle_declaration(record: UseCaseRecord) -> SideEffectLifecycleDeclaration:
@@ -689,7 +712,20 @@ def confirmation_requirement(
 def run_confirmation_requirements(project: Path, record: UseCaseRecord) -> list[ConfirmationRequirement]:
     requirements: list[ConfirmationRequirement] = []
     side_effect = side_effect_class(record)
+    unresolved_risks = side_effect_risk_assertions(record)
     if side_effect not in {"write", "external-notification"}:
+        if unresolved_risks:
+            risk = unresolved_risks[0]
+            requirements.append(
+                confirmation_requirement(
+                    alias=record.alias,
+                    risk_class="unknown-write-risk",
+                    scope="unresolved-side-effect-risk",
+                    reason=str(risk.get("reason") or "A persisted side-effect risk assertion is unresolved for this use case."),
+                    recommended_action="Review cleanup/idempotency and explicitly confirm the side-effect risk before rerun.",
+                )
+            )
+            save_confirmation_requirement(project, requirements[0])
         return requirements
     lifecycle = lifecycle_declaration(record)
     capabilities = _capability_names(record)
@@ -770,9 +806,37 @@ def _risk_requires_short_snapshot(record: UseCaseRecord) -> bool:
 
 
 def _last_run_has_write_risk(record: UseCaseRecord) -> bool:
-    last_run = record.lastRun if isinstance(record.lastRun, dict) else {}
+    return bool(side_effect_risk_assertions(record))
+
+
+def _normalize_risk_assertion(assertion: dict[str, Any], *, source: str) -> dict[str, Any]:
+    return {
+        "status": str(assertion.get("status") or assertion.get("sideEffectStatus") or "unknown"),
+        "source": str(assertion.get("source") or source),
+        "requiresConfirmationBeforeRun": bool(assertion.get("requiresConfirmationBeforeRun", False)),
+        "reason": str(assertion.get("reason") or assertion.get("message") or "Persisted side-effect risk assertion requires review."),
+    }
+
+
+def _legacy_post_commit_risk_assertion(last_run: dict[str, Any]) -> dict[str, Any] | None:
     interpretation = last_run.get("postCommitInterpretation") if isinstance(last_run.get("postCommitInterpretation"), dict) else {}
-    return bool(interpretation.get("postCommit") or interpretation.get("sideEffectMayExist") or interpretation.get("sideEffectStatus") == "unknown")
+    if not interpretation:
+        return None
+    risky = bool(interpretation.get("postCommit") or interpretation.get("sideEffectMayExist") or interpretation.get("sideEffectStatus") == "unknown")
+    if not risky:
+        return None
+    return {
+        "status": str(interpretation.get("sideEffectStatus") or "unknown"),
+        "source": "legacy-post-commit-interpretation",
+        "requiresConfirmationBeforeRun": True,
+        "reason": str(interpretation.get("message") or "Previous run has unresolved side-effect risk."),
+    }
+
+
+def _risk_assertion_requires_confirmation(assertion: dict[str, Any]) -> bool:
+    if assertion.get("requiresConfirmationBeforeRun") is True:
+        return True
+    return str(assertion.get("status") or "").lower() in {"possible", "inferred", "confirmed", "unknown"}
 
 
 def _post_commit_rerun_requires_confirmation(record: UseCaseRecord) -> bool:

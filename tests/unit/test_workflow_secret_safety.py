@@ -139,6 +139,25 @@ def test_target_locator_allows_safe_staging_and_local_urls() -> None:
     assert validate_no_secret_values({"target": "http://localhost:5002"}) == []
 
 
+def test_artifact_fingerprints_allow_public_sha256_digests_only() -> None:
+    safe = {
+        "artifactFingerprints": {
+            ".proofsignal/run-requests/add-collaboration-project.yaml": "a" * 64,
+            ".proofsignal/skills/add-flow.browser.md": "sha256:" + "b" * 64,
+        }
+    }
+    unsafe = {
+        "artifactFingerprints": {
+            ".proofsignal/run-requests/add-collaboration-project.yaml": "Bearer abcdefghijklmnopqrstuvwxyz123456"
+        }
+    }
+
+    assert validate_no_secret_values(safe) == []
+    findings = validate_no_secret_values(unsafe)
+    assert findings
+    assert findings[0]["code"] == "secret-looking-value"
+
+
 def test_golden_path_example_docs_do_not_include_secret_values() -> None:
     from pathlib import Path
 

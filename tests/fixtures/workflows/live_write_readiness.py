@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from proofsignal_spec import __version__ as SPEC_VERSION
 from proofsignal_spec.workspace.models import (
     ArtifactReference,
     ReadinessSnapshot,
@@ -97,7 +98,7 @@ def save_ready_snapshot(project: Path, alias: str, *, checked_at: str | None = N
             status="ready",
             checkedAt=checked_at or datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
             artifactFingerprints=artifact_fingerprints(project, record),
-            specVersion="0.13.0",
+            specVersion=SPEC_VERSION,
             artifactContractVersion="proofsignal-spec-use-case/v1",
             targetProjectRevision=None,
             testedCodeScopeStatus="unknown",
