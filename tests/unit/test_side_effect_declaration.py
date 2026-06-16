@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+from proofsignal_spec.workspace.models import SideEffectDeclaration, RerunPolicy
+from proofsignal_spec.workspace.validation import validate_side_effect_declaration
+
+
+def _supported_contract() -> dict:
+    return {
+        "sections": {
+            "sideEffectGuardrails": {
+                "policyClasses": ["none", "authenticated-read", "write", "external-notification", "unknown"],
+                "policyModes": ["observe", "warn", "enforce"],
+                "confirmationSignalTypes": ["finalUrl", "runtimeOutput", "dom", "allowedNetworkObservation"],
+                "runtimeOutputSources": ["finalUrl", "location", "dom", "network"],
+                "resultClassification": {
+                    "failurePhases": ["pre-commit", "post-commit", "post-verification", "unknown"],
+                    "rerunRisks": ["safe", "safe-with-new-inputs", "requires-confirmation", "blocked"],
+                },
+            }
+        }
+    }
+
+
+def test_write_defaults_to_enforce_and_serializes_public_class_key() -> None:
+    declaration = SideEffectDeclaration.from_dict({"class": "write", "commitStepId": "submit"})
+
+    assert declaration.policyMode == "enforce"
+    assert declaration.to_dict()["class"] == "write"
+    assert "sideEffectClass" not in declaration.to_dict()
+
+
+def test_read_only_declaration_does_not_require_write_metadata() -> None:
+    declaration = SideEffectDeclaration.from_dict({"class": "none"})
+
+    findings = validate_side_effect_declaration(declaration.to_dict(), core_contract=_supported_contract())
+
+    assert findings == []
+
+
+def test_write_requires_commit_step_rerun_policy_and_local_envelope() -> None:
+    declaration = SideEffectDeclaration.from_dict({"class": "write"})
+
+    findings = validate_side_effect_declaration(declaration.to_dict(), core_contract=_supported_contract())
+    codes = {item["code"] for item in findings}
+
+    assert "side-effect-commit-step-missing" in codes
+    assert "side-effect-envelope-missing" in codes
+    assert "rerun-policy-missing" in codes
+
+
+def test_write_accepts_allowed_rule_as_local_envelope() -> None:
+    declaration = SideEffectDeclaration.from_dict(
+        {
+            "class": "write",
+            "commitStepId": "submit",
+            "allowed": [{"id": "create-resource", "kind": "network", "methods": ["POST"], "urlContains": "/resources"}],
+        }
+    )
+    rerun_policy = RerunPolicy.from_dict({"afterNoCommit": "allowed", "afterCommit": "blocked"})
+
+    findings = validate_side_effect_declaration(
+        declaration.to_dict(),
+        rerun_policy=rerun_policy.to_dict(),
+        core_contract=_supported_contract(),
+    )
+
+    assert findings == []
+
+
+def test_unsupported_core_contract_values_block_readiness() -> None:
+    declaration = SideEffectDeclaration.from_dict(
+        {
+            "class": "write",
+            "mode": "enforce",
+            "commitStepId": "submit",
+            "allowed": [{"id": "create-resource", "kind": "network"}],
+            "confirmationSignals": [{"id": "created-url", "type": "missingType"}],
+        }
+    )
+
+    findings = validate_side_effect_declaration(
+        declaration.to_dict(),
+        rerun_policy={"afterNoCommit": "allowed", "afterCommit": "blocked"},
+        core_contract=_supported_contract(),
+    )
+
+    assert any(item["code"] == "side-effect-confirmation-signal-unsupported" for item in findings)
+

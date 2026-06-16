@@ -110,6 +110,7 @@ def project_core_contract(
         "skillExecution": _project_skill_execution(section_data.get("skillExecution") or section_data.get("multiSkillExecution")),
         "placeholders": _project_placeholders(section_data.get("placeholders")),
         "reportCoverage": _project_report_coverage(section_data.get("reportCoverage")),
+        "sideEffectGuardrails": _project_side_effect_guardrails(section_data.get("sideEffectGuardrails")),
         "publicRedactionPolicy": _project_plain_section(section_data.get("publicRedactionPolicy")),
         "runtimeTrustHandoff": _project_plain_section(section_data.get("runtimeTrustHandoff")),
     }
@@ -197,6 +198,33 @@ def browser_authoring_projection(projection: dict[str, Any]) -> dict[str, Any]:
         "gateEvidenceRules": browser.get("gateEvidenceRules", {}),
         "timingGuidance": browser.get("timingGuidance", []),
         "experimentalItems": browser.get("experimentalItems", {}),
+    }
+
+
+def side_effect_guardrails_projection(projection: dict[str, Any]) -> dict[str, Any]:
+    guardrails = projection.get("sections", {}).get("sideEffectGuardrails", {})
+    if not isinstance(guardrails, dict) or not guardrails.get("supported"):
+        return {
+            "schemaVersion": "proofsignal-side-effect-guardrails-contract/v1",
+            "source": CORE_EXECUTABLE_CONTRACT_SOURCE,
+            "supported": False,
+            "finding": {
+                "code": "side-effect-core-contract-missing",
+                "message": "Core sideEffectGuardrails section is missing or unsupported.",
+            },
+        }
+    return {
+        "schemaVersion": "proofsignal-side-effect-guardrails-contract/v1",
+        "source": CORE_EXECUTABLE_CONTRACT_SOURCE,
+        "supported": True,
+        "classes": guardrails.get("classes", []),
+        "modes": guardrails.get("modes", []),
+        "confirmationSignalTypes": guardrails.get("confirmationSignalTypes", []),
+        "runtimeOutputSources": guardrails.get("runtimeOutputSources", []),
+        "sideEffectStatuses": guardrails.get("sideEffectStatuses", []),
+        "failurePhases": guardrails.get("failurePhases", []),
+        "rerunRisks": guardrails.get("rerunRisks", []),
+        "reportFields": guardrails.get("reportFields", []),
     }
 
 
@@ -488,6 +516,33 @@ def _project_report_coverage(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
 
+def _project_side_effect_guardrails(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {"status": "unsupported", "supported": False}
+    result_classification = value.get("resultClassification") if isinstance(value.get("resultClassification"), dict) else {}
+    classes = _string_list(value.get("classes") or value.get("policyClasses") or value.get("sideEffectClasses"))
+    modes = _string_list(value.get("modes") or value.get("policyModes"))
+    confirmation_signal_types = _string_list(value.get("confirmationSignalTypes") or value.get("confirmationSignals"))
+    runtime_output_sources = _string_list(value.get("runtimeOutputSources"))
+    side_effect_statuses = _string_list(value.get("sideEffectStatuses") or result_classification.get("sideEffectStatuses"))
+    failure_phases = _string_list(value.get("failurePhases") or result_classification.get("failurePhases"))
+    rerun_risks = _string_list(value.get("rerunRisks") or result_classification.get("rerunRisks"))
+    status = str(value.get("status") or "unsupported")
+    return {
+        **value,
+        "status": status,
+        "supported": status in {"stable", "supported"} or bool(value.get("supported")),
+        "classes": classes,
+        "modes": modes,
+        "confirmationSignalTypes": confirmation_signal_types,
+        "runtimeOutputSources": runtime_output_sources,
+        "sideEffectStatuses": side_effect_statuses,
+        "failurePhases": failure_phases,
+        "rerunRisks": rerun_risks,
+        "reportFields": _string_list(value.get("reportFields")),
+    }
+
+
 def _project_plain_section(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
@@ -536,3 +591,17 @@ def _non_executable_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _string_names(value: Any) -> list[str]:
     return [_name(item) for item in _items(value) if _name(item)]
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item:
+            result.append(item)
+        elif isinstance(item, dict):
+            name = _name(item)
+            if name:
+                result.append(name)
+    return result

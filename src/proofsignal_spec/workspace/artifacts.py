@@ -26,6 +26,8 @@ def render_run_request(
     for item in record.runtimeInputs:
         if item.kind == "credential":
             continue
+        if item.source == "generated":
+            continue
         resolved_parameters.setdefault(item.name, "")
     document: dict[str, Any] = {
         "schemaVersion": schema_version,
@@ -37,6 +39,15 @@ def render_run_request(
     }
     if record.credentialRefs:
         document["credentialRefs"] = record.credentialRefs
+    runtime_input_declarations = [_runtime_input_declaration(item) for item in record.runtimeInputs if item.kind != "credential"]
+    if runtime_input_declarations:
+        document["runtimeInputs"] = runtime_input_declarations
+    if record.runtimeOutputs:
+        document["runtimeOutputs"] = list(record.runtimeOutputs)
+    if record.sideEffects:
+        document["sideEffectPolicy"] = record.sideEffects
+    if record.rerunPolicy:
+        document["rerunPolicy"] = record.rerunPolicy
     return json.dumps(document, indent=2) + "\n"
 
 
@@ -139,6 +150,29 @@ def _render_skill_parameters(record: UseCaseRecord) -> str:
             ]
         )
     return "\n".join(lines)
+
+
+def _runtime_input_declaration(item: Any) -> dict[str, Any]:
+    data = item.to_dict()
+    return {
+        key: value
+        for key, value in data.items()
+        if key
+        in {
+            "name",
+            "kind",
+            "required",
+            "description",
+            "source",
+            "envVar",
+            "credentialGroup",
+            "persistValue",
+            "template",
+            "default",
+            "refreshOnRerunAfterCommit",
+            "references",
+        }
+    }
 
 
 def _render_browser_section(browser: dict[str, Any], record: UseCaseRecord) -> str:

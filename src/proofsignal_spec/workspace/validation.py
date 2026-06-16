@@ -8,7 +8,14 @@ from typing import Any
 from urllib.parse import parse_qsl, urlsplit
 
 from . import layout
-from .models import ArtifactReference, UseCaseRecord
+from .models import (
+    ArtifactReference,
+    CredentialReadinessHint,
+    RerunPolicy,
+    SideEffectDeclaration,
+    SideEffectLifecycleDeclaration,
+    UseCaseRecord,
+)
 from .repository import load_document, load_registry, load_use_case
 
 SECRET_FIELD_RE = re.compile(r"(password|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|authorization)", re.I)
@@ -18,6 +25,7 @@ HEX_IDENTIFIER_RE = re.compile(r"^[a-f0-9]{7,64}$", re.I)
 DUMMY_VALUES = {"example", "dummy", "placeholder", "changeme", "test", "sample", "qa@example.com"}
 SECRET_QUERY_PARAM_RE = re.compile(r"(token|secret|api[_-]?key|access[_-]?key|client[_-]?secret|authorization|auth|password|pwd)", re.I)
 ENV_VAR_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
+ENV_ASSIGNMENT_RE = re.compile(r"\b[A-Z_][A-Z0-9_]*\s*=\s*['\"]?[^'\"\s]+")
 
 
 def looks_secret(value: Any, field_name: str = "") -> bool:
@@ -62,6 +70,10 @@ def looks_secret(value: Any, field_name: str = "") -> bool:
     if HIGH_ENTROPY_RE.match(text) and not re.search(r"[-/\s]", text) and _entropy(text) > 3.5:
         return True
     return False
+
+
+def runtime_input_name_looks_secret(name: str) -> bool:
+    return bool(SECRET_FIELD_RE.search(name or ""))
 
 
 def _url_contains_secret_locator(text: str) -> bool:
@@ -110,6 +122,41 @@ def validate_no_secret_values(data: Any, path: str = "") -> list[dict[str, str]]
     return findings
 
 
+def validate_credential_readiness_hint(hint: CredentialReadinessHint | dict[str, Any]) -> list[dict[str, str]]:
+    model = hint if isinstance(hint, CredentialReadinessHint) else CredentialReadinessHint.from_dict(hint)
+    findings: list[dict[str, str]] = []
+    if model.valuesIncluded:
+        findings.append(
+            {
+                "severity": "blocking",
+                "code": "credential-hint-values-included",
+                "path": "valuesIncluded",
+                "message": "Credential readiness hints must not include credential values.",
+            }
+        )
+    for name in model.requiredRuntimeNames:
+        if not ENV_VAR_NAME_RE.match(name):
+            findings.append(
+                {
+                    "severity": "blocking",
+                    "code": "credential-hint-invalid-runtime-name",
+                    "path": "requiredRuntimeNames",
+                    "message": f"Credential runtime name is not a valid public env-style name: {name}",
+                }
+            )
+    if ENV_ASSIGNMENT_RE.search(model.preparationHint):
+        findings.append(
+            {
+                "severity": "blocking",
+                "code": "credential-hint-secret-looking-value",
+                "path": "preparationHint",
+                "message": "Credential readiness hints may name runtime variables but must not include KEY=value content.",
+            }
+        )
+    findings.extend(validate_no_secret_values(model.to_dict(), "credentialReadinessHint"))
+    return findings
+
+
 def _is_public_credential_ref_key_name(path: str, value: Any) -> bool:
     marker_path = f".{path}"
     if ".credentialRefs." not in marker_path or ".keys." not in marker_path:
@@ -150,6 +197,22 @@ def validate_workspace(project: Path) -> list[dict[str, str]]:
             findings.append({"severity": "blocking", "code": "invalid-record", "path": record_path, "message": str(exc)})
 
     findings.extend(validate_no_secret_values(load_document(layout.product_context_path(project), default={}), layout.PRODUCT_CONTEXT_FILE))
+    for directory in [
+        layout.READINESS_DIR,
+        layout.CREDENTIAL_HINTS_DIR,
+        layout.CONFIRMATIONS_DIR,
+        layout.REFRESH_IMPACT_DIR,
+        layout.CAPABILITY_POLICIES_DIR,
+    ]:
+        root_dir = root / directory
+        if not root_dir.exists():
+            continue
+        for path in root_dir.glob("*.yaml"):
+            data = load_document(path, default={})
+            rel = f"{layout.WORKSPACE_DIR}/{directory}/{path.name}"
+            findings.extend(validate_no_secret_values(data, rel))
+            if directory == layout.CREDENTIAL_HINTS_DIR and isinstance(data, dict):
+                findings.extend(validate_credential_readiness_hint(data))
     return findings
 
 
@@ -178,7 +241,167 @@ def validate_use_case(project: Path, record: UseCaseRecord) -> list[dict[str, st
         findings.extend(validate_no_secret_values(profile.to_dict(), f"{record.alias}.profiles.{profile.name}"))
     if record.lastRun:
         findings.extend(validate_no_secret_values(record.lastRun, f"{record.alias}.lastRun"))
+    if record.sideEffectLifecycle:
+        findings.extend(validate_no_secret_values(record.sideEffectLifecycle, f"{record.alias}.sideEffectLifecycle"))
+    if record.artifactCapabilities:
+        findings.extend(validate_no_secret_values(record.artifactCapabilities, f"{record.alias}.artifactCapabilities"))
+    findings.extend(
+        validate_side_effect_declaration(
+            record.sideEffects,
+            record.rerunPolicy,
+            record.runtimeOutputs,
+            [item.to_dict() for item in record.runtimeInputs],
+        )
+    )
+    side_effect_data = record.sideEffects if isinstance(record.sideEffects, dict) else {}
+    side_effect_class = str(side_effect_data.get("class") or side_effect_data.get("sideEffectClass") or "none")
+    legacy = not bool(record.artifactCapabilities)
+    findings.extend(validate_side_effect_lifecycle(record.sideEffectLifecycle or side_effect_data.get("lifecycle"), side_effect_class=side_effect_class, legacy=legacy))
     return findings
+
+
+def validate_side_effect_declaration(
+    declaration: dict[str, Any] | SideEffectDeclaration | None,
+    rerun_policy: dict[str, Any] | RerunPolicy | None = None,
+    runtime_outputs: list[dict[str, Any]] | None = None,
+    runtime_inputs: list[dict[str, Any]] | None = None,
+    *,
+    core_contract: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
+    if isinstance(declaration, SideEffectDeclaration):
+        side_effect = declaration
+    else:
+        side_effect = SideEffectDeclaration.from_dict(declaration)
+    findings: list[dict[str, str]] = []
+    side_effect_class = side_effect.sideEffectClass
+    if side_effect_class == "none":
+        return findings
+    supported = _side_effect_guardrails(core_contract)
+    if core_contract is not None and not supported.get("supported", False):
+        findings.append(_side_effect_finding("side-effect-core-contract-missing", "sideEffects", "Core does not expose sideEffectGuardrails; write readiness is blocked."))
+        return findings
+    if supported.get("supported", False):
+        if side_effect_class not in set(supported.get("classes", [])):
+            findings.append(_side_effect_finding("side-effect-class-unsupported", "sideEffects.class", f"Core does not support side-effect class '{side_effect_class}'."))
+        if side_effect.policyMode not in set(supported.get("modes", [])):
+            findings.append(_side_effect_finding("side-effect-mode-unsupported", "sideEffects.mode", f"Core does not support side-effect policy mode '{side_effect.policyMode}'."))
+    if side_effect_class == "unknown":
+        findings.append(_side_effect_finding("side-effect-class-unknown", "sideEffects.class", "Side-effect class must be resolved before executable readiness."))
+    if side_effect_class in {"write", "external-notification"}:
+        if not side_effect.commitStepId:
+            findings.append(_side_effect_finding("side-effect-commit-step-missing", "sideEffects.commitStepId", "Write and external-notification use cases require the commit step id."))
+        if not _has_local_envelope(side_effect):
+            findings.append(_side_effect_finding("side-effect-envelope-missing", "sideEffects.allowed", "Write and external-notification use cases require at least one local side-effect envelope rule or confirmation signal."))
+        if rerun_policy is None:
+            findings.append(_side_effect_finding("rerun-policy-missing", "rerunPolicy", "Write and external-notification use cases require explicit rerun policy."))
+    confirmation_types = set(supported.get("confirmationSignalTypes", [])) if supported.get("supported", False) else _default_confirmation_signal_types()
+    for index, signal in enumerate(side_effect.confirmationSignals):
+        signal_type = str(signal.get("type") or signal.get("source") or "")
+        if signal_type and signal_type not in confirmation_types:
+            findings.append(
+                _side_effect_finding(
+                    "side-effect-confirmation-signal-unsupported",
+                    f"sideEffects.confirmationSignals[{index}].type",
+                    f"Unsupported side-effect confirmation signal type: {signal_type}",
+                )
+            )
+    runtime_output_sources = set(supported.get("runtimeOutputSources", [])) if supported.get("supported", False) else _default_runtime_output_sources()
+    for index, output in enumerate(runtime_outputs or []):
+        source = str(output.get("source") or "")
+        if source and source not in runtime_output_sources:
+            findings.append(_side_effect_finding("runtime-output-source-unsupported", f"runtimeOutputs[{index}].source", f"Unsupported runtime output source: {source}"))
+    if rerun_policy is not None:
+        policy = rerun_policy if isinstance(rerun_policy, RerunPolicy) else RerunPolicy.from_dict(rerun_policy)
+        refreshable_inputs = [
+            str(item.get("name"))
+            for item in (runtime_inputs or [])
+            if isinstance(item, dict) and item.get("name") and (item.get("source") == "generated" or item.get("refreshOnRerunAfterCommit"))
+        ]
+        findings.extend(policy.validate(refreshable_inputs=refreshable_inputs))  # type: ignore[arg-type]
+    return findings
+
+
+def validate_side_effect_lifecycle(
+    declaration: dict[str, Any] | SideEffectLifecycleDeclaration | None,
+    *,
+    side_effect_class: str,
+    legacy: bool = False,
+) -> list[dict[str, str]]:
+    lifecycle = declaration if isinstance(declaration, SideEffectLifecycleDeclaration) else SideEffectLifecycleDeclaration.from_dict(declaration)
+    findings: list[dict[str, str]] = []
+    if side_effect_class not in {"write", "external-notification"}:
+        return findings
+    if lifecycle.cleanupPolicy == "not-declared":
+        findings.append(
+            {
+                "severity": "warning" if legacy else "blocking",
+                "code": "side-effect-lifecycle-missing",
+                "path": "sideEffectLifecycle",
+                "message": (
+                    "Legacy write/external-notification use case has no cleanup lifecycle declaration."
+                    if legacy
+                    else "Write and external-notification use cases require cleanup lifecycle declaration."
+                ),
+            }
+        )
+    if lifecycle.cleanupPolicy in {"manual", "external"} and not lifecycle.instructions.strip():
+        findings.append(
+            {
+                "severity": "blocking",
+                "code": "side-effect-lifecycle-instructions-missing",
+                "path": "sideEffectLifecycle.instructions",
+                "message": "Manual or external cleanup lifecycle requires cleanup instructions.",
+            }
+        )
+    findings.extend(validate_no_secret_values(lifecycle.to_dict(), "sideEffectLifecycle"))
+    return findings
+
+
+def _side_effect_guardrails(core_contract: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(core_contract, dict):
+        return {"supported": False}
+    sections = core_contract.get("sections") if isinstance(core_contract.get("sections"), dict) else {}
+    guardrails = sections.get("sideEffectGuardrails") if isinstance(sections.get("sideEffectGuardrails"), dict) else {}
+    if not guardrails:
+        return {"supported": False}
+    return {
+        **guardrails,
+        "supported": True if "supported" not in guardrails else bool(guardrails.get("supported")),
+        "classes": _list_values(guardrails.get("classes") or guardrails.get("policyClasses") or guardrails.get("sideEffectClasses")),
+        "modes": _list_values(guardrails.get("modes") or guardrails.get("policyModes")),
+        "confirmationSignalTypes": _list_values(guardrails.get("confirmationSignalTypes")),
+        "runtimeOutputSources": _list_values(guardrails.get("runtimeOutputSources")),
+    }
+
+
+def _has_local_envelope(side_effect: SideEffectDeclaration) -> bool:
+    return bool(side_effect.allowed or side_effect.confirmationSignals)
+
+
+def _side_effect_finding(code: str, path: str, message: str) -> dict[str, str]:
+    return {"severity": "blocking", "code": code, "path": path, "message": message}
+
+
+def _default_confirmation_signal_types() -> set[str]:
+    return {"finalUrl", "runtimeOutput", "dom", "allowedNetworkObservation"}
+
+
+def _default_runtime_output_sources() -> set[str]:
+    return {"finalUrl", "location", "dom", "network"}
+
+
+def _list_values(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item:
+            result.append(item)
+        elif isinstance(item, dict):
+            name = item.get("name")
+            if name:
+                result.append(str(name))
+    return result
 
 
 def _validate_artifact(project: Path, artifact: ArtifactReference, generated_dir: str) -> list[dict[str, str]]:

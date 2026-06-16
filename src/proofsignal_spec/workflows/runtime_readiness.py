@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from proofsignal_spec.workspace.repository import load_document, load_use_case
+from proofsignal_spec.workspace.repository import (
+    credential_readiness_hints_for_record,
+    credential_runtime_requirements,
+    load_document,
+    load_use_case,
+)
+from proofsignal_spec.workspace.validation import validate_side_effect_declaration
 
 from .models import RuntimeReadinessCheck
 
@@ -19,6 +26,7 @@ def evaluate_runtime_readiness(
     *,
     authoring_result: dict[str, Any] | None = None,
     reachability_checker: ReachabilityChecker | None = None,
+    core_contract: dict[str, Any] | None = None,
 ) -> RuntimeReadinessCheck:
     """Evaluate bounded runtime readiness without executing the browser flow."""
 
@@ -31,8 +39,18 @@ def evaluate_runtime_readiness(
         findings.append("runtime.target-unresolved")
 
     missing_inputs = _missing_required_parameter_inputs(project, record)
+    credential_readiness = _credential_readiness(project, record)
+    missing_credentials = [
+        item
+        for item in credential_readiness
+        if item.get("status") == "missing"
+    ]
     prerequisite_status = "missing" if missing_inputs else "complete"
+    if missing_credentials:
+        prerequisite_status = "missing"
     findings.extend(f"runtime.prerequisite-missing.{name}" for name in missing_inputs)
+    for item in missing_credentials:
+        findings.append(f"runtime.credential-missing.{item['credentialGroup']}")
     if locator:
         findings.extend(
             f"runtime.stage-handoff-defect.{name}-empty-after-resolution"
@@ -51,10 +69,21 @@ def evaluate_runtime_readiness(
     if authoring_status in {"failed", "blocked"}:
         findings.append("runtime.authoring-readiness-blocked")
 
+    side_effect_findings = validate_side_effect_declaration(
+        record.sideEffects,
+        record.rerunPolicy,
+        record.runtimeOutputs,
+        [item.to_dict() for item in record.runtimeInputs],
+        core_contract=core_contract,
+    )
+    findings.extend(f"runtime.{item.get('code')}" for item in side_effect_findings if item.get("severity") == "blocking")
+
     status = "passed"
     if target_resolution != "resolved" or prerequisite_status != "complete" or reachability_status == "unreachable":
         status = "blocked"
     elif authoring_status in {"failed", "blocked"}:
+        status = "blocked"
+    elif any(item.get("severity") == "blocking" for item in side_effect_findings):
         status = "blocked"
 
     return RuntimeReadinessCheck(
@@ -68,6 +97,7 @@ def evaluate_runtime_readiness(
         findingIds=findings,
         targetLocator=locator,
         message=_message(status, findings),
+        credentialReadiness=credential_readiness,
     )
 
 
@@ -103,10 +133,35 @@ def _missing_required_parameter_inputs(project: Path, record: Any) -> list[str]:
     for item in record.runtimeInputs:
         if not item.required or item.kind != "parameter":
             continue
+        if item.source == "generated":
+            continue
         value = parameters.get(item.name)
         if value is None or value == "":
             missing.append(item.name)
     return missing
+
+
+def _credential_readiness(project: Path, record: Any) -> list[dict[str, Any]]:
+    hints = {
+        item["credentialGroup"]: item
+        for item in credential_readiness_hints_for_record(project, record)
+    }
+    readiness: list[dict[str, Any]] = []
+    for group in credential_runtime_requirements(record):
+        missing = [name for name in group["runtimeNames"] if not os.environ.get(name)]
+        hint = hints.get(group["group"], {})
+        readiness.append(
+            {
+                "credentialGroup": group["group"],
+                "expectedSource": group["source"],
+                "requiredRuntimeNames": group["runtimeNames"],
+                "missingRuntimeNames": missing,
+                "status": "missing" if missing else "available",
+                "preparationHint": hint.get("preparationHint", ""),
+                "valuesIncluded": False,
+            }
+        )
+    return readiness
 
 
 def _run_request_document(project: Path, record: Any) -> dict[str, Any]:
@@ -146,4 +201,6 @@ def _message(status: str, findings: list[str]) -> str:
         return "Target environment is not reachable; recover the environment before rewriting artifacts."
     if "runtime.target-unresolved" in findings:
         return "Browser target environment is unresolved."
+    if any(item.startswith("runtime.credential-missing.") for item in findings):
+        return "Credential values are missing from the current validation process."
     return "Runtime readiness is blocked."

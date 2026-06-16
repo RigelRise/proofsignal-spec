@@ -19,3 +19,20 @@ def test_claude_renders_argument_hints_for_workflow_skills(tmp_path) -> None:
     assert "<alias>" in content
     assert "<behavior>" in content
     assert "Invoke this command as `/proofsignal-specify`" in content
+
+
+def test_codex_and_claude_validation_guidance_share_live_readiness_facts(tmp_path) -> None:
+    codex = {item.path: item.content for item in CodexIntegration().render_files(tmp_path)}
+    claude = {item.path: item.content for item in ClaudeIntegration().render_files(tmp_path)}
+
+    codex_content = codex[".agents/skills/proofsignal-validate/SKILL.md"]
+    claude_content = claude[".claude/skills/proofsignal-validate/SKILL.md"]
+    for phrase in [
+        "shared CLI JSON",
+        "credential readiness hints",
+        "structured confirmation",
+        "cleanup lifecycle",
+        "side-effect envelope",
+    ]:
+        assert phrase in codex_content
+        assert phrase in claude_content

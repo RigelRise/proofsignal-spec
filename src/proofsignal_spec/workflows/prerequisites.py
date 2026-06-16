@@ -12,7 +12,16 @@ from proofsignal_spec.workspace.product_context import (
     record_understanding_refresh_decision,
     update_understanding_stale_reasons,
 )
-from proofsignal_spec.workspace.repository import load_registry, load_use_case
+from proofsignal_spec.workspace.repository import (
+    confirmation_requirement,
+    load_refresh_impact,
+    load_registry,
+    load_use_case,
+    run_confirmation_requirements,
+    save_confirmation_requirement,
+    side_effect_class,
+)
+from proofsignal_spec.workspace.models import UnderstandingFreshnessState
 
 from .first_run import build_understanding_onboarding_preparation
 from .models import (
@@ -87,6 +96,11 @@ def check_prerequisites(
             )
         if understanding.stale_reasons:
             update_understanding_stale_reasons(project, [item["code"] for item in understanding.stale_reasons])
+            alias_scoped = stage in {"validate", "run", "repair"} and isinstance(resolved_alias, str)
+            if alias_scoped and refresh_decision is None:
+                alias_stale = _alias_scoped_stale_result(project, stage, resolved_alias, understanding, understanding_payload)
+                if alias_stale is not None:
+                    return alias_stale
             if refresh_decision == "accepted":
                 recorded_decision = record_understanding_refresh_decision(
                     project, "accepted", understanding.stale_reasons, stage=stage
@@ -168,6 +182,24 @@ def check_prerequisites(
             **understanding_payload,
         )
 
+    if stage == "run" and isinstance(resolved_alias, str):
+        record = load_use_case(project, resolved_alias)
+        confirmations = run_confirmation_requirements(project, record)
+        if confirmations:
+            confirmation = confirmations[0]
+            return _result(
+                stage,
+                resolved_alias,
+                "ready",
+                can_proceed=True,
+                requires_confirmation=True,
+                warnings=[confirmation.reason],
+                recommended_action="confirm-risk",
+                next_command=_native_next(stage, resolved_alias),
+                confirmation=confirmation.to_dict(),
+                **understanding_payload,
+            )
+
     return _result(
         stage,
         resolved_alias,
@@ -177,6 +209,67 @@ def check_prerequisites(
         recommended_action="continue-with-warning" if stale_warnings else "continue",
         next_command=_native_next(stage, resolved_alias),
         recorded_decision=recorded_decision,
+        **understanding_payload,
+    )
+
+
+def _alias_scoped_stale_result(
+    project: Path,
+    stage: str,
+    alias: str,
+    understanding: "UnderstandingEvaluation",
+    understanding_payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    try:
+        record = load_use_case(project, alias)
+    except FileNotFoundError:
+        return None
+    impact = load_refresh_impact(project, alias)
+    impact_status = impact.status if impact else "unknown"
+    side_effect = side_effect_class(record)
+    freshness = UnderstandingFreshnessState.from_context(
+        stale=True,
+        workflow_context=stage,
+        use_case_impact=impact_status,
+        side_effect_class=side_effect,
+        reasons=[item.get("message", item.get("code", "")) for item in understanding.stale_reasons],
+    )
+    requires_confirmation = freshness.policy == "requires-confirmation"
+    confirmation = None
+    if requires_confirmation:
+        confirmation = confirmation_requirement(
+            alias=alias,
+            risk_class=side_effect,
+            scope="unknown-refresh-impact",
+            reason=(impact.reason if impact else "Repository understanding is stale and impact on this write-capable use case is unknown."),
+            recommended_action="Run validation or refresh understanding before executing, or explicitly confirm the write risk.",
+        )
+        save_confirmation_requirement(project, confirmation)
+    can_proceed = not (stage == "run" and freshness.policy == "block")
+    recommended_action = {
+        "confirm": "confirm-risk",
+        "validate": "run-validate",
+        "continue": "continue-with-warning",
+        "refresh-understanding": "refresh-understanding",
+    }.get(freshness.recommendedAction, freshness.recommendedAction)
+    next_command = _native_next("validate" if stage == "run" and freshness.recommendedAction == "validate" else stage, alias)
+    return _result(
+        stage,
+        alias,
+        "stale",
+        can_proceed=can_proceed,
+        requires_confirmation=requires_confirmation,
+        stale_reasons=understanding.stale_reasons,
+        warnings=_alias_scoped_stale_warnings(stage, alias, impact_status),
+        recommended_action=recommended_action,
+        next_command=next_command,
+        refreshImpact={
+            "status": impact_status,
+            "reason": impact.reason if impact else "Impact has not been determined.",
+            "recommendedAction": impact.recommendedAction if impact else freshness.recommendedAction,
+        },
+        understandingFreshness=freshness.to_dict(),
+        confirmation=confirmation.to_dict() if confirmation else None,
         **understanding_payload,
     )
 
@@ -465,6 +558,15 @@ def _stale_declined_warnings(stage: str) -> list[str]:
     ]
 
 
+def _alias_scoped_stale_warnings(stage: str, alias: str, impact_status: str) -> list[str]:
+    return [
+        (
+            f"Repository understanding is stale, but /proofsignal-{stage} {alias} is alias-scoped. "
+            f"Use-case impact is {impact_status}; refresh is not the only recovery path."
+        )
+    ]
+
+
 def _result(
     stage: str,
     alias: str | None,
@@ -488,6 +590,9 @@ def _result(
     onboardingPreparation: dict[str, Any] | None = None,
     resumeCommand: str | None = None,
     stageCards: list[dict[str, Any]] | None = None,
+    refreshImpact: dict[str, Any] | None = None,
+    understandingFreshness: dict[str, Any] | None = None,
+    confirmation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "schemaVersion": WORKFLOW_CAPABILITY_SCHEMA,
@@ -515,6 +620,12 @@ def _result(
         "resumeCommand": resumeCommand,
         "stageCards": stageCards or [],
     }
+    if refreshImpact is not None:
+        result["refreshImpact"] = refreshImpact
+    if understandingFreshness is not None:
+        result["understandingFreshness"] = understandingFreshness
+    if confirmation is not None:
+        result["confirmation"] = confirmation
     if available_aliases is not None:
         result["availableAliases"] = available_aliases
     return result

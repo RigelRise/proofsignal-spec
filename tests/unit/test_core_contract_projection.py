@@ -80,11 +80,13 @@ def test_projection_preserves_required_contract_sections() -> None:
         "credentials",
         "placeholders",
         "reportCoverage",
+        "sideEffectGuardrails",
         "publicRedactionPolicy",
         "runtimeTrustHandoff",
     }
     assert "environment" in projection["sections"]["credentials"]["sourceNames"]
     assert projection["sections"]["placeholders"]["credentialSyntax"] == "{{credentials.<group>.<field>}}"
+    assert "write" in projection["sections"]["sideEffectGuardrails"]["classes"]
 
 
 def test_core_contract_requires_canonical_data_sections_shape() -> None:

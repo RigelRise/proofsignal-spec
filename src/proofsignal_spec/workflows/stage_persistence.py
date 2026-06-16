@@ -9,12 +9,22 @@ from proofsignal_spec.core.adapter import CoreAdapter
 from proofsignal_spec.core.errors import CoreExecutionError, CoreIncompatibleError, CoreMissingError
 from proofsignal_spec.core.executable_contract import project_core_contract
 from proofsignal_spec.workspace import artifacts, layout
-from proofsignal_spec.workspace.models import ArtifactReference, AuthoringQuestion, RuntimeInputRequirement
+from proofsignal_spec.workspace.models import ArtifactReference, AuthoringQuestion, CredentialReadinessHint, RefreshImpactResult, RuntimeInputRequirement
 from proofsignal_spec.workspace.product_context import load_product_context, save_product_context
-from proofsignal_spec.workspace.repository import get_core_command, init_workspace, load_use_case, now_iso, save_use_case
-from proofsignal_spec.workspace.validation import validate_no_secret_values
+from proofsignal_spec.workspace.repository import (
+    capability_stamp,
+    get_core_command,
+    init_workspace,
+    load_registry,
+    load_use_case,
+    now_iso,
+    save_credential_readiness_hint,
+    save_refresh_impact,
+    save_use_case,
+)
+from proofsignal_spec.workspace.validation import validate_credential_readiness_hint, validate_no_secret_values
 
-from .coverage_inventory import candidate_dicts, merge_inventory, normalize_scope
+from .coverage_inventory import candidate_dicts, classify_refresh_impacts, merge_inventory, normalize_scope
 from .authoring_coherence import evaluate_implementation_coherence, normalize_artifact_aliases
 from .browser_authoring import validate_browser_payload
 from .models import (
@@ -186,6 +196,7 @@ def _persist_understanding(project: Path, content: dict[str, Any], scope: str) -
         context["understanding"]["gitUnavailableReason"] = content.get("gitUnavailableReason")
 
     save_product_context(project, context)
+    _persist_refresh_impacts(project, content, existing_inventory, content.get("coverageInventory"), generated_at)
     write_global_understanding(project, context)
     understanding_onboarding = UnderstandingOnboardingResult(
         status=inventory.status if inventory.status in {"complete", "partial", "stale"} else "partial",
@@ -212,6 +223,36 @@ def _persist_understanding(project: Path, content: dict[str, Any], scope: str) -
     )
 
 
+def _persist_refresh_impacts(
+    project: Path,
+    content: dict[str, Any],
+    existing_inventory: dict[str, Any] | None,
+    incoming_inventory: dict[str, Any] | None,
+    generated_at: str,
+) -> None:
+    explicit = content.get("refreshImpacts")
+    if isinstance(explicit, list):
+        for item in explicit:
+            if isinstance(item, dict):
+                impact = RefreshImpactResult.from_dict(item)
+                if not impact.generatedAt:
+                    impact.generatedAt = generated_at
+                save_refresh_impact(project, impact)
+        return
+    records = []
+    registry = load_registry(project)
+    for entry in registry.get("useCases", []):
+        alias = entry.get("alias") if isinstance(entry, dict) else getattr(entry, "alias", None)
+        if not alias:
+            continue
+        try:
+            records.append(load_use_case(project, str(alias)))
+        except FileNotFoundError:
+            continue
+    for impact in classify_refresh_impacts(existing_inventory, incoming_inventory, records, generated_at=generated_at):
+        save_refresh_impact(project, impact)
+
+
 def _persist_specification(project: Path, alias: str, content: dict[str, Any]) -> StagePersistenceResult:
     alias = _alias(alias)
     content = _normalize_specification_content(project, alias, content)
@@ -231,6 +272,7 @@ def _persist_specification(project: Path, alias: str, content: dict[str, Any]) -
         _resolve_browser_target_questions(record, target["locator"])
     elif _is_browser_use_case(content):
         _ensure_browser_target_question(record)
+    _apply_write_flow_fields(project, record, content)
     save_use_case(project, record)
     runtime = [str(item) for item in content.get("runtimeAssumptions", [])]
     write_specification(project, alias, goal, runtime_assumptions=runtime)
@@ -266,6 +308,7 @@ def _persist_clarifications(project: Path, alias: str, content: dict[str, Any]) 
     if target:
         _upsert_stage_handoff_decision(record, target, source_stage="clarify")
         _resolve_browser_target_questions(record, target)
+    _apply_write_flow_fields(project, record, content)
     save_use_case(project, record)
     write_clarifications(project, alias, [question.to_dict() for question in questions])
     save_workflow_state(project, alias, state_document(project, alias, current_stage="plan", status="paused"))
@@ -300,6 +343,8 @@ def _persist_plan(project: Path, alias: str, content: dict[str, Any]) -> StagePe
         content.get("runtimeInputs", []),
         _stage_handoff_target(record),
     )
+    _apply_write_flow_fields(project, record, content)
+    save_use_case(project, record)
     blockers = content.get("unresolvedBlockingClarifications") or unresolved_blocking_questions(project, alias)
     if blockers:
         return StagePersistenceResult(
@@ -450,11 +495,26 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     record.runtimeInputs = [_runtime_input(item) for item in runtime_inputs]
     record.credentialRefs = credential_refs
     record.credentialGroups = _credential_groups_from_refs(credential_refs)
+    _apply_write_flow_fields(project, record, content)
     profiles = _profiles_from_payload(content)
     if profiles:
         from proofsignal_spec.workspace.models import RunProfile
 
         record.profiles = [RunProfile.from_dict(item) for item in profiles]
+    record.artifactCapabilities = content.get("artifactCapabilities") if isinstance(content.get("artifactCapabilities"), dict) else {
+        "status": "current",
+        "stamp": capability_stamp(
+            [
+                "readiness-snapshot",
+                "credential-readiness-hints",
+                "explicit-confirmation",
+                "generated-runtime-inputs",
+                "side-effect-lifecycle",
+                "write-activity-interpretation",
+            ],
+            contract_version="proofsignal-spec-use-case/v1",
+        ),
+    }
     record.validation = {"status": coherence.status, "authoringCoherence": coherence.to_dict()}
     record.status = "draft"
 
@@ -700,6 +760,30 @@ def _question_from_dict(data: dict[str, Any]) -> AuthoringQuestion:
         question.status = data.get("status", "pending")
         question.affects = question.affects or str(data.get("affects") or "runtime")
     return question
+
+
+def _apply_write_flow_fields(project: Path, record: Any, content: dict[str, Any]) -> None:
+    if isinstance(content.get("sideEffects"), dict):
+        record.sideEffects = dict(content["sideEffects"])
+    if isinstance(content.get("runtimeOutputs"), list):
+        record.runtimeOutputs = [item for item in content["runtimeOutputs"] if isinstance(item, dict)]
+    if isinstance(content.get("rerunPolicy"), dict):
+        record.rerunPolicy = dict(content["rerunPolicy"])
+    if isinstance(content.get("writeFlowSummary"), dict):
+        record.writeFlowSummary = dict(content["writeFlowSummary"])
+    lifecycle = content.get("sideEffectLifecycle")
+    if isinstance(lifecycle, dict):
+        record.sideEffectLifecycle = dict(lifecycle)
+    hints = content.get("credentialReadinessHints")
+    if isinstance(hints, list):
+        for item in hints:
+            if isinstance(item, dict):
+                hint = CredentialReadinessHint.from_dict(item)
+                findings = validate_credential_readiness_hint(hint)
+                if findings:
+                    first = findings[0]
+                    raise ValueError(f"Invalid credential readiness hint at {first.get('path')}: {first.get('message')}")
+                save_credential_readiness_hint(project, hint)
 
 
 def _apply_answer(questions: list[AuthoringQuestion], answer: dict[str, Any]) -> None:

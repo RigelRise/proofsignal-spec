@@ -4,6 +4,14 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 from proofsignal_spec.core.contracts import PUBLIC_CONTRACT_VERSION, REQUIRED_OPERATIONS
+from proofsignal_spec.workspace.models import (
+    PostCommitInterpretation,
+    ResolvedRuntimeInput,
+    RerunPolicy,
+    RuntimeOutputDeclaration,
+    RuntimeOutputResult,
+    SideEffectDeclaration,
+)
 
 
 WorkflowStatus = Literal["not-started", "running", "paused", "blocked", "failed", "completed"]
@@ -433,6 +441,7 @@ class RuntimeReadinessCheck:
     findingIds: list[str] = field(default_factory=list)
     targetLocator: str | None = None
     message: str | None = None
+    credentialReadiness: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return clean(asdict(self))

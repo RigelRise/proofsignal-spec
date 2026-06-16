@@ -11,6 +11,15 @@ except Exception:  # pragma: no cover - fallback for minimal bootstrap envs
 
 Status = Literal["draft", "ready", "blocked", "failed", "deprecated", "unknown"]
 CoreStatus = Literal["passed", "failed", "blocked", "error"]
+SideEffectClass = Literal["none", "authenticated-read", "write", "external-notification", "unknown"]
+SideEffectPolicyMode = Literal["observe", "warn", "enforce"]
+RerunDecision = Literal["allowed", "allowed-with-new-inputs", "requires-confirmation", "blocked"]
+ReadinessCurrentStatus = Literal["ready", "not-checked", "stale", "needs-validate", "blocked", "unknown"]
+ImpactStatus = Literal["unaffected", "affected", "unknown"]
+CleanupPolicy = Literal["none", "manual", "automated", "external", "not-declared"]
+CapabilitySeverity = Literal["info", "warning", "confirmation", "blocker"]
+UnderstandingStatus = Literal["current", "stale", "unknown"]
+UnderstandingPolicy = Literal["block", "warn", "requires-confirmation", "allow"]
 
 
 def _clean(value: Any) -> Any:
@@ -19,6 +28,483 @@ def _clean(value: Any) -> Any:
     if isinstance(value, list):
         return [_clean(v) for v in value]
     return value
+
+
+@dataclass(slots=True)
+class RerunPolicy:
+    afterNoCommit: RerunDecision = "allowed"
+    afterCommit: RerunDecision = "blocked"
+    afterUnknown: RerunDecision = "requires-confirmation"
+    refreshRuntimeInputs: list[str] = field(default_factory=list)
+    notes: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "RerunPolicy":
+        data = data if isinstance(data, dict) else {}
+        return cls(
+            afterNoCommit=data.get("afterNoCommit", "allowed"),
+            afterCommit=data.get("afterCommit", "blocked"),
+            afterUnknown=data.get("afterUnknown", "requires-confirmation"),
+            refreshRuntimeInputs=[str(item) for item in data.get("refreshRuntimeInputs") or data.get("refreshInputs", [])],
+            notes=data.get("notes"),
+        )
+
+    def validate(self, *, refreshable_inputs: list[str] | None = None) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        valid = {"allowed", "allowed-with-new-inputs", "requires-confirmation", "blocked"}
+        for field_name in ["afterNoCommit", "afterCommit", "afterUnknown"]:
+            value = getattr(self, field_name)
+            if value not in valid:
+                findings.append(
+                    {
+                        "severity": "blocking",
+                        "code": "rerun-policy-invalid-decision",
+                        "path": f"rerunPolicy.{field_name}",
+                        "message": f"Unsupported rerun decision: {value}",
+                    }
+                )
+        refreshable = set(refreshable_inputs or [])
+        declared = set(self.refreshRuntimeInputs)
+        if self.afterCommit == "allowed-with-new-inputs" and not declared and not refreshable:
+            findings.append(
+                {
+                    "severity": "blocking",
+                    "code": "rerun-refresh-input-missing",
+                    "path": "rerunPolicy.refreshRuntimeInputs",
+                    "message": "Rerun after commit requires at least one declared refreshable generated runtime input.",
+                }
+            )
+        if declared and refreshable and not declared <= refreshable:
+            unsupported = ", ".join(sorted(declared - refreshable))
+            findings.append(
+                {
+                    "severity": "blocking",
+                    "code": "rerun-refresh-input-unsupported",
+                    "path": "rerunPolicy.refreshRuntimeInputs",
+                    "message": f"Rerun policy references inputs that are not refreshable: {unsupported}",
+                }
+            )
+        return findings
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class SideEffectDeclaration:
+    sideEffectClass: SideEffectClass = "none"
+    policyMode: SideEffectPolicyMode = "observe"
+    commitStepId: str | None = None
+    allowed: list[dict[str, Any]] = field(default_factory=list)
+    forbidden: list[dict[str, Any]] = field(default_factory=list)
+    confirmationSignals: list[dict[str, Any]] = field(default_factory=list)
+    notes: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "SideEffectDeclaration":
+        data = data if isinstance(data, dict) else {}
+        side_effect_class = str(data.get("class") or data.get("sideEffectClass") or "none")
+        return cls(
+            sideEffectClass=side_effect_class,  # type: ignore[arg-type]
+            policyMode=data.get("mode") or data.get("policyMode") or _default_side_effect_mode(side_effect_class),
+            commitStepId=data.get("commitStepId") or data.get("commitStep"),
+            allowed=list(data.get("allowed", [])),
+            forbidden=list(data.get("forbidden", [])),
+            confirmationSignals=list(data.get("confirmationSignals", [])),
+            notes=data.get("notes"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["class"] = data.pop("sideEffectClass")
+        data["mode"] = data.pop("policyMode")
+        return _clean(data)
+
+
+def _default_side_effect_mode(side_effect_class: str) -> SideEffectPolicyMode:
+    return "enforce" if side_effect_class in {"write", "external-notification"} else "observe"
+
+
+@dataclass(slots=True)
+class RuntimeOutputDeclaration:
+    name: str
+    source: str
+    selector: str | None = None
+    required: bool = False
+    description: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RuntimeOutputDeclaration":
+        return cls(
+            name=str(data.get("name", "")),
+            source=str(data.get("source", "")),
+            selector=data.get("selector"),
+            required=bool(data.get("required", False)),
+            description=str(data.get("description", "")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RuntimeOutputResult:
+    name: str
+    status: str
+    value: str | None = None
+    source: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RuntimeOutputResult":
+        return cls(
+            name=str(data.get("name", "")),
+            status=str(data.get("status", "unknown")),
+            value=data.get("value"),
+            source=data.get("source"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ResolvedRuntimeInput:
+    name: str
+    value: str
+    source: str = "generated"
+    runId: str | None = None
+    refreshed: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ResolvedRuntimeInput":
+        return cls(
+            name=str(data.get("name", "")),
+            value=str(data.get("value", "")),
+            source=str(data.get("source", "generated")),
+            runId=data.get("runId"),
+            refreshed=bool(data.get("refreshed", False)),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class PostCommitInterpretation:
+    postCommit: bool = False
+    sideEffectMayExist: bool = False
+    executionStatus: str | None = None
+    verificationStatus: str | None = None
+    sideEffectStatus: str | None = None
+    failurePhase: str | None = None
+    rerunRisk: str | None = None
+    message: str = ""
+
+    @property
+    def specMessage(self) -> str:
+        return self.message
+
+    @classmethod
+    def from_core_result(cls, core_result: dict[str, Any] | None) -> "PostCommitInterpretation":
+        data = core_result.get("data") if isinstance(core_result, dict) and isinstance(core_result.get("data"), dict) else core_result
+        data = data if isinstance(data, dict) else {}
+        report = data.get("report") if isinstance(data.get("report"), dict) else {}
+        source = report or data
+        side_effects = source.get("sideEffects") if isinstance(source.get("sideEffects"), dict) else {}
+        classification = source.get("resultClassification") if isinstance(source.get("resultClassification"), dict) else {}
+        commit_step = side_effects.get("commitStep") if isinstance(side_effects.get("commitStep"), dict) else {}
+        commit_reached = bool(commit_step.get("reached"))
+        failure_phase = str(classification.get("failurePhase") or side_effects.get("failurePhase") or "unknown")
+        side_effect_status = str(classification.get("sideEffectStatus") or side_effects.get("status") or "unknown")
+        post_commit = commit_reached and failure_phase in {"post-commit", "post-verification"}
+        risky_statuses = {"possible", "likely-committed", "committed-confirmed", "violated", "unknown"}
+        side_effect_may_exist = commit_reached and side_effect_status in risky_statuses
+        if post_commit or side_effect_may_exist:
+            message = "The commit step was reached; the side effect may already exist before final verification completed."
+        else:
+            message = "No committed side effect was identified from the public Core result."
+        return cls(
+            postCommit=post_commit,
+            sideEffectMayExist=side_effect_may_exist,
+            executionStatus=classification.get("executionStatus"),
+            verificationStatus=classification.get("verificationStatus"),
+            sideEffectStatus=side_effect_status,
+            failurePhase=failure_phase,
+            rerunRisk=classification.get("rerunRisk"),
+            message=message,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ConfirmationRequirement:
+    id: str
+    alias: str
+    riskClass: str
+    reason: str
+    scope: str
+    recommendedAction: str
+    blocksExecution: bool = True
+    expiresWhen: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ConfirmationRequirement":
+        return cls(
+            id=str(data.get("id", "")),
+            alias=str(data.get("alias", "")),
+            riskClass=str(data.get("riskClass", "")),
+            reason=str(data.get("reason", "")),
+            scope=str(data.get("scope", "")),
+            recommendedAction=str(data.get("recommendedAction", "")),
+            blocksExecution=bool(data.get("blocksExecution", True)),
+            expiresWhen=[str(item) for item in data.get("expiresWhen", [])],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class CredentialReadinessHint:
+    credentialGroup: str
+    expectedSource: str = "environment"
+    requiredRuntimeNames: list[str] = field(default_factory=list)
+    preparationHint: str = ""
+    valuesIncluded: bool = False
+    updatedAt: str | None = None
+    schemaVersion: str = "proofsignal-spec-credential-readiness-hint/v1"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CredentialReadinessHint":
+        return cls(
+            credentialGroup=str(data.get("credentialGroup") or data.get("group") or ""),
+            expectedSource=str(data.get("expectedSource") or data.get("source") or "environment"),
+            requiredRuntimeNames=[str(item) for item in data.get("requiredRuntimeNames", [])],
+            preparationHint=str(data.get("preparationHint") or data.get("hint") or ""),
+            valuesIncluded=bool(data.get("valuesIncluded", False)),
+            updatedAt=data.get("updatedAt"),
+            schemaVersion=str(data.get("schemaVersion", "proofsignal-spec-credential-readiness-hint/v1")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ReadinessSnapshot:
+    alias: str
+    status: ReadinessCurrentStatus
+    checkedAt: str
+    artifactFingerprints: dict[str, str] = field(default_factory=dict)
+    specVersion: str | None = None
+    artifactContractVersion: str | None = None
+    coreVersion: str | None = None
+    coreContractVersion: str | None = None
+    targetProjectRevision: str | None = None
+    testedCodeScopeStatus: Literal["known", "unknown"] = "unknown"
+    environmentBoundCredentialGroups: list[str] = field(default_factory=list)
+    sideEffectClass: SideEffectClass = "none"
+    refreshImpactStatus: ImpactStatus | None = None
+    invalidationReasons: list[dict[str, str]] = field(default_factory=list)
+    summary: str | None = None
+    schemaVersion: str = "proofsignal-spec-readiness-snapshot/v1"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ReadinessSnapshot":
+        return cls(
+            alias=str(data.get("alias", "")),
+            status=data.get("status", "unknown"),
+            checkedAt=str(data.get("checkedAt", "")),
+            artifactFingerprints={str(k): str(v) for k, v in dict(data.get("artifactFingerprints", {})).items()},
+            specVersion=data.get("specVersion"),
+            artifactContractVersion=data.get("artifactContractVersion"),
+            coreVersion=data.get("coreVersion"),
+            coreContractVersion=data.get("coreContractVersion"),
+            targetProjectRevision=data.get("targetProjectRevision"),
+            testedCodeScopeStatus=data.get("testedCodeScopeStatus", "unknown"),
+            environmentBoundCredentialGroups=[str(item) for item in data.get("environmentBoundCredentialGroups", [])],
+            sideEffectClass=data.get("sideEffectClass", "none"),
+            refreshImpactStatus=data.get("refreshImpactStatus"),
+            invalidationReasons=list(data.get("invalidationReasons", [])),
+            summary=data.get("summary"),
+            schemaVersion=str(data.get("schemaVersion", "proofsignal-spec-readiness-snapshot/v1")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class RefreshImpactResult:
+    alias: str
+    status: ImpactStatus
+    reason: str = ""
+    affectedAreas: list[str] = field(default_factory=list)
+    recommendedAction: str = "none"
+    generatedAt: str | None = None
+    schemaVersion: str = "proofsignal-spec-refresh-impact/v1"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RefreshImpactResult":
+        return cls(
+            alias=str(data.get("alias", "")),
+            status=data.get("status", "unknown"),
+            reason=str(data.get("reason", "")),
+            affectedAreas=[str(item) for item in data.get("affectedAreas", [])],
+            recommendedAction=str(data.get("recommendedAction", "none")),
+            generatedAt=data.get("generatedAt"),
+            schemaVersion=str(data.get("schemaVersion", "proofsignal-spec-refresh-impact/v1")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class UnderstandingFreshnessState:
+    status: UnderstandingStatus = "unknown"
+    ageDays: int | None = None
+    commitsBehind: int | None = None
+    workflowContext: str = "list"
+    useCaseImpact: Literal["affected", "unaffected", "unknown", "not-applicable"] = "not-applicable"
+    policy: UnderstandingPolicy = "allow"
+    recommendedAction: str = "continue"
+    reasons: list[str] = field(default_factory=list)
+    schemaVersion: str = "proofsignal-spec-understanding-freshness-state/v1"
+
+    @classmethod
+    def from_context(
+        cls,
+        *,
+        stale: bool,
+        workflow_context: str,
+        use_case_impact: str = "not-applicable",
+        side_effect_class: str = "none",
+        age_days: int | None = None,
+        commits_behind: int | None = None,
+        reasons: list[str] | None = None,
+    ) -> "UnderstandingFreshnessState":
+        if not stale:
+            return cls(
+                status="current",
+                ageDays=age_days,
+                commitsBehind=commits_behind,
+                workflowContext=workflow_context,
+                useCaseImpact=use_case_impact,  # type: ignore[arg-type]
+                policy="allow",
+                recommendedAction="continue",
+                reasons=reasons or [],
+            )
+        inventory_contexts = {"understand", "discovery", "specify", "recommend", "recommend-first-run"}
+        write_like = side_effect_class in {"write", "external-notification"}
+        if workflow_context in inventory_contexts:
+            policy, action = "block", "refresh-understanding"
+        elif use_case_impact == "affected" and workflow_context == "run":
+            policy, action = "block", "validate"
+        elif use_case_impact == "unknown" and write_like and workflow_context == "run":
+            policy, action = "requires-confirmation", "confirm"
+        elif use_case_impact == "affected":
+            policy, action = "warn", "validate"
+        else:
+            policy, action = "warn", "continue"
+        return cls(
+            status="stale",
+            ageDays=age_days,
+            commitsBehind=commits_behind,
+            workflowContext=workflow_context,
+            useCaseImpact=use_case_impact if use_case_impact in {"affected", "unaffected", "unknown"} else "not-applicable",  # type: ignore[arg-type]
+            policy=policy,  # type: ignore[arg-type]
+            recommendedAction=action,
+            reasons=reasons or [],
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "UnderstandingFreshnessState":
+        return cls(
+            status=data.get("status", "unknown"),
+            ageDays=data.get("ageDays"),
+            commitsBehind=data.get("commitsBehind"),
+            workflowContext=str(data.get("workflowContext", "list")),
+            useCaseImpact=data.get("useCaseImpact", "not-applicable"),
+            policy=data.get("policy", "allow"),
+            recommendedAction=str(data.get("recommendedAction", "continue")),
+            reasons=[str(item) for item in data.get("reasons", [])],
+            schemaVersion=str(data.get("schemaVersion", "proofsignal-spec-understanding-freshness-state/v1")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ArtifactCapabilityPolicy:
+    capability: str
+    appliesTo: list[str] = field(default_factory=list)
+    severityWhenMissing: CapabilitySeverity = "warning"
+    safetyCritical: bool = False
+    migrationGuidance: str = ""
+    schemaVersion: str = "proofsignal-spec-artifact-capability-policy/v1"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ArtifactCapabilityPolicy":
+        return cls(
+            capability=str(data.get("capability", "")),
+            appliesTo=[str(item) for item in data.get("appliesTo", [])],
+            severityWhenMissing=data.get("severityWhenMissing", "warning"),
+            safetyCritical=bool(data.get("safetyCritical", False)),
+            migrationGuidance=str(data.get("migrationGuidance", "")),
+            schemaVersion=str(data.get("schemaVersion", "proofsignal-spec-artifact-capability-policy/v1")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ArtifactCapabilityStamp:
+    specVersion: str
+    artifactContractVersion: str
+    authoredAt: str
+    capabilities: list[str] = field(default_factory=list)
+    schemaVersion: str = "proofsignal-spec-artifact-capability-stamp/v1"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ArtifactCapabilityStamp":
+        return cls(
+            specVersion=str(data.get("specVersion", "")),
+            artifactContractVersion=str(data.get("artifactContractVersion", "")),
+            authoredAt=str(data.get("authoredAt", "")),
+            capabilities=[str(item) for item in data.get("capabilities", [])],
+            schemaVersion=str(data.get("schemaVersion", "proofsignal-spec-artifact-capability-stamp/v1")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class SideEffectLifecycleDeclaration:
+    cleanupPolicy: CleanupPolicy = "not-declared"
+    cleanupRequired: bool = False
+    trackingIntent: str = "none"
+    instructions: str = ""
+    schemaVersion: str = "proofsignal-spec-side-effect-lifecycle/v1"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "SideEffectLifecycleDeclaration":
+        data = data if isinstance(data, dict) else {}
+        return cls(
+            cleanupPolicy=data.get("cleanupPolicy", "not-declared"),
+            cleanupRequired=bool(data.get("cleanupRequired", False)),
+            trackingIntent=str(data.get("trackingIntent", "none")),
+            instructions=str(data.get("instructions", "")),
+            schemaVersion=str(data.get("schemaVersion", "proofsignal-spec-side-effect-lifecycle/v1")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
 
 
 @dataclass(slots=True)
@@ -49,10 +535,15 @@ class RuntimeInputRequirement:
     kind: Literal["parameter", "credential", "precondition-input"] = "parameter"
     required: bool = True
     description: str = ""
-    source: Literal["prompt", "environment", "local-config", "default"] = "prompt"
+    source: Literal["prompt", "environment", "local-config", "default", "generated"] = "prompt"
     envVar: str | None = None
     credentialGroup: str | None = None
     persistValue: bool = False
+    template: str | None = None
+    default: str | None = None
+    value: str | None = None
+    refreshOnRerunAfterCommit: bool = False
+    references: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RuntimeInputRequirement":
@@ -65,6 +556,11 @@ class RuntimeInputRequirement:
             envVar=data.get("envVar"),
             credentialGroup=data.get("credentialGroup"),
             persistValue=bool(data.get("persistValue", False)),
+            template=data.get("template"),
+            default=data.get("default"),
+            value=data.get("value"),
+            refreshOnRerunAfterCommit=bool(data.get("refreshOnRerunAfterCommit", False)),
+            references=[str(item) for item in data.get("references", [])],
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -138,6 +634,12 @@ class RunHistoryEntry:
     partialCoverage: list[dict[str, Any]] = field(default_factory=list)
     runtimeContradictions: list[dict[str, Any]] = field(default_factory=list)
     repairRecommendations: list[dict[str, Any]] = field(default_factory=list)
+    sideEffects: dict[str, Any] | None = None
+    runtimeOutputs: list[dict[str, Any]] = field(default_factory=list)
+    resolvedRuntimeInputs: list[dict[str, Any]] = field(default_factory=list)
+    postCommitInterpretation: dict[str, Any] | None = None
+    rerunDecision: dict[str, Any] | None = None
+    sideEffectLifecycle: dict[str, Any] | None = None
     summary: str | dict[str, Any] | None = None
     reportPath: str | None = None
     evidenceDir: str | None = None
@@ -162,6 +664,12 @@ class RunHistoryEntry:
             partialCoverage=list(data.get("partialCoverage", [])),
             runtimeContradictions=list(data.get("runtimeContradictions", [])),
             repairRecommendations=list(data.get("repairRecommendations", [])),
+            sideEffects=data.get("sideEffects"),
+            runtimeOutputs=list(data.get("runtimeOutputs", [])),
+            resolvedRuntimeInputs=list(data.get("resolvedRuntimeInputs", [])),
+            postCommitInterpretation=data.get("postCommitInterpretation"),
+            rerunDecision=data.get("rerunDecision"),
+            sideEffectLifecycle=data.get("sideEffectLifecycle"),
             summary=data.get("summary"),
             reportPath=data.get("reportPath"),
             evidenceDir=data.get("evidenceDir"),
@@ -228,6 +736,13 @@ class UseCaseRecord:
     runtimeInputs: list[RuntimeInputRequirement] = field(default_factory=list)
     credentialRefs: dict[str, Any] = field(default_factory=dict)
     credentialGroups: list[dict[str, Any] | str] = field(default_factory=list)
+    sideEffects: dict[str, Any] | None = None
+    sideEffectLifecycle: dict[str, Any] | None = None
+    runtimeOutputs: list[dict[str, Any]] = field(default_factory=list)
+    resolvedRuntimeInputs: list[dict[str, Any]] = field(default_factory=list)
+    rerunPolicy: dict[str, Any] | None = None
+    writeFlowSummary: dict[str, Any] | None = None
+    artifactCapabilities: dict[str, Any] | None = None
     profiles: list[RunProfile] = field(
         default_factory=lambda: [
             RunProfile(),
@@ -259,6 +774,13 @@ class UseCaseRecord:
             runtimeInputs=[RuntimeInputRequirement.from_dict(item) for item in data.get("runtimeInputs", [])],
             credentialRefs=dict(data.get("credentialRefs", {})),
             credentialGroups=list(data.get("credentialGroups", [])),
+            sideEffects=data.get("sideEffects") if isinstance(data.get("sideEffects"), dict) else None,
+            sideEffectLifecycle=data.get("sideEffectLifecycle") if isinstance(data.get("sideEffectLifecycle"), dict) else None,
+            runtimeOutputs=list(data.get("runtimeOutputs", [])),
+            resolvedRuntimeInputs=list(data.get("resolvedRuntimeInputs", [])),
+            rerunPolicy=data.get("rerunPolicy") if isinstance(data.get("rerunPolicy"), dict) else None,
+            writeFlowSummary=data.get("writeFlowSummary") if isinstance(data.get("writeFlowSummary"), dict) else None,
+            artifactCapabilities=data.get("artifactCapabilities") if isinstance(data.get("artifactCapabilities"), dict) else None,
             profiles=[RunProfile.from_dict(item) for item in data.get("profiles", [])] or [RunProfile()],
             authoringQuestions=[AuthoringQuestion.from_dict(item) for item in data.get("authoringQuestions", [])],
             validation=dict(data.get("validation", {"status": "unknown"})),
@@ -275,6 +797,10 @@ class UseCaseRecord:
         data["sourceOnlySkills"] = [item.to_dict() for item in self.sourceOnlySkills]
         data["runtimeInputs"] = [item.to_dict() for item in self.runtimeInputs]
         data["credentialRefs"] = dict(self.credentialRefs)
+        data["sideEffectLifecycle"] = dict(self.sideEffectLifecycle) if self.sideEffectLifecycle else None
+        data["runtimeOutputs"] = list(self.runtimeOutputs)
+        data["resolvedRuntimeInputs"] = list(self.resolvedRuntimeInputs)
+        data["artifactCapabilities"] = dict(self.artifactCapabilities) if self.artifactCapabilities else None
         data["profiles"] = [item.to_dict() for item in self.profiles]
         data["authoringQuestions"] = [item.to_dict() for item in self.authoringQuestions]
         return _clean(data)

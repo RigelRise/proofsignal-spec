@@ -44,6 +44,46 @@ def partial_multi_skill_section() -> dict[str, Any]:
     }
 
 
+def side_effect_guardrails_section() -> dict[str, Any]:
+    return {
+        "status": "supported",
+        "policyClasses": ["none", "authenticated-read", "write", "external-notification", "unknown"],
+        "policyModes": ["observe", "warn", "enforce"],
+        "confirmationSignalTypes": ["finalUrl", "runtimeOutput", "dom", "allowedNetworkObservation"],
+        "runtimeOutputSources": ["finalUrl", "location", "dom", "network"],
+        "runtimeOutputStatuses": ["captured", "redacted", "missing", "invalid"],
+        "sideEffectStatuses": [
+            "not-applicable",
+            "not-started",
+            "not-observed",
+            "possible",
+            "likely-committed",
+            "committed-confirmed",
+            "violated",
+            "unknown",
+        ],
+        "failurePhases": ["pre-commit", "during-commit", "post-commit", "post-verification", "unknown"],
+        "rerunRisks": ["safe", "safe-with-new-inputs", "requires-confirmation", "blocked"],
+        "resultClassification": {
+            "executionStatuses": ["passed", "failed", "blocked", "error"],
+            "verificationStatuses": ["passed", "failed", "not-run", "unknown"],
+            "sideEffectStatuses": [
+                "not-applicable",
+                "not-started",
+                "not-observed",
+                "possible",
+                "likely-committed",
+                "committed-confirmed",
+                "violated",
+                "unknown",
+            ],
+            "failurePhases": ["pre-commit", "during-commit", "post-commit", "post-verification", "unknown"],
+            "rerunRisks": ["safe", "safe-with-new-inputs", "requires-confirmation", "blocked"],
+        },
+        "reportFields": ["sideEffects.policy", "sideEffects.observations[]", "sideEffects.violations[]", "runtimeOutputs[]", "resultClassification"],
+    }
+
+
 def core_contract_fixture_payload(
     *,
     browser_actions: list[dict[str, Any]] | None = None,
@@ -96,6 +136,7 @@ def core_contract_fixture_payload(
             "entitlementReceiptEnv": "PROOFSIGNAL_ENTITLEMENT_RECEIPT",
             "verificationKeysEnv": "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
         },
+        "sideEffectGuardrails": side_effect_guardrails_section(),
     }
     if include_browser:
         data["browserWorkflow"] = {
@@ -233,6 +274,7 @@ def current_core_contract_fixture_payload(
             "entitlementReceiptEnv": "PROOFSIGNAL_ENTITLEMENT_RECEIPT",
             "verificationKeysEnv": "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
         },
+        "sideEffectGuardrails": side_effect_guardrails_section(),
     }
     if extra_sections:
         data.update(extra_sections)

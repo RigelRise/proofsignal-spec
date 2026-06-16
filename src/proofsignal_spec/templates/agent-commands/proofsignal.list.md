@@ -9,6 +9,11 @@ List use cases and workflow status.
 - If `workflow check` is unavailable, unsupported, or exits with an invalid subcommand error, stop immediately and tell the developer to upgrade `proofsignal` and regenerate the agent integration.
 - Use deterministic CLI commands such as `proofsignal list` and `proofsignal workflow list`.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through ProofSignal Spec CLI operations only.
-- Summarize aliases, current workflow stage, runnable status, runtime requirements, and latest result.
+- Summarize aliases with `lastRun` separate from `current` readiness. A historical passed run is not current readiness.
+- Treat `current.status` as local metadata only: `not-checked`, `stale`, `needs-validate`, `blocked`, or `ready` from a persisted readiness snapshot.
+- The normal list view must remain metadata-only. Do not call Core, network, credential, entitlement, target reachability, or browser checks from list.
+- Include the compact row facts: alias, last run, current state, requirements, and risk.
+- For credentialed rows, show credential group and required runtime names only; never show values.
+- For write/external-notification rows, show side-effect class, cleanup policy, and confirmation/rerun risk when present.
 - Do not inspect sensitive files.
 - Surface the next recommended `/proofsignal-*` command when a use case is blocked.

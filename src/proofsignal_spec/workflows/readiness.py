@@ -9,6 +9,7 @@ from proofsignal_spec.core.errors import CoreExecutionError, CoreIncompatibleErr
 from proofsignal_spec.core.executable_contract import project_core_contract
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workspace import layout
+from proofsignal_spec.workspace.models import ArtifactCapabilityPolicy
 from proofsignal_spec.workspace.repository import load_document, load_use_case
 from proofsignal_spec.workspace.validation import validate_use_case, validate_workspace
 
@@ -42,6 +43,39 @@ def validation_readiness(project: Path, alias: str | None = None, core_cmd: str 
         "coreReadiness": core.to_dict(),
         "blockers": [blocker.to_dict() for blocker in blockers],
     }
+
+
+def default_capability_policies() -> list[ArtifactCapabilityPolicy]:
+    return [
+        ArtifactCapabilityPolicy(
+            capability="explicit-confirmation",
+            appliesTo=["write", "external-notification"],
+            severityWhenMissing="confirmation",
+            safetyCritical=True,
+            migrationGuidance="Re-persist or migrate the artifact so risky write runs expose structured confirmation requirements.",
+        ),
+        ArtifactCapabilityPolicy(
+            capability="side-effect-lifecycle",
+            appliesTo=["write", "external-notification"],
+            severityWhenMissing="confirmation",
+            safetyCritical=True,
+            migrationGuidance="Declare cleanup policy, tracking intent, and manual/external cleanup instructions where needed.",
+        ),
+        ArtifactCapabilityPolicy(
+            capability="generated-runtime-inputs",
+            appliesTo=["write"],
+            severityWhenMissing="warning",
+            safetyCritical=True,
+            migrationGuidance="Declare generated per-run identity inputs for resource-creating flows.",
+        ),
+        ArtifactCapabilityPolicy(
+            capability="write-activity-interpretation",
+            appliesTo=["write", "external-notification"],
+            severityWhenMissing="confirmation",
+            safetyCritical=True,
+            migrationGuidance="Migrate artifacts so write activity is reported conservatively when Core side-effect envelopes are unavailable.",
+        ),
+    ]
 
 
 def structural_validation(project: Path, alias: str | None = None) -> StructuralWorkspaceValidation:

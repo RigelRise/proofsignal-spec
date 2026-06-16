@@ -10,6 +10,10 @@ Resolve only high-impact unknowns before planning.
 - If the check does not allow continuation, name the missing artifact or decision, point to `nextCommand`, and stop.
 - Do not perform stage-specific work until the check allows it.
 - Ask focused questions only when missing information materially affects scope, runtime requirements, security, or user-visible validation behavior.
+- For write/external-notification uncertainty, clarify only non-secret structure: side-effect class, commit step, allowed local envelope, runtime output names/sources, rerun policy, and whether generated inputs are needed.
+- For write/external-notification behavior, clarify side-effect lifecycle before planning or implementation: cleanup policy (`none`, `manual`, `automated`, `external`), cleanup requiredness, tracking intent, and manual/external cleanup instructions when applicable.
+- For credentialed use cases, capture optional credential readiness hints only as non-secret user-managed guidance. Hints may name env vars or secret-manager wrappers, but must not include `KEY=value`, credential values, or file contents.
+- If `sideEffects.class` is `unknown` or credentials/data/side-effect ownership is unresolved, block planning instead of drafting executable artifacts.
 - For each high-impact clarification, include the question plus one or two context sentences explaining why it affects the run request, skill design, data setup, credential context, permissions, or expected outcome.
 - Environment-dependent questions about seed data, runtime configuration, external services, credential groups, permissions, or expected outcome must remain pending unless the developer confirms a non-secret answer.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal workflow persist clarify --alias <alias> --payload <payload.json> --json`.

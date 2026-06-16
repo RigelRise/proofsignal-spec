@@ -15,12 +15,23 @@ from proofsignal_spec.workflows.evidence import extract_core_runtime_evidence, n
 from proofsignal_spec.workflows.first_run import classify_first_run_status, golden_path_state, update_golden_path_run_state
 from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
 from proofsignal_spec.workflows.models import GateCoverageResult, GoldenPathRunState, RepairRecommendation, RunOutcomeSummary
-from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
+from proofsignal_spec.workflows.repair_recommendations import combine_rerun_decision, recommend_repairs_for_gate_coverage
 from proofsignal_spec.workflows.readiness import executable_contract_blockers, legacy_executable_artifact_blockers, managed_runtime_contract_blockers
 from proofsignal_spec.workflows.stage_cards import run_result_card
 from proofsignal_spec.workflows.repository import load_artifact_plan
-from proofsignal_spec.workspace.models import ArtifactReference, RunHistoryEntry
-from proofsignal_spec.workspace.repository import load_document, load_use_case, now_iso, record_run, resolve_artifacts
+from proofsignal_spec.workspace.models import ArtifactReference, RerunPolicy, RunHistoryEntry
+from proofsignal_spec.workspace.repository import (
+    load_document,
+    load_use_case,
+    now_iso,
+    record_run,
+    resolve_artifacts,
+    run_confirmation_requirements,
+    side_effect_class,
+    side_effect_lifecycle_summary,
+)
+from proofsignal_spec.workspace.models import PostCommitInterpretation
+from proofsignal_spec.workspace.validation import validate_side_effect_declaration
 
 
 def run(
@@ -31,6 +42,7 @@ def run(
     core_cmd: str | None = None,
     api_base_url: str | None = None,
     slow_mo_override: int | None = None,
+    confirmed_risks: list[str] | None = None,
 ) -> dict[str, Any]:
     record = load_use_case(project, alias)
     profile = next((item for item in record.profiles if item.name == profile_name), None)
@@ -90,14 +102,112 @@ def run(
             "reason": contract_blockers[0].message,
             "nextAction": f"proofsignal workflow check run --alias {alias} --json",
         }
+    pending_confirmations = run_confirmation_requirements(project, record)
+    unmatched_confirmations = [
+        item
+        for item in pending_confirmations
+        if item.blocksExecution and item.id not in set(confirmed_risks or [])
+    ]
+    if unmatched_confirmations:
+        confirmation = unmatched_confirmations[0]
+        return {
+            "alias": alias,
+            "status": "blocked",
+            "coreStatus": "blocked",
+            "coverageStatus": "not-run",
+            "coreBrowserStatus": "blocked",
+            "specCoverageStatus": "not-run",
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "profile": profile_name,
+            "profileSettings": profile_settings_model.to_dict(),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "requiresConfirmation": True,
+            "confirmation": confirmation.to_dict(),
+            "blockers": [
+                {
+                    "code": "runtime.confirmation-required",
+                    "severity": "blocker",
+                    "category": "write-flow-safety",
+                    "message": confirmation.reason,
+                    "recoveryCommand": f"proofsignal workflow check run --alias {alias} --json",
+                }
+            ],
+            "reason": confirmation.reason,
+            "nextAction": f"proofsignal run {alias} --confirm-risk {confirmation.id} --json",
+        }
+    side_effect_findings = validate_side_effect_declaration(
+        record.sideEffects,
+        record.rerunPolicy,
+        record.runtimeOutputs,
+        [item.to_dict() for item in record.runtimeInputs],
+        core_contract=core_contract,
+    )
+    if any(item.get("severity") == "blocking" for item in side_effect_findings):
+        blockers = [
+            {
+                "code": f"runtime.{item.get('code')}",
+                "severity": "blocker",
+                "category": "write-flow-safety",
+                "message": item.get("message"),
+                "documentationRef": item.get("path"),
+                "recoveryCommand": f"proofsignal workflow check run --alias {alias} --json",
+            }
+            for item in side_effect_findings
+            if item.get("severity") == "blocking"
+        ]
+        return {
+            "alias": alias,
+            "status": "blocked",
+            "coreStatus": "blocked",
+            "coverageStatus": "not-run",
+            "coreBrowserStatus": "blocked",
+            "specCoverageStatus": "not-run",
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "profile": profile_name,
+            "profileSettings": profile_settings_model.to_dict(),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "blockers": blockers,
+            "reason": blockers[0]["message"],
+            "nextAction": f"proofsignal workflow check run --alias {alias} --json",
+        }
+    rerun_guard = _rerun_guard(record)
+    if rerun_guard["decision"] in {"blocked", "requires-confirmation"}:
+        return {
+            "alias": alias,
+            "status": "blocked",
+            "coreStatus": "blocked",
+            "coverageStatus": "not-run",
+            "coreBrowserStatus": "blocked",
+            "specCoverageStatus": "not-run",
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "profile": profile_name,
+            "profileSettings": profile_settings_model.to_dict(),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "rerunDecision": rerun_guard,
+            "blockers": [
+                {
+                    "code": "runtime.rerun-policy-blocked" if rerun_guard["decision"] == "blocked" else "runtime.rerun-confirmation-required",
+                    "severity": "blocker",
+                    "category": "write-flow-safety",
+                    "message": rerun_guard["reason"],
+                    "recoveryCommand": f"proofsignal workflow check run --alias {alias} --json",
+                }
+            ],
+            "reason": rerun_guard["reason"],
+            "nextAction": rerun_guard["nextAction"],
+        }
+    prepared_run_id = f"{alias}-{now_iso().replace(':', '').replace('-', '')}"
     runtime_values = resolve_runtime_inputs(
         record.runtimeInputs,
         interactive=interactive,
         provided=_run_request_parameters(run_request),
+        run_id=prepared_run_id,
+        refresh_names=rerun_guard.get("refreshRuntimeInputs", []),
     )
     output_dir = project / ".proofsignal" / "runs" / alias
+    prepared_run_request = _prepared_run_request_path(run_request, output_dir, prepared_run_id, runtime_values)
     result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).run(
-        run_request,
+        prepared_run_request,
         main_skill,
         skills,
         output_dir=output_dir,
@@ -107,8 +217,13 @@ def run(
         entitlement_receipt=_valid_receipt_path(),
     )
     data = result.get("data", {})
-    run_id = data.get("runId") or f"{alias}-{now_iso().replace(':', '').replace('-', '')}"
+    run_id = data.get("runId") or prepared_run_id
     core = core_status(result)
+    result_with_report = _result_with_public_report(project, result)
+    side_effects = _public_result_field(result_with_report, "sideEffects")
+    runtime_outputs = _public_result_field(result_with_report, "runtimeOutputs") or []
+    post_commit = _post_commit_interpretation(result_with_report, record, side_effects)
+    result_classification = _public_result_field(result_with_report, "resultClassification")
     gates = _planned_gates(project, alias)
     gate_coverage_results = _runtime_gate_coverage(project, result, gates)
     gate_coverage = [item.to_dict() for item in gate_coverage_results]
@@ -181,6 +296,22 @@ def run(
         partialCoverage=partial_coverage,
         runtimeContradictions=contradictions,
         repairRecommendations=repair_recommendations,
+        sideEffects=side_effects if isinstance(side_effects, dict) else None,
+        runtimeOutputs=runtime_outputs if isinstance(runtime_outputs, list) else [],
+        resolvedRuntimeInputs=[
+            {
+                "name": name,
+                "value": value,
+                "source": "generated" if _runtime_input_source(record, name) == "generated" else "runtime",
+                "runId": str(run_id),
+                "refreshed": name in set(rerun_guard.get("refreshRuntimeInputs", [])),
+            }
+            for name, value in runtime_values.items()
+            if _safe_resolved_runtime_input(record, name)
+        ],
+        postCommitInterpretation=post_commit.to_dict(),
+        rerunDecision=rerun_guard,
+        sideEffectLifecycle=side_effect_lifecycle_summary(record, runtime_outputs if isinstance(runtime_outputs, list) else []),
         startedAt=now_iso(),
         completedAt=now_iso(),
         summary={
@@ -193,6 +324,10 @@ def run(
             "nextAction": next_action,
             "mainSkill": selected_main_skill,
             "runOutcomeSummary": outcome_summary,
+            "postCommitInterpretation": post_commit.to_dict(),
+            "resultClassification": result_classification,
+            "rerunDecision": rerun_guard,
+            "sideEffectLifecycle": side_effect_lifecycle_summary(record, runtime_outputs if isinstance(runtime_outputs, list) else []),
         },
         reportPath=data.get("reportPath"),
         evidenceDir=data.get("evidencePath") or data.get("evidenceDir"),
@@ -218,6 +353,11 @@ def run(
         "partialCoverage": partial_coverage,
         "runtimeContradictions": contradictions,
         "repairRecommendations": repair_recommendations,
+        "postCommitInterpretation": post_commit.to_dict(),
+        "rerunDecision": rerun_guard,
+        "runtimeOutputs": runtime_outputs if isinstance(runtime_outputs, list) else [],
+        "sideEffects": side_effects if isinstance(side_effects, dict) else None,
+        "sideEffectLifecycle": side_effect_lifecycle_summary(record, runtime_outputs if isinstance(runtime_outputs, list) else []),
         "reason": reason,
         "nextAction": next_action,
         "reportPath": entry.reportPath,
@@ -274,6 +414,51 @@ def _first_run_payload(
     }
 
 
+def _rerun_guard(record: Any) -> dict[str, Any]:
+    side_effect = record.sideEffects if isinstance(record.sideEffects, dict) else {}
+    if side_effect.get("class") not in {"write", "external-notification"}:
+        return {"decision": "allowed", "reason": "No write rerun guard is required for this side-effect class.", "refreshRuntimeInputs": []}
+    last_run = record.lastRun if isinstance(record.lastRun, dict) else None
+    if not last_run:
+        return {"decision": "allowed", "reason": "No previous run recorded for this write use case.", "refreshRuntimeInputs": []}
+    interpretation = last_run.get("postCommitInterpretation") if isinstance(last_run.get("postCommitInterpretation"), dict) else {}
+    classification = last_run.get("resultClassification") if isinstance(last_run.get("resultClassification"), dict) else {}
+    core_risk = str(interpretation.get("rerunRisk") or classification.get("rerunRisk") or "")
+    side_effect_may_exist = bool(interpretation.get("sideEffectMayExist"))
+    if not core_risk:
+        core_risk = "requires-confirmation" if side_effect_may_exist else "safe"
+    policy = RerunPolicy.from_dict(record.rerunPolicy)
+    spec_decision = policy.afterCommit if side_effect_may_exist or interpretation.get("postCommit") else policy.afterNoCommit
+    decision = combine_rerun_decision(core_risk, spec_decision)
+    refreshable = {item.name for item in record.runtimeInputs if item.source == "generated" and item.refreshOnRerunAfterCommit}
+    refresh_names = [name for name in policy.refreshRuntimeInputs if name in refreshable]
+    if decision == "allowed-with-new-inputs" and not refresh_names:
+        return {
+            "decision": "blocked",
+            "coreRisk": core_risk,
+            "specDecision": spec_decision,
+            "reason": "Rerun requires refreshed generated inputs, but no declared refreshable generated input is available.",
+            "refreshRuntimeInputs": [],
+            "nextAction": f"Update rerunPolicy.refreshRuntimeInputs for {record.alias} before rerunning.",
+        }
+    if decision == "blocked":
+        reason = "Rerun is blocked by the previous write outcome and declared rerun policy."
+    elif decision == "requires-confirmation":
+        reason = "Rerun requires explicit owner confirmation because the previous write may have crossed the commit boundary."
+    elif decision == "allowed-with-new-inputs":
+        reason = "Rerun is allowed only with refreshed generated runtime inputs."
+    else:
+        reason = "Rerun is allowed by Core risk and Spec rerun policy."
+    return {
+        "decision": decision,
+        "coreRisk": core_risk,
+        "specDecision": spec_decision,
+        "reason": reason,
+        "refreshRuntimeInputs": refresh_names,
+        "nextAction": "Resolve write rerun policy before running again." if decision in {"blocked", "requires-confirmation"} else "Proceed with run.",
+    }
+
+
 def _core_contract(project: Path, core_command: str | None) -> dict[str, Any] | None:
     if not core_command:
         return None
@@ -301,6 +486,29 @@ def _runtime_gate_coverage(project: Path, result: dict[str, Any], gates: list[An
     return calculate_gate_coverage(gates, evidence)
 
 
+def _post_commit_interpretation(result: dict[str, Any], record: Any, side_effects: Any) -> PostCommitInterpretation:
+    interpretation = PostCommitInterpretation.from_core_result(result)
+    if isinstance(side_effects, dict):
+        return interpretation
+    if side_effect_class(record) in {"write", "external-notification"}:
+        classification = _public_result_field(result, "resultClassification")
+        classification = classification if isinstance(classification, dict) else {}
+        return PostCommitInterpretation(
+            postCommit=False,
+            sideEffectMayExist=True,
+            executionStatus=classification.get("executionStatus"),
+            verificationStatus="unknown",
+            sideEffectStatus="unknown",
+            failurePhase="post-verification",
+            rerunRisk="requires-confirmation",
+            message=(
+                "This write-capable use case completed without a structured Core side-effect envelope; "
+                "Spec conservatively treats write activity as unknown/inferred rather than proof of no side effect."
+            ),
+        )
+    return interpretation
+
+
 def _result_with_public_report(project: Path, result: dict[str, Any]) -> dict[str, Any]:
     data = result.get("data") if isinstance(result.get("data"), dict) else {}
     if isinstance(data.get("report"), dict):
@@ -313,6 +521,42 @@ def _result_with_public_report(project: Path, result: dict[str, Any]) -> dict[st
     updated_data["report"] = report
     updated["data"] = updated_data
     return updated
+
+
+def _public_result_field(result: dict[str, Any], field_name: str) -> Any:
+    data = result.get("data") if isinstance(result.get("data"), dict) else {}
+    report = data.get("report") if isinstance(data.get("report"), dict) else {}
+    if field_name in data:
+        return data.get(field_name)
+    return report.get(field_name)
+
+
+def _prepared_run_request_path(run_request: Path, output_dir: Path, run_id: str, runtime_values: dict[str, str]) -> Path:
+    if not runtime_values:
+        return run_request
+    document = load_document(run_request, default={}) or {}
+    if not isinstance(document, dict):
+        return run_request
+    parameters = document.get("parameters") if isinstance(document.get("parameters"), dict) else {}
+    document["parameters"] = {**parameters, **runtime_values}
+    output_dir.mkdir(parents=True, exist_ok=True)
+    prepared = output_dir / f"{run_id}.run-request.json"
+    prepared.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    return prepared
+
+
+def _runtime_input_source(record: Any, name: str) -> str:
+    for item in record.runtimeInputs:
+        if item.name == name:
+            return item.source
+    return "runtime"
+
+
+def _safe_resolved_runtime_input(record: Any, name: str) -> bool:
+    for item in record.runtimeInputs:
+        if item.name == name:
+            return item.kind != "credential" and bool(item.persistValue or item.source == "generated")
+    return False
 
 
 def _load_public_qa_report(project: Path, raw_path: Any) -> dict[str, Any] | None:

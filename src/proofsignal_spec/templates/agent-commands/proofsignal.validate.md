@@ -15,14 +15,21 @@ Validate draft artifacts through ProofSignal Spec and the managed ProofSignal ru
 - Treat `api.*`, `entitlement.*`, `distribution.*`, `artifact.*`, `cache.*`, `platform.unsupported`, and `core.incompatible` readiness blockers as non-repairable runtime setup/security issues unless a later Core validation or run produces deterministic artifact findings.
 - Treat `skill-execution.*` readiness blockers as execution-boundary issues: the run request exposes the wrong executable skill set for the current Core contract. Report the blocker and recovery command; do not suggest gate weakening.
 - Do not print raw email addresses, email unlock tokens, signed download URLs, receipt payloads, credentials, local env-file values, screenshots, browser storage, source snapshots, or private runtime contents.
+- Use shared CLI JSON and project-local `.proofsignal/` workspace state as the source of truth for current readiness, credential readiness hints, structured confirmation, cleanup lifecycle, and conservative side-effect envelope reporting.
 - Backward-compatible wording may still state: "ProofSignal Core is required for the complete ProofSignal validation and browser execution experience"; interpret that as the private runtime boundary, not a manual happy-path install step.
 - Delegate Core-dependent behavior through `proofsignal validate <alias> --runtime-readiness` .
 - `runtime readiness verifies target resolution, target reachability, required runtime prerequisites, and Core authoring readiness` without executing the full browser validation flow.
+- Validation writes a project-local readiness snapshot when it can evaluate the alias. The snapshot is advisory current-readiness metadata for list/run preflight; it is not browser execution.
+- When credentials are missing, name the credential group and required runtime names only. If a credential readiness hint exists, show it as non-executable user guidance; do not read env files or execute the hint text.
+- For stale understanding, distinguish discovery/specification from alias-scoped validate/run. Alias-scoped checks should use warning, validation, or structured confirmation based on use-case impact rather than automatically forcing `/proofsignal-understand`.
 - Treat validation output as static readiness: `authoredEvidenceCoverageStatus` means required gates have mapped authored evidence, and `fullBrowserFlowExecuted: false` means the browser flow has not run yet.
 - Report the selected main skill shown by validation output before discussing Core results.
 - For later browser inspection, remind users that `proofsignal run <alias> --profile debug` uses 900ms slow motion by default unless `--slow-mo` is explicitly set.
 - Review `authoringCoherence`. If it is blocked, treat the artifact as not ready even if individual browser steps look executable.
 - Review execution-boundary guidance before Core validation. A reusable/source-only skill is not executable unless the public Core contract declares supported multi-skill roles, ordering, and evidence semantics.
+- For write and external-notification use cases, treat missing `sideEffectGuardrails`, missing commit step, missing local envelope, missing `rerunPolicy`, unsupported confirmation signal types, and unsupported runtime output sources as readiness blockers.
+- Newly authored write and external-notification use cases require side-effect lifecycle declarations. Legacy artifacts without lifecycle or safety-capability metadata require conservative confirmation/migration guidance instead of optimistic readiness.
+- Generated runtime inputs are resolved at run preparation, not during static validation; do not mark them missing merely because the authored run request does not persist a fixed value.
 - Distinguish coherent planned validation from a narrow technical pass. A page-view validation requires mapped rendered-result UI evidence and declared backend checks, not only navigation or HTTP 200.
 - Preserve Core verdicts exactly and do not reinterpret passed, failed, blocked, or error outcomes.
 - Record redacted validation summaries in workflow state and stage documents.

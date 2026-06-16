@@ -146,3 +146,30 @@ class RepairContractTests(CliTestCase):
         self.assertEqual(recommendations[0]["runtimeCategory"], "execution-boundary-issue")
         self.assertEqual(recommendations[0]["safeCategory"], "main-skill-ordering")
         self.assertIn("do not weaken required gates", recommendations[0]["action"])
+
+    def test_post_commit_write_risk_does_not_recommend_blind_rerun(self) -> None:
+        create_main_skill_coverage_workspace(self.project)
+        record = load_use_case(self.project, "profile-view-unauth")
+        record.validation = {
+            "findings": [
+                {
+                    "code": "write-flow.post-commit-verification-failed",
+                    "message": "Commit step was reached and final verification failed.",
+                    "resultClassification": {
+                        "sideEffectStatus": "likely-committed",
+                        "failurePhase": "post-commit",
+                        "rerunRisk": "requires-confirmation",
+                    },
+                }
+            ]
+        }
+        save_use_case(self.project, record)
+
+        code, out, _err = self.cli(["repair", "profile-view-unauth", "--project", str(self.project), "--json"])
+
+        self.assertEqual(code, 4)
+        recommendation = json.loads(out)["repair"]["recommendations"][0]
+        self.assertEqual(recommendation["runtimeCategory"], "write-flow-safety")
+        self.assertEqual(recommendation["autonomy"], "blocked")
+        self.assertFalse(recommendation["safeMechanical"])
+        self.assertIn("Review", recommendation["action"])

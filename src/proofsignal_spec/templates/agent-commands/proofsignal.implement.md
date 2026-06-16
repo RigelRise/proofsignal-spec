@@ -13,6 +13,11 @@ Create or update only planned draft artifacts.
 - Read the browser authoring contract with `proofsignal workflow info proofsignal-use-case --json` before drafting browser skill intent. Use `browserAuthoringContract.validActions`, `browserAuthoringContract.validAssertionKinds`, `browserAuthoringContract.validNetworkMatchKeys`, and target rules as the source of truth. Treat selector/action/match key names in this template as non-authoritative examples.
 - Follow `.proofsignal/workflows/use-cases/<alias>/tasks.md`.
 - Prepare structured artifact intent for `.proofsignal/run-requests/<alias>.yaml` and `.proofsignal/skills/<name>.browser.md`; the CLI owns the final `qa-run-request/v1` and `qa-skill/v1` envelopes.
+- Preserve planned write-flow fields exactly: `sideEffects`, generated `runtimeInputs`, `runtimeOutputs`, and `rerunPolicy`. Do not replace generated runtime inputs with fixed literal values in authored artifacts.
+- Preserve or provide `sideEffectLifecycle` for write and external-notification use cases. Newly authored side-effecting artifacts without lifecycle declarations must block before run; legacy artifacts require explicit confirmation and migration guidance.
+- Preserve credential readiness hints only as non-secret guidance. Do not read, execute, or persist credential-bearing files or `KEY=value` content.
+- Newly persisted artifacts are stamped with Spec/artifact contract version and authored capabilities. Do not hand-edit capability metadata to bypass safety checks.
+- For write/external-notification, ensure the commit step id matches the browser step that crosses the product-state boundary and that the local envelope/confirmation signals are represented before validation.
 - Preserve the planned `mainSkill` from the artifact plan. Do not rely on `skills[0]`; reusable helper skills may appear before the main skill in submitted payloads.
 - Use `stagePayloadContracts.skillExecutionBoundary` as the source of truth for executable versus source-only skills. A reusable skill is not automatically executable.
 - When `coreExecutableContract.sections.skillExecution.multiSkillSupported` is not true, inline required reusable behavior into the planned main skill and keep reusable helpers as source-only artifacts/metadata. Do not list helper skills as executable run-request participants.

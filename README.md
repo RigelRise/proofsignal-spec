@@ -135,6 +135,25 @@ configured, ProofSignal attempts to use a verified managed runtime from the user
 cache or acquire one through the official `https://proofsignal.io/api`
 entitlement and runtime-download contract after email-token unlock.
 
+`proofsignal list` is intentionally metadata-only. It separates historical
+`lastRun` from current readiness snapshots and never performs Core, network,
+credential, entitlement, target reachability, or browser checks in the normal
+list view. Use `proofsignal validate <alias> --runtime-readiness --json` or
+`proofsignal workflow check run --alias <alias> --json` for volatile readiness.
+
+Credentialed use cases may store non-secret readiness hints such as credential
+group names, required runtime variable names, or user-managed preparation
+guidance. Hints are not executed automatically and must not contain credential
+values or env-file contents.
+
+Write and external-notification use cases declare side-effect lifecycle
+expectations, including cleanup policy and manual/external cleanup instructions
+when needed. Legacy side-effecting artifacts missing lifecycle or safety
+capability metadata require structured owner confirmation before run. When Core
+does not emit a structured side-effect envelope for a write run, Spec reports
+write activity conservatively as unknown or inferred rather than treating the
+absence as proof that no side effect occurred.
+
 ## Golden Path
 
 The Golden Path applies to the first run only. It recommends the simplest stable

@@ -18,3 +18,11 @@ Browser workflow guardrail fixtures in
 environment decisions, runtime readiness payloads, Core public contract fields,
 and repair-classification cases. They use `https://app.example.test` as non-secret
 browser target data and keep credential-like values out of persisted records.
+
+Live write readiness fixtures in
+`tests/fixtures/workflows/live_write_readiness.py` model the latest real-run
+findings: historical pass versus current readiness, credentialed use cases with
+missing current-process credentials, legacy write artifacts, structured
+confirmation requirements, generated per-run identity inputs, and cleanup
+lifecycle state. The fixture stores only env var names such as
+`APP_TEST_EMAIL` and `APP_TEST_PASSWORD`, never values.

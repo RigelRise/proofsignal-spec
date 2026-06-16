@@ -7,5 +7,10 @@
   "skillsDir": ".proofsignal/skills",
   "runsDir": ".proofsignal/runs",
   "repairsDir": ".proofsignal/repairs",
+  "readinessDir": ".proofsignal/readiness",
+  "credentialHintsDir": ".proofsignal/credential-hints",
+  "confirmationsDir": ".proofsignal/confirmations",
+  "refreshImpactDir": ".proofsignal/refresh-impact",
+  "capabilityPoliciesDir": ".proofsignal/capability-policies",
   "integrationsDir": ".proofsignal/integrations"
 }

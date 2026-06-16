@@ -183,25 +183,52 @@ def main() -> int:
             )
         elif mode in {"failed-with-partial", "aborted-activity-wait"}:
             gate_evidence = [{"id": "profile-name", "source": "assertion", "gateId": "overview-data-card", "status": "passed", "target": "profileName"}]
+        side_effects: dict[str, object] | None = None
+        runtime_outputs: list[dict[str, object]] = []
+        result_classification: dict[str, object] | None = None
+        if mode in {"post-commit-report", "runtime-output-report", "rerun-risk-report"}:
+            side_effects = {
+                "policy": {"class": "write", "mode": "enforce", "commitStepId": "submit-resource"},
+                "commitStep": {"id": "submit-resource", "reached": True, "status": "passed"},
+                "status": "likely-committed" if mode != "runtime-output-report" else "committed-confirmed",
+            }
+            runtime_outputs = [{"name": "createdResourceUrl", "source": "finalUrl", "status": "captured", "value": "/resources/fake"}]
+            result_classification = {
+                "executionStatus": "passed",
+                "verificationStatus": "failed" if mode == "post-commit-report" else "passed",
+                "sideEffectStatus": "unknown" if mode == "rerun-risk-report" else side_effects["status"],
+                "failurePhase": "post-commit" if mode == "post-commit-report" else "post-verification",
+                "rerunRisk": "blocked" if mode == "rerun-risk-report" else "requires-confirmation",
+                "recommendedAction": "review-created-resource-before-rerun",
+                "reasons": ["write-flow-safety-fixture"],
+            }
+            _write_report(
+                ".proofsignal/runs/login/fake-run-1/report.json",
+                gate_evidence,
+                side_effects=side_effects,
+                runtime_outputs=runtime_outputs,
+                result_classification=result_classification,
+            )
         if "--slow-mo" in args:
             try:
                 slow_mo = int(args[args.index("--slow-mo") + 1])
             except Exception:
                 slow_mo = -1
+        run_status = "failed" if mode in {"failed", "failed-with-partial", "aborted-activity-wait", "post-commit-report"} else "passed"
         print(
             json.dumps(
                 {
                     "schema": "proofsignal.run/v1",
                     "schemaVersion": 1,
                     "operation": "run",
-                    "status": "failed" if mode in {"failed", "failed-with-partial", "aborted-activity-wait"} else "passed",
+                    "status": run_status,
                     "data": {
                         "runId": "fake-run-1",
                         "reportPath": ".proofsignal/runs/login/fake-run-1/report.json",
                         "evidencePath": ".proofsignal/runs/login/fake-run-1/evidence",
                         "summary": {
                             "title": "Fake run",
-                            "status": "failed" if mode in {"failed", "failed-with-partial", "aborted-activity-wait"} else "passed",
+                            "status": run_status,
                             "failedStepId": "scroll-to-activity" if mode == "aborted-activity-wait" else None,
                             "error": "Timeout waiting for .chakra-container .swiper-slide while activity skeletons were visible."
                             if mode == "aborted-activity-wait"
@@ -212,6 +239,9 @@ def main() -> int:
                         "slowMoMs": slow_mo,
                         "executedSkill": executed_skill,
                         "gateEvidence": gate_evidence,
+                        "sideEffects": side_effects,
+                        "runtimeOutputs": runtime_outputs,
+                        "resultClassification": result_classification,
                     },
                 }
             )
@@ -285,22 +315,34 @@ def _receipt_key_id(receipt_path: str | None) -> str | None:
     return None
 
 
-def _write_report(path: str, steps: list[dict[str, object]]) -> None:
+def _write_report(
+    path: str,
+    steps: list[dict[str, object]],
+    *,
+    side_effects: dict[str, object] | None = None,
+    runtime_outputs: list[dict[str, object]] | None = None,
+    result_classification: dict[str, object] | None = None,
+) -> None:
     report_path = Path(path)
     report_path.parent.mkdir(parents=True, exist_ok=True)
+    report = {
+        "schemaVersion": "qa-report/v1",
+        "runId": "fake-run-1",
+        "status": "passed",
+        "summary": {"status": "passed", "failedStepId": None},
+        "failedStep": None,
+        "steps": steps,
+        "preconditions": [],
+        "evidenceLinks": [],
+    }
+    if side_effects is not None:
+        report["sideEffects"] = side_effects
+    if runtime_outputs is not None:
+        report["runtimeOutputs"] = runtime_outputs
+    if result_classification is not None:
+        report["resultClassification"] = result_classification
     report_path.write_text(
-        json.dumps(
-            {
-                "schemaVersion": "qa-report/v1",
-                "runId": "fake-run-1",
-                "status": "passed",
-                "summary": {"status": "passed", "failedStepId": None},
-                "failedStep": None,
-                "steps": steps,
-                "preconditions": [],
-                "evidenceLinks": [],
-            }
-        ),
+        json.dumps(report),
         encoding="utf-8",
     )
 
@@ -414,6 +456,7 @@ def _contracts_payload(mode: str) -> dict[str, object]:
             "entitlementReceiptEnv": "PROOFSIGNAL_ENTITLEMENT_RECEIPT",
             "verificationKeysEnv": "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
         },
+        "sideEffectGuardrails": _side_effect_guardrails_section(),
     }
     if mode == "multi-skill-supported":
         data["skillExecution"] = {
@@ -508,6 +551,9 @@ def _contracts_payload(mode: str) -> dict[str, object]:
                 "placeholderSyntax": "{{credentials.<group>.<field>}}",
             }
         }
+        data["sideEffectGuardrails"] = _side_effect_guardrails_section()
+    if mode == "contracts-missing-side-effect-guardrails":
+        data.pop("sideEffectGuardrails", None)
     if mode == "legacy-fallback":
         pass
     if mode == "canonical-legacy-conflict":
@@ -527,6 +573,40 @@ def _contracts_payload(mode: str) -> dict[str, object]:
         "operation": "contracts",
         "status": "passed",
         "data": {"sections": data},
+    }
+
+
+def _side_effect_guardrails_section() -> dict[str, object]:
+    statuses = [
+        "not-applicable",
+        "not-started",
+        "not-observed",
+        "possible",
+        "likely-committed",
+        "committed-confirmed",
+        "violated",
+        "unknown",
+    ]
+    phases = ["pre-commit", "during-commit", "post-commit", "post-verification", "unknown"]
+    risks = ["safe", "safe-with-new-inputs", "requires-confirmation", "blocked"]
+    return {
+        "status": "supported",
+        "policyClasses": ["none", "authenticated-read", "write", "external-notification", "unknown"],
+        "policyModes": ["observe", "warn", "enforce"],
+        "confirmationSignalTypes": ["finalUrl", "runtimeOutput", "dom", "allowedNetworkObservation"],
+        "runtimeOutputSources": ["finalUrl", "location", "dom", "network"],
+        "runtimeOutputStatuses": ["captured", "redacted", "missing", "invalid"],
+        "sideEffectStatuses": statuses,
+        "failurePhases": phases,
+        "rerunRisks": risks,
+        "resultClassification": {
+            "executionStatuses": ["passed", "failed", "blocked", "error"],
+            "verificationStatuses": ["passed", "failed", "not-run", "unknown"],
+            "sideEffectStatuses": statuses,
+            "failurePhases": phases,
+            "rerunRisks": risks,
+        },
+        "reportFields": ["sideEffects.policy", "sideEffects.observations[]", "sideEffects.violations[]", "runtimeOutputs[]", "resultClassification"],
     }
 
 

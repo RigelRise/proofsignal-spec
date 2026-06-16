@@ -58,5 +58,13 @@ compose helper behavior into the main executable skill, reclassify the helper as
 source-only, or use a Core runtime whose public contract declares supported
 multi-skill execution.
 
+Write-flow guidance must require explicit side-effect intent from Spec and
+public guardrails from Core. Read-only use cases can declare `sideEffects.class:
+none`; write and external-notification use cases default to `mode: enforce`,
+need a commit step, a local side-effect envelope, runtime outputs when later
+validation depends on created state, and an explicit rerun policy. Generated
+runtime input names are use-case-owned and resolved per run; templates must not
+hard-code target-project-specific examples as canonical names.
+
 Human-observable debug/browser runs default to `slowMoMs: 900`; explicit
 `--slow-mo` values still win.

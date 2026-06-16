@@ -7,6 +7,8 @@ import os
 import shutil
 
 from proofsignal_spec.commands.validate import run as validate_run
+from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from proofsignal_spec.workspace.repository import init_workspace, save_use_case
 from proofsignal_spec.workflows.core_setup import run_core_setup
 from proofsignal_spec.workflows.readiness import validation_readiness
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
@@ -41,6 +43,73 @@ def test_runtime_readiness_says_full_browser_flow_has_not_executed(tmp_path, mon
     assert result["fullBrowserFlowExecuted"] is False
     assert result["runtimeReadiness"]["fullBrowserFlowExecuted"] is False
     assert "full browser flow has not executed" in result["readinessSummary"]
+
+
+def test_write_runtime_readiness_blocks_when_core_lacks_side_effect_guardrails(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "contracts-missing-side-effect-guardrails")
+    init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
+    (tmp_path / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".proofsignal/run-requests/create-resource.yaml").write_text(
+        json.dumps(
+            {
+                "schemaVersion": "qa-run-request/v1",
+                "request": {"id": "request.create-resource", "name": "Create Resource"},
+                "target": "browser",
+                "validationScope": "feature-level",
+                "skills": [{"id": "skill.create-resource", "version": "1.0.0"}],
+                "parameters": {"baseUrl": "https://example.test"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / ".proofsignal/skills/create-resource.browser.md").write_text(
+        """# Create Resource
+
+```yaml
+schemaVersion: qa-skill/v1
+skill:
+  id: skill.create-resource
+  version: 1.0.0
+  kind: browser
+  name: Create Resource
+  description: Create resource.
+browser:
+  steps:
+    - id: open
+      action: navigate
+      value: "{{parameters.baseUrl}}"
+  assertions: []
+```
+""",
+        encoding="utf-8",
+    )
+    save_use_case(
+        tmp_path,
+        UseCaseRecord(
+            alias="create-resource",
+            title="Create Resource",
+            description="Create resource.",
+            runRequest=ArtifactReference(path=".proofsignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
+            mainSkill=ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
+            skills=[ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
+            runtimeInputs=[RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test")],
+            sideEffects={
+                "class": "write",
+                "commitStepId": "submit-resource",
+                "allowed": [{"id": "create-resource", "kind": "network"}],
+            },
+            rerunPolicy={"afterNoCommit": "allowed", "afterCommit": "blocked"},
+        ),
+    )
+
+    result = validate_run(tmp_path, "create-resource", runtime_readiness=True, core_cmd=str(FAKE_CORE))
+
+    assert result["status"] == "blocked"
+    assert "runtime.side-effect-core-contract-missing" in result["runtimeReadiness"]["findingIds"]
 
 
 def test_validate_missing_core_blocker_routes_to_setup(tmp_path, monkeypatch) -> None:

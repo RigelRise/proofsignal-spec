@@ -21,7 +21,7 @@ from proofsignal_spec.workflows.readiness import (
     validation_readiness,
 )
 from proofsignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
-from proofsignal_spec.workspace.repository import resolve_artifacts, update_validation
+from proofsignal_spec.workspace.repository import create_readiness_snapshot_from_validation, resolve_artifacts, update_validation
 
 
 def _selected_main_skill(record_main_skill: Any, main_skill: Path) -> dict[str, Any]:
@@ -88,6 +88,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
             ],
         }
         update_validation(project, alias, result)
+        _persist_readiness_snapshot(project, alias, result)
         return result
     core_contract = _core_contract_for_coherence(project, managed_runtime.runtimeCommand)
     record, run_request, main_skill, skills = resolve_artifacts(project, alias, core_contract=core_contract)
@@ -105,6 +106,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
             "blockers": [blocker.to_dict() for blocker in contract_blockers],
         }
         update_validation(project, alias, result)
+        _persist_readiness_snapshot(project, alias, result)
         return result
     coherence = evaluate_persisted_coherence(
         project,
@@ -128,6 +130,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
             ],
         }
         update_validation(project, alias, result)
+        _persist_readiness_snapshot(project, alias, result)
         return result
     result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).authoring_check(
         run_request,
@@ -136,7 +139,7 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         runtime_readiness=runtime_readiness,
         entitlement_receipt=_valid_receipt_path(),
     )
-    runtime_check = evaluate_runtime_readiness(project, alias, authoring_result=result) if runtime_readiness else None
+    runtime_check = evaluate_runtime_readiness(project, alias, authoring_result=result, core_contract=core_contract) if runtime_readiness else None
     wrapped = {
         "alias": alias,
         "status": result.get("status", "error"),
@@ -206,7 +209,16 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         )
     if guided_stage:
         wrapped["guidedFirstRunState"] = guided_stage
+    _persist_readiness_snapshot(project, alias, wrapped)
     return wrapped
+
+
+def _persist_readiness_snapshot(project: Path, alias: str, result: dict[str, Any]) -> None:
+    try:
+        create_readiness_snapshot_from_validation(project, alias, result)
+    except Exception:
+        # Readiness snapshots are advisory local metadata; validation output remains authoritative.
+        pass
 
 
 def _authored_evidence_coverage_status(gate_coverage: list[dict[str, Any]]) -> str:

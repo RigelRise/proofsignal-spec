@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from proofsignal_spec.commands import run as run_command
+from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from proofsignal_spec.workspace.repository import init_workspace, load_use_case, save_use_case
+from tests.integration.test_workflow_run import _current_write_capabilities, _manual_cleanup_lifecycle, _write_minimal_artifacts
+
+
+def test_rerun_after_post_commit_write_blocks_when_policy_blocks(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
+    _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
+    save_use_case(tmp_path, _write_record(after_commit="blocked"))
+
+    result = run_command.run(tmp_path, "create-resource", interactive=False, core_cmd=str(FAKE_CORE))
+
+    assert result["status"] == "blocked"
+    assert result["rerunDecision"]["decision"] == "blocked"
+
+
+def test_rerun_after_post_commit_write_refreshes_declared_generated_inputs(tmp_path, monkeypatch) -> None:
+    from tests.helpers import FAKE_CORE
+
+    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
+    _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
+    save_use_case(tmp_path, _write_record(after_commit="allowed-with-new-inputs", refresh_inputs=["resourceName"], core_risk="safe-with-new-inputs"))
+
+    result = run_command.run(tmp_path, "create-resource", interactive=False, core_cmd=str(FAKE_CORE))
+
+    assert result["status"] == "passed"
+    assert result["rerunDecision"]["decision"] == "allowed-with-new-inputs"
+    last_run = load_use_case(tmp_path, "create-resource").lastRun
+    assert last_run
+    assert last_run["resolvedRuntimeInputs"][0]["refreshed"] is True
+
+
+def _write_record(*, after_commit: str, refresh_inputs: list[str] | None = None, core_risk: str = "requires-confirmation") -> UseCaseRecord:
+    return UseCaseRecord(
+        alias="create-resource",
+        title="Create Resource",
+        description="Create resource.",
+        runRequest=ArtifactReference(path=".proofsignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
+        mainSkill=ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
+        skills=[ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
+        runtimeInputs=[
+            RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test"),
+            RuntimeInputRequirement(name="resourceName", source="generated", template="ProofSignal {{run.shortId}}", refreshOnRerunAfterCommit=True),
+        ],
+        sideEffects={"class": "write", "commitStepId": "submit-resource", "allowed": [{"id": "create-resource", "kind": "network"}]},
+        rerunPolicy={"afterNoCommit": "allowed", "afterCommit": after_commit, "refreshInputs": refresh_inputs or []},
+        sideEffectLifecycle=_manual_cleanup_lifecycle(),
+        artifactCapabilities=_current_write_capabilities(),
+        lastRun={
+            "runId": "previous-run",
+            "status": "failed",
+            "postCommitInterpretation": {
+                "postCommit": True,
+                "sideEffectMayExist": True,
+                "failurePhase": "post-commit",
+                "sideEffectStatus": "likely-committed",
+                "rerunRisk": core_risk,
+            },
+        },
+    )

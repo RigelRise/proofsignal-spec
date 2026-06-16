@@ -5,6 +5,32 @@ from .models import GateCoverageResult, PlannedValidationGate, RepairRecommendat
 from .repair_classification import classify_runtime_feedback
 
 
+_RERUN_RESTRICTIVENESS = {
+    "allowed": 0,
+    "allowed-with-new-inputs": 1,
+    "requires-confirmation": 2,
+    "blocked": 3,
+}
+
+
+def combine_rerun_decision(core_risk: str | None, spec_decision: str | None) -> str:
+    core_decision = _core_risk_to_spec_decision(core_risk)
+    spec_decision = spec_decision or "blocked"
+    if _RERUN_RESTRICTIVENESS.get(core_decision, 3) >= _RERUN_RESTRICTIVENESS.get(spec_decision, 3):
+        return core_decision
+    return spec_decision
+
+
+def _core_risk_to_spec_decision(core_risk: str | None) -> str:
+    mapping = {
+        "safe": "allowed",
+        "safe-with-new-inputs": "allowed-with-new-inputs",
+        "requires-confirmation": "requires-confirmation",
+        "blocked": "blocked",
+    }
+    return mapping.get(str(core_risk or "blocked"), "blocked")
+
+
 def recommend_repairs_for_gate_coverage(
     gate_coverage: list[GateCoverageResult],
     planned_gates: list[PlannedValidationGate],
@@ -53,6 +79,26 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     requiresUserDecision=True,
                     sourceFeedback=source_feedback,
                     autonomy="blocked" if category == "replan-required" else "confirmation-required",
+                    safeMechanical=False,
+                    intentPreserved=False,
+                )
+            )
+            continue
+
+        write_risk = _write_rerun_risk(finding, text)
+        if write_risk:
+            recommendations.append(
+                RepairRecommendation(
+                    id=f"repair-{index}-write-rerun-risk",
+                    category="runtime-setup",
+                    runtimeCategory="write-flow-safety",
+                    summary=message or "The run may have crossed the write commit boundary.",
+                    action="Review the created or affected resource before repair, cleanup, or rerun. Follow the explicit rerun policy and Core rerunRisk.",
+                    affectedArtifacts=affected,
+                    blockedReason=write_risk,
+                    requiresUserDecision=True,
+                    sourceFeedback=source_feedback,
+                    autonomy="blocked",
                     safeMechanical=False,
                     intentPreserved=False,
                 )
@@ -245,6 +291,25 @@ def _blocked_category(text: str) -> tuple[str, str] | None:
         return ("clarification-required", "Repair changes a clarified runtime/data decision and must be re-clarified.")
     if any(term in text for term in ["weakened-gate", "tab-label-only", "navigation-only", "weaken required", "replace rendered"]):
         return ("replan-required", "Repair weakens required gate evidence and must be replanned.")
+    return None
+
+
+def _write_rerun_risk(finding: dict[str, object], text: str) -> str | None:
+    classification = finding.get("resultClassification") if isinstance(finding.get("resultClassification"), dict) else {}
+    side_effects = finding.get("sideEffects") if isinstance(finding.get("sideEffects"), dict) else {}
+    side_effect_status = str(
+        classification.get("sideEffectStatus")
+        or finding.get("sideEffectStatus")
+        or side_effects.get("status")
+        or ""
+    )
+    failure_phase = str(classification.get("failurePhase") or finding.get("failurePhase") or side_effects.get("failurePhase") or "")
+    rerun_risk = str(classification.get("rerunRisk") or finding.get("rerunRisk") or "")
+    risky_statuses = {"possible", "likely-committed", "committed-confirmed", "violated", "unknown"}
+    if side_effect_status in risky_statuses or failure_phase in {"post-commit", "post-verification"} or rerun_risk in {"requires-confirmation", "blocked"}:
+        return "Public Core result indicates post-commit or uncertain mutating activity; blind repair-and-rerun is blocked."
+    if any(term in text for term in ["post-commit", "committed-confirmed", "likely-committed", "side effect may", "mutating activity", "rerunrisk blocked"]):
+        return "Runtime feedback indicates write-side-effect risk; blind repair-and-rerun is blocked."
     return None
 
 

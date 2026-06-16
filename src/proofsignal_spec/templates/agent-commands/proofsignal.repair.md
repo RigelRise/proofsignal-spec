@@ -16,6 +16,8 @@ Repair invalid or failed use cases through the workflow.
 - Treat missing coverage from an aborted Core/browser run as diagnostic. Required gates remain required unless clarify/plan or an explicit gate-intent confirmation changes product intent.
 - Treat `skill-execution.*` and execution-boundary findings as skill-set/composition problems. Prefer composing required helper behavior into the main skill or reclassifying helpers as source-only metadata; do not weaken required gates to compensate for helper-skill misexecution.
 - Treat runtime contradictions and incomplete planned gate coverage as repair/replan inputs. Do not silently weaken browser skills when a planned gate is absent in the target product state.
+- If public Core fields indicate post-commit, committed-confirmed, violation, or unknown mutating activity, do not recommend blind repair-and-rerun. Require review, cleanup, or explicit rerun policy/confirmation first.
+- Apply the most restrictive rerun decision between Core `rerunRisk` and Spec `rerunPolicy`; refresh only generated runtime inputs explicitly declared refreshable.
 - Safe mechanical selector, wait strategy, step ordering, target specificity, equivalent-flow, and run-profile repairs may auto-apply only when the result classifies them as intent-preserving.
 - If a safe mechanical repair is auto-applied, show before/after repair feedback, revalidation status, rerun status, and the next command. Do not report success until validate and rerun produce strict pass.
 - Data assumptions, credentials, required gates, target selection, dynamic-versus-fixed data, and expected product behavior changes still require explicit confirmation.

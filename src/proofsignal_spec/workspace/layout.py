@@ -15,6 +15,11 @@ REPAIRS_DIR = "repairs"
 INTEGRATIONS_DIR = "integrations"
 MANIFESTS_DIR = "manifests"
 WORKFLOWS_DIR = "workflows"
+READINESS_DIR = "readiness"
+CREDENTIAL_HINTS_DIR = "credential-hints"
+CONFIRMATIONS_DIR = "confirmations"
+REFRESH_IMPACT_DIR = "refresh-impact"
+CAPABILITY_POLICIES_DIR = "capability-policies"
 WORKFLOW_DEFINITIONS_DIR = "definitions"
 WORKFLOW_RUNS_DIR = "runs"
 WORKFLOW_USE_CASES_DIR = "use-cases"
@@ -75,6 +80,26 @@ def repair_path(project: Path, repair_id: str) -> Path:
 
 def run_history_path(project: Path, alias: str, run_id: str) -> Path:
     return workspace_root(project) / RUNS_DIR / alias / f"{run_id}.yaml"
+
+
+def readiness_snapshot_path(project: Path, alias: str) -> Path:
+    return workspace_root(project) / READINESS_DIR / f"{ensure_path_safe_alias(alias)}.yaml"
+
+
+def credential_hint_path(project: Path, group: str) -> Path:
+    return workspace_root(project) / CREDENTIAL_HINTS_DIR / f"{ensure_path_safe_alias(group)}.yaml"
+
+
+def confirmation_requirement_path(project: Path, alias: str) -> Path:
+    return workspace_root(project) / CONFIRMATIONS_DIR / f"{ensure_path_safe_alias(alias)}.yaml"
+
+
+def refresh_impact_path(project: Path, alias: str) -> Path:
+    return workspace_root(project) / REFRESH_IMPACT_DIR / f"{ensure_path_safe_alias(alias)}.yaml"
+
+
+def capability_policy_path(project: Path, capability: str) -> Path:
+    return workspace_root(project) / CAPABILITY_POLICIES_DIR / f"{ensure_path_safe_alias(capability)}.yaml"
 
 
 def integration_state_path(project: Path) -> Path:
@@ -176,6 +201,11 @@ def workspace_dirs(project: Path) -> list[Path]:
         root / SKILLS_DIR,
         root / RUNS_DIR,
         root / REPAIRS_DIR,
+        root / READINESS_DIR,
+        root / CREDENTIAL_HINTS_DIR,
+        root / CONFIRMATIONS_DIR,
+        root / REFRESH_IMPACT_DIR,
+        root / CAPABILITY_POLICIES_DIR,
         root / INTEGRATIONS_DIR,
         root / INTEGRATIONS_DIR / MANIFESTS_DIR,
         root / WORKFLOWS_DIR,

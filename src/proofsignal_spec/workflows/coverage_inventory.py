@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 import re
 
+from proofsignal_spec.workspace.models import RefreshImpactResult
+
 from .models import CoverageInventory, CoverageInventoryItem, CandidateValidationUseCase, InventoryPass
 
 VALID_SCOPES = {"all", "changed", "continue"}
@@ -155,6 +157,72 @@ def inventory_needs_more_coverage(inventory_data: dict[str, Any] | None) -> bool
     return status in {"partial", "stale"}
 
 
+def classify_refresh_impacts(
+    existing_inventory_data: dict[str, Any] | None,
+    incoming_inventory_data: dict[str, Any] | None,
+    records: list[Any],
+    *,
+    generated_at: str | None = None,
+) -> list[RefreshImpactResult]:
+    """Conservative per-use-case impact from public inventory paths only.
+
+    This intentionally avoids claiming tested-code precision. When the refreshed
+    inventory does not mention a use case target surface, the use case is
+    unaffected by that scoped refresh. When the target is mentioned and changed,
+    it is affected. If there is no usable path signal, impact stays unknown.
+    """
+
+    incoming = normalize_inventory(incoming_inventory_data or {}, scope="all")
+    existing = normalize_inventory(existing_inventory_data or {}, scope="all") if existing_inventory_data else None
+    if not incoming.items:
+        return [
+            RefreshImpactResult(
+                alias=str(record.alias),
+                status="unknown",
+                reason="Understanding refresh did not include inventory paths that can be compared to this use case.",
+                affectedAreas=["inventory"],
+                recommendedAction="validate",
+                generatedAt=generated_at,
+            )
+            for record in records
+        ]
+
+    impacts: list[RefreshImpactResult] = []
+    for record in records:
+        target = str(getattr(record, "targetSurface", "") or "")
+        new_matches = _matching_inventory_items(incoming.items, target)
+        if not new_matches:
+            impacts.append(
+                RefreshImpactResult(
+                    alias=str(record.alias),
+                    status="unaffected",
+                    reason="Refreshed inventory did not touch this use case target surface.",
+                    recommendedAction="none",
+                    generatedAt=generated_at,
+                )
+            )
+            continue
+        old_matches = _matching_inventory_items(existing.items if existing else [], target)
+        old_by_id = {item.id: item.to_dict() for item in old_matches}
+        changed = [item for item in new_matches if old_by_id.get(item.id) != item.to_dict()]
+        status = "affected" if changed else "unaffected"
+        impacts.append(
+            RefreshImpactResult(
+                alias=str(record.alias),
+                status=status,
+                reason=(
+                    "Refreshed inventory changed this use case target surface."
+                    if status == "affected"
+                    else "Refreshed inventory includes this target surface but did not change its recorded inventory item."
+                ),
+                affectedAreas=sorted({item.path for item in changed}) if changed else [],
+                recommendedAction="validate" if status == "affected" else "none",
+                generatedAt=generated_at,
+            )
+        )
+    return impacts
+
+
 def _validate_inventory(inventory: CoverageInventory) -> None:
     item_ids = {item.id for item in inventory.items if item.id}
     for item in inventory.items:
@@ -235,6 +303,16 @@ def _surface_matches(item_path: str, candidate_surface: str) -> bool:
     pattern = re.escape(item_path)
     pattern = re.sub(r"\\\[[^\\]+\\\]", r".+", pattern)
     return re.match(f"^{pattern}$", candidate_surface) is not None
+
+
+def _matching_inventory_items(items: list[CoverageInventoryItem], target_surface: str) -> list[CoverageInventoryItem]:
+    if not target_surface:
+        return []
+    matches: list[CoverageInventoryItem] = []
+    for item in items:
+        if item.path and (_surface_matches(item.path, target_surface) or item.path in target_surface or target_surface in item.path):
+            matches.append(item)
+    return matches
 
 
 def _string_list(value: Any) -> list[str]:

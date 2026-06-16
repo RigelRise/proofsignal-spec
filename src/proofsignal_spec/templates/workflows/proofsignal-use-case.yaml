@@ -23,3 +23,23 @@ guidance:
       - Reusable skills are source-only unless Core declares deterministic multi-skill support.
       - When Core lacks multi-skill support, reusable behavior required by the use case is inlined into the main skill.
       - Source-only gate evidence counts only through explicit composition mapping.
+  writeFlowSafety:
+    sourceOfTruth: stagePayloadContracts and coreExecutableContract.sections.sideEffectGuardrails
+    rules:
+      - Spec owns the declared side-effect intent for each use case; Core is also a runtime gatekeeper.
+      - Do not infer all possible writes. Require explicit sideEffects.class from the authoring workflow.
+      - Use class none for read-only validations, authenticated-read for non-mutating authenticated checks, write for product-state mutations, and external-notification for irreversible external messages.
+      - write and external-notification default to mode enforce unless the developer explicitly selects observe or warn.
+      - write and external-notification require commitStepId, a local side-effect envelope, runtimeOutputs when needed for follow-up validation, and rerunPolicy.
+      - Generated runtime inputs are use-case-owned names resolved per run; avoid target-project-specific examples in prompts.
+      - Write and external-notification use cases declare sideEffectLifecycle with cleanup policy, requiredness, tracking intent, and manual/external instructions when needed.
+      - Legacy write artifacts missing safety capabilities or lifecycle require structured owner confirmation and migration guidance before run.
+      - Missing Core side-effect envelope is interpreted conservatively; it is not proof that no side effect occurred.
+  liveReadiness:
+    sourceOfTruth: readiness snapshots, credential hints, refresh-impact records, and confirmation requirements under .proofsignal/
+    rules:
+      - Normal list output separates historical lastRun from current readiness.
+      - Normal list output remains metadata-only and does not call Core, network, credentials, entitlement, target reachability, or browser checks.
+      - Credential readiness hints are non-secret, user-managed, and never executed automatically.
+      - Alias-scoped validate/run handles stale understanding by use-case impact instead of forcing a global refresh.
+      - workflow check run surfaces structured confirmation requirements without executing the browser run.

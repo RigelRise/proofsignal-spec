@@ -22,6 +22,12 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
             "purpose",
             "description",
             "expectedOutcomes",
+            "sideEffects",
+            "runtimeInputs",
+            "runtimeOutputs",
+            "rerunPolicy",
+            "sideEffectLifecycle",
+            "credentialReadinessHints",
         ],
         defaults={"status": "draft"},
         examples=[
@@ -31,6 +37,7 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
                 "behavior": "Validate the public home page.",
                 "expectedOutcome": "Hero, activity, Teams, and Brands sections render.",
                 "targetEnvironment": {"kind": "staging-url", "locator": "https://app.example.test"},
+                "sideEffects": {"class": "none"},
                 "customSourceReason": "Selected by developer.",
             }
         ],
@@ -39,7 +46,17 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
     "clarify": WorkflowStageContract(
         stage="clarify",
         requiredFields=["questions or answers"],
-        optionalFields=["alias", "questions", "answers"],
+        optionalFields=[
+            "alias",
+            "questions",
+            "answers",
+            "sideEffects",
+            "runtimeInputs",
+            "runtimeOutputs",
+            "rerunPolicy",
+            "sideEffectLifecycle",
+            "credentialReadinessHints",
+        ],
         examples=[
             {
                 "questions": [
@@ -72,6 +89,11 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
             "gateIntentChanges",
             "credentialGroups",
             "credentialRefs",
+            "sideEffects",
+            "runtimeOutputs",
+            "rerunPolicy",
+            "sideEffectLifecycle",
+            "credentialReadinessHints",
             "targetEnvironment",
             "unresolvedBlockingClarifications",
         ],
@@ -82,6 +104,7 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
                 "mainSkill": ".proofsignal/skills/validate-home-page-unauth-flow.browser.md",
                 "reusableSkills": [".proofsignal/skills/validate-home-page-unauth-flow.browser.md"],
                 "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
+                "sideEffects": {"class": "none"},
                 "validationGates": [{"id": "home-hero-visible", "required": True}],
             }
         ],
@@ -107,7 +130,21 @@ _STAGE_CONTRACTS: dict[str, WorkflowStageContract] = {
     "implement": WorkflowStageContract(
         stage="implement",
         requiredFields=["runRequest", "skills"],
-        optionalFields=["alias", "runtimeInputs", "profiles", "artifacts", "credentialGroups", "credentialRefs", "skillComposition"],
+        optionalFields=[
+            "alias",
+            "runtimeInputs",
+            "runtimeOutputs",
+            "sideEffects",
+            "rerunPolicy",
+            "sideEffectLifecycle",
+            "credentialReadinessHints",
+            "artifactCapabilities",
+            "profiles",
+            "artifacts",
+            "credentialGroups",
+            "credentialRefs",
+            "skillComposition",
+        ],
         examples=[
             {
                 "runRequest": {"path": ".proofsignal/run-requests/home-page-unauth.yaml"},

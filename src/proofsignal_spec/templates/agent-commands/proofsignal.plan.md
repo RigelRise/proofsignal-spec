@@ -16,6 +16,9 @@ Plan one run request and reusable skills before implementation.
 - Plan skills as decoupled reusable artifacts under `.proofsignal/skills/<name>.browser.md`; one skill may be referenced by multiple run requests.
 - Make the main skill executable by Core for the complete planned validation path. Supporting skills can capture reusable intent, but Core v0.1 may execute only the main browser skill during a run.
 - Identify the main skill, supporting skills, runtime input names, credential groups, expected app state, and validation gates.
+- For write and external-notification use cases, plan `sideEffects` with `mode: enforce` unless explicitly selected otherwise, the commit step id, allowed local envelope rules or confirmation signals, `runtimeOutputs` needed for follow-up validation, and `rerunPolicy`.
+- Generated runtime inputs must use generic use-case-owned names and templates such as run identifiers; do not hard-code target-project-specific parameter names into guidance.
+- When a generated value must be validated later in the same run, plan it as a runtime input reference and, when Core supports it, a use-case-owned runtime output.
 - For browser page-view use cases, every required validation gate must have a stable `id`, `description`, and `required` flag. Conditional gates must include a human-readable `condition`.
 - Plan explicit gate evidence: each UI assertion, backend request check, and screenshot intended to prove coverage must declare `gateId`.
 - A page-view gate is not complete with only navigation, URL matching, body text, screenshots, or HTTP 200. Plan a specific rendered-result UI assertion with target and expected text/state/count.

@@ -100,3 +100,15 @@ def assert_no_core_contract_snapshots(project: Path) -> None:
             if lower_name in suspicious_names or "core-contract" in lower_name or "executable-contract" in lower_name:
                 offenders.append(str(rel))
     assert offenders == []
+
+
+def row_by_alias(payload: dict, alias: str) -> dict:
+    return next(item for item in payload["useCases"] if item["alias"] == alias)
+
+
+def assert_compact_readiness_row(row: dict) -> None:
+    assert set(["alias", "lastRun", "current", "requirements", "risk"]).issubset(row)
+    assert set(["status", "runId"]).issubset(row["lastRun"])
+    assert set(["status", "checked", "reasons"]).issubset(row["current"])
+    assert set(["runtimeInputs", "credentials", "sideEffectClass", "cleanupPolicy"]).issubset(row["requirements"])
+    assert set(["classes", "write", "cleanupPolicy", "requiresConfirmation"]).issubset(row["risk"])

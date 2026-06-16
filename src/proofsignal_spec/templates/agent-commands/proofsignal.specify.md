@@ -24,6 +24,8 @@ Define one browser validation use case before artifact planning.
 - If the coverage inventory is `complete`, list additional scenarios from inventory when the developer asks for more.
 - Let the developer choose a candidate or provide a custom use case.
 - Record exactly one validation intent with alias, purpose, target surface, expected outcome, runtime assumptions, acceptance scenarios, and unresolved questions.
+- Record `sideEffects.class` explicitly. Use `none` for read-only, `authenticated-read` for authenticated non-mutating checks, `write` for product-state mutations, `external-notification` for external messages, and `unknown` only as a clarify blocker.
+- Do not try to categorize every possible action globally. Classify the selected use case and record unresolved uncertainty instead of guessing.
 - Browser validation use cases require a resolved target application environment before executable planning. If the target URL, local start command, or equivalent browser target is not known, record it as a high-impact unresolved question and route to `/proofsignal-clarify`.
 - If the request contains multiple behaviors, split or ask for clarification before planning.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through `proofsignal workflow persist specify --alias <alias> --payload <payload.json> --json`.

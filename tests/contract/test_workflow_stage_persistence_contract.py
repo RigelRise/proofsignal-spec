@@ -8,7 +8,7 @@ from helpers import CliTestCase, assert_no_core_contract_snapshots
 from tests.fixtures.workflows.main_skill_run_coverage import HELPER_SKILL_PATH, MAIN_SKILL_PATH, create_main_skill_coverage_workspace
 from tests.fixtures.workflows.guardrails import stage_payload, write_payload
 from tests.fixtures.workflows.prerequisites import create_current_understanding_workspace
-from proofsignal_spec.workspace.repository import load_document
+from proofsignal_spec.workspace.repository import load_document, load_refresh_impact
 
 
 class WorkflowStagePersistenceContractTests(CliTestCase):
@@ -30,6 +30,21 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         self.assertEqual(result["coreExecutableContract"]["source"], "core-public-contract")
         self.assertIn("runRequest", result["coreExecutableContract"]["sections"])
         self.assertIn("skill", result["coreExecutableContract"]["sections"])
+
+    def test_workflow_info_includes_live_write_readiness_stage_fields(self) -> None:
+        self.cli(["init", str(self.project), "--integration", "codex", "--json"])
+
+        code, out, err = self.cli(["workflow", "info", "--project", str(self.project), "--json"])
+
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        clarify = result["stagePayloadContracts"]["byStage"]["clarify"]["optionalFields"]
+        implement = result["stagePayloadContracts"]["byStage"]["implement"]["optionalFields"]
+        self.assertIn("credentialReadinessHints", clarify)
+        self.assertIn("sideEffectLifecycle", clarify)
+        self.assertIn("credentialReadinessHints", implement)
+        self.assertIn("sideEffectLifecycle", implement)
+        self.assertIn("artifactCapabilities", implement)
 
     def test_workflow_info_projects_current_core_contract_shape(self) -> None:
         os.environ["FAKE_PROOFSIGNAL_MODE"] = "current-contract"
@@ -102,6 +117,14 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
                         }
                     ],
                 },
+                "refreshImpacts": [
+                    {
+                        "alias": "existing-write-flow",
+                        "status": "unaffected",
+                        "reason": "Refresh only touched unrelated public routes.",
+                        "recommendedAction": "none",
+                    }
+                ],
             },
         )
         code, out, err = self.cli([
@@ -122,6 +145,10 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         self.assertEqual(result["status"], "persisted")
         self.assertTrue((self.project / ".proofsignal/product-context.yaml").exists())
         self.assertTrue((self.project / ".proofsignal/workflows/understanding.md").exists())
+        impact = load_refresh_impact(self.project, "existing-write-flow")
+        self.assertIsNotNone(impact)
+        self.assertEqual(impact.status, "unaffected")
+        self.assertEqual(impact.recommendedAction, "none")
 
     def test_plan_blocks_unresolved_environment_dependent_clarification(self) -> None:
         self.cli(["init", str(self.project), "--integration", "codex", "--json"])

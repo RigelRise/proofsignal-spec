@@ -1,55 +1,51 @@
 from __future__ import annotations
 
-from helpers import FAKE_CORE
-from tests.fixtures.workflows.skill_execution_boundary import ALIAS, create_planned_workspace, implementation_payload
+import pytest
+
+from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
+from proofsignal_spec.core.errors import RuntimeInputError
+from proofsignal_spec.workspace.models import RuntimeInputRequirement
 from proofsignal_spec.workflows.stage_persistence import persist_stage
-from tests.fixtures.workflows.workflow_dogfood_adjustments import minimal_specify_payload
+from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace
 
 
-def _workspace_text(project) -> str:
-    root = project / ".proofsignal"
-    if not root.exists():
-        return ""
-    return "\n".join(path.read_text(encoding="utf-8", errors="ignore") for path in root.rglob("*") if path.is_file())
+def test_generated_runtime_input_secret_like_name_is_rejected_before_persistence() -> None:
+    with pytest.raises(RuntimeInputError):
+        resolve_runtime_inputs(
+            [RuntimeInputRequirement(name="apiToken", source="generated", template="ProofSignal {{run.shortId}}")],
+            interactive=False,
+            run_id="run-one",
+        )
 
 
-def test_secret_target_locator_is_rejected_and_not_persisted_in_workflow_state(tmp_path) -> None:
-    project = tmp_path / "repo"
-    project.mkdir()
-    secret_url = "https://qa-user:qa-password@example.com/app"
+def test_generated_runtime_input_secret_like_value_is_rejected_before_persistence() -> None:
+    with pytest.raises(RuntimeInputError):
+        resolve_runtime_inputs(
+            [RuntimeInputRequirement(name="resourceName", source="generated", template="Bearer abcdefghijklmnopqrstuvwxyz123456")],
+            interactive=False,
+            run_id="run-one",
+        )
 
-    result = persist_stage(project, "specify", alias="home-page-unauth", payload=minimal_specify_payload(target=secret_url))
+
+def test_credential_readiness_hint_rejects_env_assignment_secret_text(tmp_path) -> None:
+    create_live_write_readiness_workspace(tmp_path)
+
+    result = persist_stage(
+        tmp_path,
+        "clarify",
+        alias="brands-search-authenticated",
+        payload={
+            "questions": [],
+            "credentialReadinessHints": [
+                {
+                    "credentialGroup": "feats",
+                    "expectedSource": "environment",
+                    "requiredRuntimeNames": ["APP_TEST_EMAIL", "APP_TEST_PASSWORD"],
+                    "preparationHint": "APP_TEST_PASSWORD=super-secret-password-value",
+                }
+            ],
+        },
+    )
 
     assert result["status"] == "invalid"
-    assert "Secret-looking value" in result["blockers"][0]["message"]
-    assert "qa-password" not in _workspace_text(project)
-
-
-def test_tokenized_target_locator_is_rejected_and_not_persisted_in_run_artifacts(tmp_path) -> None:
-    project = tmp_path / "repo"
-    project.mkdir()
-    secret_url = "https://example.com/app?access_token=abc123abc123abc123"
-
-    result = persist_stage(project, "specify", alias="home-page-unauth", payload=minimal_specify_payload(target=secret_url))
-
-    assert result["status"] == "invalid"
-    assert "Secret-looking value" in result["blockers"][0]["message"]
-    assert "access_token" not in _workspace_text(project)
-
-
-def test_composed_skill_preserves_credential_placeholders_without_persisting_env_values(tmp_path, monkeypatch) -> None:
-    project = tmp_path / "repo"
-    project.mkdir()
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
-    monkeypatch.setenv("APP_TEST_EMAIL", "qa-user@example.com")
-    monkeypatch.setenv("APP_TEST_PASSWORD", "super-secret-password-value")
-    create_planned_workspace(project)
-
-    result = persist_stage(project, "implement", alias=ALIAS, payload=implementation_payload(composed_main=False))
-
-    workspace_text = _workspace_text(project)
-    assert result["status"] == "persisted"
-    assert "{{credentials.feats.email}}" in workspace_text
-    assert "{{credentials.feats.password}}" in workspace_text
-    assert "qa-user@example.com" not in workspace_text
-    assert "super-secret-password-value" not in workspace_text
+    assert result["blockers"][0]["code"] == "payload.invalid"

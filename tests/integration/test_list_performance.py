@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 import time
 
-from helpers import CliTestCase
+from proofsignal_spec.commands.list import run as list_run
+from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace
 
 
-class ListPerformanceTests(CliTestCase):
-    def test_twenty_registered_use_cases_list_under_five_seconds(self) -> None:
-        self.cli(["init", str(self.project), "--integration", "codex"])
-        for index in range(20):
-            self.cli(["author", f"perf-{index}", f"Validate perf {index}.", "--project", str(self.project)])
-        started = time.monotonic()
-        code, _, err = self.cli(["list", "--project", str(self.project), "--json"])
-        self.assertEqual(code, 0, err)
-        self.assertLess(time.monotonic() - started, 5)
+def test_representative_list_readiness_metadata_overhead_under_fifty_ms(tmp_path) -> None:
+    create_live_write_readiness_workspace(tmp_path)
+
+    started = time.monotonic()
+    payload = list_run(tmp_path)
+    elapsed = time.monotonic() - started
+
+    assert len(payload["useCases"]) == 3
+    assert elapsed < 0.05

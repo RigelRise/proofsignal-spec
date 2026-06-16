@@ -76,6 +76,7 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     run_parser.add_argument("--api-base-url", help="Override the ProofSignal entitlement API base URL for staging, local development, or tests")
     run_parser.add_argument("--json", action="store_true")
     run_parser.add_argument("--non-interactive", action="store_true")
+    run_parser.add_argument("--confirm-risk", action="append", default=[], help="Confirm a structured risky-run confirmation id from workflow check run")
 
     repair_parser = subparsers.add_parser("repair", help="Repair a use case")
     repair_parser.add_argument("alias")
@@ -248,6 +249,7 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
             core_cmd=args.core_cmd,
             api_base_url=args.api_base_url,
             slow_mo_override=args.slow_mo,
+            confirmed_risks=args.confirm_risk,
         ), args.json
     if command == "repair":
         return repair_command.run(Path(args.project).resolve(), args.alias, from_report=args.from_report, approve=args.approve, core_cmd=args.core_cmd, api_base_url=args.api_base_url), args.json
