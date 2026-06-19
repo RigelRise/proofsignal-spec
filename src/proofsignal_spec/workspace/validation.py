@@ -19,7 +19,6 @@ from .models import (
     UseCaseRecord,
 )
 from .repository import load_document, load_registry, load_use_case
-from proofsignal_spec.workflows.write_safety import confirmation_support_findings, normalize_side_effect_policy
 
 SECRET_FIELD_RE = re.compile(r"(password|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|authorization)", re.I)
 BEARER_RE = re.compile(r"\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}", re.I)
@@ -294,6 +293,8 @@ def validate_side_effect_declaration(
     core_contract: dict[str, Any] | None = None,
     runtime_outcomes: list[dict[str, Any] | None] | None = None,
 ) -> list[dict[str, str]]:
+    from proofsignal_spec.workflows.write_safety import confirmation_support_findings, normalize_side_effect_policy
+
     if isinstance(declaration, SideEffectDeclaration):
         side_effect = declaration
         compatibility_findings: list[dict[str, Any]] = []
