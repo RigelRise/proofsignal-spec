@@ -165,7 +165,7 @@ def test_run_preserves_post_commit_interpretation_from_public_core_fields(tmp_pa
         sideEffects={
             "class": "write",
             "commitStepId": "submit-resource",
-            "allowed": [{"id": "create-resource", "kind": "network"}],
+            "allowed": [{"id": "create-resource", "kind": "network", "methods": ["POST"], "urlContains": "/resources"}],
         },
         rerunPolicy={"afterNoCommit": "allowed", "afterCommit": "blocked"},
         sideEffectLifecycle=_manual_cleanup_lifecycle(),
@@ -198,7 +198,7 @@ def test_second_run_after_post_commit_write_is_blocked_by_rerun_policy(tmp_path,
         sideEffects={
             "class": "write",
             "commitStepId": "submit-resource",
-            "allowed": [{"id": "create-resource", "kind": "network"}],
+            "allowed": [{"id": "create-resource", "kind": "network", "methods": ["POST"], "urlContains": "/resources"}],
         },
         rerunPolicy={"afterNoCommit": "allowed", "afterCommit": "blocked"},
         sideEffectLifecycle=_manual_cleanup_lifecycle(),
@@ -244,7 +244,7 @@ def test_rerun_allowed_with_new_inputs_refreshes_declared_generated_value(tmp_pa
         sideEffects={
             "class": "write",
             "commitStepId": "submit-resource",
-            "allowed": [{"id": "create-resource", "kind": "network"}],
+            "allowed": [{"id": "create-resource", "kind": "network", "methods": ["POST"], "urlContains": "/resources"}],
         },
         rerunPolicy={"afterNoCommit": "allowed", "afterCommit": "allowed-with-new-inputs", "refreshInputs": ["resourceName"]},
         sideEffectLifecycle=_manual_cleanup_lifecycle(),

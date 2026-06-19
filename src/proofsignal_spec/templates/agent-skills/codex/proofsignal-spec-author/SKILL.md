@@ -20,3 +20,8 @@ or Core contract.
 Generate one run request and reusable skills, then run
 `proofsignal-spec validate <alias> --runtime-readiness` before marking the use
 case ready.
+
+For write use cases, author canonical `sideEffectPolicy.allowed[]` and
+`sideEffectPolicy.forbidden[]`, never `sideEffectPolicy.rules[].effect/match`.
+Use runtime-supported confirmation signals only, and preserve generated
+identity binding status as `prepared/committed/discarded`.

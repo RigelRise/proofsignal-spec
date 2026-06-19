@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from proofsignal_spec.workspace.repository import init_workspace, load_use_case
 from proofsignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, validate_stage
+from proofsignal_spec.workflows.models import ArtifactPlan
+from proofsignal_spec.workflows.repository import save_artifact_plan
+from proofsignal_spec.workflows.stage_persistence import persist_stage
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 
 
@@ -27,3 +30,98 @@ def test_implemented_browser_artifacts_require_runtime_readiness_validation(tmp_
     assert result["status"] == "passed"
     assert result["runtimeReadiness"]["status"] == "passed"
     assert result["runtimeReadiness"]["fullBrowserFlowExecuted"] is False
+
+
+def test_write_implementation_requires_resource_identity(tmp_path) -> None:
+    init_workspace(tmp_path)
+    create_workflow_run(tmp_path, "Create resource.", alias="create-resource", integration="codex")
+    _save_create_resource_plan(tmp_path)
+
+    result = persist_stage(tmp_path, "implement", alias="create-resource", payload=_write_implement_payload(include_identity=False, generated_identity=False))
+
+    assert result["status"] == "invalid"
+    assert result["blockers"][0]["code"] == "payload.invalid"
+    assert "resourceIdentity" in result["blockers"][0]["message"]
+
+
+def test_write_implementation_persists_resource_identity(tmp_path) -> None:
+    init_workspace(tmp_path)
+    create_workflow_run(tmp_path, "Create resource.", alias="create-resource", integration="codex")
+    _save_create_resource_plan(tmp_path)
+
+    result = persist_stage(tmp_path, "implement", alias="create-resource", payload=_write_implement_payload(include_identity=True))
+
+    assert result["status"] == "persisted"
+    record = load_use_case(tmp_path, "create-resource")
+    assert record.resourceIdentity["identityInput"] == "resourceName"
+    assert "resource-identity" in record.artifactCapabilities["stamp"]["capabilities"]
+
+
+def test_write_implementation_infers_high_confidence_generated_identity(tmp_path) -> None:
+    init_workspace(tmp_path)
+    create_workflow_run(tmp_path, "Create resource.", alias="create-resource", integration="codex")
+    _save_create_resource_plan(tmp_path)
+
+    result = persist_stage(tmp_path, "implement", alias="create-resource", payload=_write_implement_payload(include_identity=False))
+
+    assert result["status"] == "persisted"
+    identity = load_use_case(tmp_path, "create-resource").resourceIdentity
+    assert identity["identityStrategy"] == "generated-input"
+    assert identity["identityInput"] == "resourceName"
+    assert identity["confidence"] == "high"
+
+
+def _save_create_resource_plan(tmp_path) -> None:
+    save_artifact_plan(
+        tmp_path,
+        ArtifactPlan(
+            useCaseAlias="create-resource",
+            runRequest=".proofsignal/run-requests/create-resource.yaml",
+            mainSkill=".proofsignal/skills/create-resource.browser.md",
+            runtimeInputs=[
+                {"name": "baseUrl", "source": "default", "value": "https://example.test"},
+                {"name": "resourceName", "source": "generated", "template": "resource-{{run.shortId}}", "refreshOnRerunAfterCommit": True},
+            ],
+            validationGates=[{"id": "created-page-visible", "required": True}],
+        ),
+    )
+
+
+def _write_implement_payload(*, include_identity: bool, generated_identity: bool = True) -> dict:
+    runtime_inputs = [{"name": "baseUrl", "source": "default", "value": "https://example.test"}]
+    if generated_identity:
+        runtime_inputs.append({"name": "resourceName", "source": "generated", "template": "resource-{{run.shortId}}", "refreshOnRerunAfterCommit": True})
+    payload = {
+        "runRequest": {"path": ".proofsignal/run-requests/create-resource.yaml"},
+        "runtimeInputs": runtime_inputs,
+        "skills": [
+            {
+                "path": ".proofsignal/skills/create-resource.browser.md",
+                "kind": "skill",
+                "intent": {
+                    "browser": {
+                        "targets": {"page": {"css": "body"}},
+                        "steps": [{"id": "open", "action": "navigate", "value": "{{parameters.baseUrl}}"}],
+                        "assertions": [{"id": "page-visible", "kind": "visible", "target": "page", "gateId": "created-page-visible"}],
+                    }
+                },
+            }
+        ],
+        "sideEffects": {
+            "class": "write",
+            "commitStepId": "submit-resource",
+            "allowed": [{"id": "create-resource", "kind": "network", "methods": ["POST"], "urlContains": "/resources"}],
+        },
+        "sideEffectLifecycle": {"cleanupPolicy": "manual", "cleanupRequired": True, "instructions": "Delete the test resource manually."},
+        "rerunPolicy": {"afterCommit": "allowed-with-new-inputs", "refreshRuntimeInputs": ["resourceName"]},
+    }
+    if include_identity:
+        payload["resourceIdentity"] = {
+            "resourceType": "resource",
+            "identityStrategy": "generated-input",
+            "identityInput": "resourceName",
+            "collisionPolicy": "avoid",
+            "targetScope": "https://example.test",
+            "confidence": "confirmed",
+        }
+    return payload

@@ -30,8 +30,13 @@ guidance:
       - Do not infer all possible writes. Require explicit sideEffects.class from the authoring workflow.
       - Use class none for read-only validations, authenticated-read for non-mutating authenticated checks, write for product-state mutations, and external-notification for irreversible external messages.
       - write and external-notification default to mode enforce unless the developer explicitly selects observe or warn.
-      - write and external-notification require commitStepId, a local side-effect envelope, runtimeOutputs when needed for follow-up validation, and rerunPolicy.
+      - write and external-notification require commitStepId, a local side-effect envelope, explicit resourceIdentity, runtimeOutputs when needed for follow-up validation, and rerunPolicy.
+      - Author local side-effect envelopes with sideEffectPolicy.allowed[] and sideEffectPolicy.forbidden[]. Do not author sideEffectPolicy.rules[].effect/match; that legacy shape is compatibility input only.
+      - Confirmation signals must be runtime-supported confirmation signals, proven by public capability data or accepted public runtime outcomes.
+      - resourceIdentity is use-case-specific. Persist the owner-approved identity field or post-commit binding; do not hard-code product-specific names.
       - Generated runtime inputs are use-case-owned names resolved per run; avoid target-project-specific examples in prompts.
+      - Generated identity bindings move through prepared/committed/discarded and named outputs are published only after commit.
+      - Reviewed false-positive write outcomes use proofsignal workflow supersede-write-outcome, never managed lastRun hand edits.
       - Write and external-notification use cases declare sideEffectLifecycle with cleanup policy, requiredness, tracking intent, and manual/external instructions when needed.
       - Legacy write artifacts missing safety capabilities or lifecycle require structured owner confirmation and migration guidance before run.
       - Missing Core side-effect envelope is interpreted conservatively; it is not proof that no side effect occurred.

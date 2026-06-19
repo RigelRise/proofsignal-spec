@@ -18,10 +18,12 @@ from proofsignal_spec.workspace.repository import (
     load_registry,
     load_use_case,
     run_confirmation_requirements,
+    load_supersede_reviews,
     save_confirmation_requirement,
     side_effect_class,
 )
 from proofsignal_spec.workspace.models import UnderstandingFreshnessState
+from proofsignal_spec.workflows.write_safety import evaluate_rerun_decision
 
 from .first_run import build_understanding_onboarding_preparation
 from .models import (
@@ -75,6 +77,7 @@ def check_prerequisites(
     stale_warnings: list[str] = []
     recorded_decision: dict[str, Any] | None = None
     understanding_payload: dict[str, Any] = {}
+    rerun_decision_for_result: dict[str, Any] | None = None
     if rule.requires_global_understanding:
         understanding = _evaluate_understanding(project)
         understanding_payload = _understanding_payload(understanding.context)
@@ -184,6 +187,23 @@ def check_prerequisites(
 
     if stage == "run" and isinstance(resolved_alias, str):
         record = load_use_case(project, resolved_alias)
+        rerun_decision = evaluate_rerun_decision(record, supersede_reviews=load_supersede_reviews(project, resolved_alias))
+        if rerun_decision.get("decision") in {"blocked", "requires-confirmation"}:
+            return _result(
+                stage,
+                resolved_alias,
+                "blocked" if rerun_decision.get("decision") == "blocked" else "ready",
+                can_proceed=False if rerun_decision.get("decision") == "blocked" else True,
+                requires_confirmation=rerun_decision.get("decision") == "requires-confirmation",
+                warnings=[str(rerun_decision.get("reason", ""))],
+                recommended_action="review-or-supersede-write-outcome"
+                if rerun_decision.get("decision") == "blocked"
+                else "confirm-risk",
+                next_command=_native_next(stage, resolved_alias),
+                rerunDecision=rerun_decision,
+                **understanding_payload,
+            )
+        rerun_decision_for_result = rerun_decision
         confirmations = run_confirmation_requirements(project, record)
         if confirmations:
             confirmation = confirmations[0]
@@ -197,6 +217,7 @@ def check_prerequisites(
                 recommended_action="confirm-risk",
                 next_command=_native_next(stage, resolved_alias),
                 confirmation=confirmation.to_dict(),
+                rerunDecision=rerun_decision_for_result,
                 **understanding_payload,
             )
 
@@ -209,6 +230,7 @@ def check_prerequisites(
         recommended_action="continue-with-warning" if stale_warnings else "continue",
         next_command=_native_next(stage, resolved_alias),
         recorded_decision=recorded_decision,
+        rerunDecision=rerun_decision_for_result,
         **understanding_payload,
     )
 
@@ -593,6 +615,7 @@ def _result(
     refreshImpact: dict[str, Any] | None = None,
     understandingFreshness: dict[str, Any] | None = None,
     confirmation: dict[str, Any] | None = None,
+    rerunDecision: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "schemaVersion": WORKFLOW_CAPABILITY_SCHEMA,
@@ -626,6 +649,8 @@ def _result(
         result["understandingFreshness"] = understandingFreshness
     if confirmation is not None:
         result["confirmation"] = confirmation
+    if rerunDecision is not None:
+        result["rerunDecision"] = rerunDecision
     if available_aliases is not None:
         result["availableAliases"] = available_aliases
     return result

@@ -496,6 +496,8 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     record.credentialRefs = credential_refs
     record.credentialGroups = _credential_groups_from_refs(credential_refs)
     _apply_write_flow_fields(project, record, content)
+    _infer_resource_identity_if_possible(record)
+    _require_resource_identity_for_new_write(record)
     profiles = _profiles_from_payload(content)
     if profiles:
         from proofsignal_spec.workspace.models import RunProfile
@@ -509,6 +511,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
                 "credential-readiness-hints",
                 "explicit-confirmation",
                 "generated-runtime-inputs",
+                "resource-identity",
                 "side-effect-lifecycle",
                 "write-activity-interpretation",
             ],
@@ -764,7 +767,16 @@ def _question_from_dict(data: dict[str, Any]) -> AuthoringQuestion:
 
 def _apply_write_flow_fields(project: Path, record: Any, content: dict[str, Any]) -> None:
     if isinstance(content.get("sideEffects"), dict):
-        record.sideEffects = dict(content["sideEffects"])
+        from proofsignal_spec.workflows.write_safety import normalize_side_effect_policy
+
+        side_effects, compatibility_findings = normalize_side_effect_policy(dict(content["sideEffects"]))
+        blocking = [item for item in compatibility_findings if item.get("severity") == "blocking"]
+        if blocking:
+            first = blocking[0]
+            raise ValueError(f"Conflicting side-effect policy at {first.get('path')}: {first.get('message')}")
+        record.sideEffects = side_effects
+    if isinstance(content.get("resourceIdentity"), dict):
+        record.resourceIdentity = dict(content["resourceIdentity"])
     if isinstance(content.get("runtimeOutputs"), list):
         record.runtimeOutputs = [item for item in content["runtimeOutputs"] if isinstance(item, dict)]
     if isinstance(content.get("rerunPolicy"), dict):
@@ -784,6 +796,58 @@ def _apply_write_flow_fields(project: Path, record: Any, content: dict[str, Any]
                     first = findings[0]
                     raise ValueError(f"Invalid credential readiness hint at {first.get('path')}: {first.get('message')}")
                 save_credential_readiness_hint(project, hint)
+
+
+def _require_resource_identity_for_new_write(record: Any) -> None:
+    side_effects = record.sideEffects if isinstance(record.sideEffects, dict) else {}
+    side_effect_class = str(side_effects.get("class") or side_effects.get("sideEffectClass") or "none")
+    if side_effect_class not in {"write", "external-notification"}:
+        return
+    if isinstance(getattr(record, "resourceIdentity", None), dict) and record.resourceIdentity:
+        return
+    raise ValueError(
+        "Write and external-notification implementations require explicit resourceIdentity "
+        "(resourceType, identityStrategy, identityInput or postCommitBinding, collisionPolicy, targetScope, confidence)."
+    )
+
+
+def _infer_resource_identity_if_possible(record: Any) -> None:
+    if isinstance(getattr(record, "resourceIdentity", None), dict) and record.resourceIdentity:
+        return
+    side_effects = record.sideEffects if isinstance(record.sideEffects, dict) else {}
+    side_effect_class = str(side_effects.get("class") or side_effects.get("sideEffectClass") or "none")
+    if side_effect_class not in {"write", "external-notification"}:
+        return
+    candidates = [
+        item
+        for item in getattr(record, "runtimeInputs", [])
+        if getattr(item, "source", "") == "generated" and bool(getattr(item, "refreshOnRerunAfterCommit", False))
+    ]
+    if len(candidates) != 1:
+        return
+    identity_input = candidates[0].name
+    record.resourceIdentity = {
+        "resourceType": _resource_type_from_alias(str(getattr(record, "alias", "resource"))),
+        "identityStrategy": "generated-input",
+        "identityInput": identity_input,
+        "collisionPolicy": "avoid",
+        "targetScope": _target_scope_from_runtime_inputs(getattr(record, "runtimeInputs", [])),
+        "confidence": "high",
+    }
+
+
+def _resource_type_from_alias(alias: str) -> str:
+    tokens = [item for item in re.split(r"[-_.]+", alias) if item]
+    if len(tokens) > 1 and tokens[0] in {"add", "create", "publish", "send", "invite"}:
+        tokens = tokens[1:]
+    return "-".join(tokens) or "resource"
+
+
+def _target_scope_from_runtime_inputs(runtime_inputs: list[Any]) -> str | None:
+    for item in runtime_inputs:
+        if getattr(item, "name", "") == "baseUrl" and getattr(item, "value", None):
+            return str(item.value)
+    return None
 
 
 def _apply_answer(questions: list[AuthoringQuestion], answer: dict[str, Any]) -> None:

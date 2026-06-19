@@ -25,7 +25,11 @@ def test_write_draft_can_exist_but_readiness_blocks_without_core_guardrails(tmp_
             mainSkill=ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
             skills=[ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
             runtimeInputs=[RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test")],
-            sideEffects={"class": "write", "commitStepId": "submit-resource", "allowed": [{"id": "create-resource", "kind": "network"}]},
+            sideEffects={
+                "class": "write",
+                "commitStepId": "submit-resource",
+                "allowed": [{"id": "create-resource", "kind": "network", "methods": ["POST"], "urlContains": "/resources"}],
+            },
             rerunPolicy={"afterNoCommit": "allowed", "afterCommit": "blocked"},
         ),
     )
@@ -50,7 +54,12 @@ def test_side_effect_policy_and_runtime_outputs_render_in_run_request(tmp_path, 
         mainSkill=ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
         skills=[ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
         runtimeInputs=[RuntimeInputRequirement(name="resourceName", source="generated", template="ProofSignal {{run.shortId}}")],
-        sideEffects={"class": "write", "mode": "enforce", "commitStepId": "submit-resource", "allowed": [{"id": "create-resource", "kind": "network"}]},
+        sideEffects={
+            "class": "write",
+            "mode": "enforce",
+            "commitStepId": "submit-resource",
+            "allowed": [{"id": "create-resource", "kind": "network", "methods": ["POST"], "urlContains": "/resources"}],
+        },
         runtimeOutputs=[{"name": "createdResourceUrl", "source": "finalUrl"}],
         rerunPolicy={"afterNoCommit": "allowed", "afterCommit": "blocked"},
     )

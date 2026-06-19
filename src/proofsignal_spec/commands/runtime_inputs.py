@@ -28,7 +28,11 @@ def resolve_runtime_inputs(
         if requirement.source == "generated":
             if runtime_input_name_looks_secret(requirement.name):
                 raise RuntimeInputError(f"Generated runtime input name looks secret-bearing: {requirement.name}")
-            value = _render_generated_template(requirement.template or requirement.default or requirement.value or "{{run.shortId}}", run_id=run_id)
+            seed = requirement.default or requirement.value
+            template = requirement.template
+            if not template:
+                template = f"{seed} {{{{run.shortId}}}}" if seed else "{{run.shortId}}"
+            value = _render_generated_template(template, run_id=run_id, seed=seed)
             if looks_secret(value, requirement.name):
                 raise RuntimeInputError(f"Generated runtime input value for {requirement.name} looks secret-bearing.")
         elif requirement.source == "environment" and requirement.envVar:
@@ -54,11 +58,12 @@ def resolve_runtime_inputs(
     return values
 
 
-def _render_generated_template(template: str, *, run_id: str | None) -> str:
+def _render_generated_template(template: str, *, run_id: str | None, seed: str | None = None) -> str:
     normalized_run_id = run_id or "run"
     replacements = {
         "run.id": normalized_run_id,
         "run.shortId": _short_id(normalized_run_id),
+        "seed": seed or "",
     }
     value = template
     for key, replacement in replacements.items():

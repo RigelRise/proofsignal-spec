@@ -14,12 +14,16 @@ CoreStatus = Literal["passed", "failed", "blocked", "error"]
 SideEffectClass = Literal["none", "authenticated-read", "write", "external-notification", "unknown"]
 SideEffectPolicyMode = Literal["observe", "warn", "enforce"]
 RerunDecision = Literal["allowed", "allowed-with-new-inputs", "requires-confirmation", "blocked"]
+ResourceIdentityStrategy = Literal["generated-input", "provided-input", "post-commit-binding", "manual-confirmation"]
+CollisionPolicy = Literal["avoid", "allow-duplicates", "requires-confirmation"]
+ResourceIdentityConfidence = Literal["high", "confirmed", "unknown"]
 ReadinessCurrentStatus = Literal["ready", "not-checked", "stale", "needs-validate", "blocked", "unknown"]
 ImpactStatus = Literal["unaffected", "affected", "unknown"]
 CleanupPolicy = Literal["none", "manual", "automated", "external", "not-declared"]
 CapabilitySeverity = Literal["info", "warning", "confirmation", "blocker"]
 UnderstandingStatus = Literal["current", "stale", "unknown"]
 UnderstandingPolicy = Literal["block", "warn", "requires-confirmation", "allow"]
+ResolvedBindingStatus = Literal["prepared", "committed", "discarded"]
 
 
 def _clean(value: Any) -> Any:
@@ -31,22 +35,131 @@ def _clean(value: Any) -> Any:
 
 
 @dataclass(slots=True)
+class PolicyCompatibilityFinding:
+    code: str
+    severity: str
+    path: str
+    message: str
+    migrationAvailable: bool = False
+    guidedChoices: list[dict[str, str]] = field(default_factory=list)
+    blocksExecution: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ConfirmationSignalSupport:
+    signalType: str
+    staticSupport: bool = False
+    runtimeSupport: bool | None = None
+    effectiveSupport: bool = False
+    evidence: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class SupersedeReview:
+    reviewId: str
+    sourceRunId: str
+    ownerDecision: str
+    evidenceSummary: str
+    previousClassification: dict[str, Any]
+    resultingClassification: dict[str, Any]
+    reason: str
+    createdAt: str
+    createdBy: str | None = None
+    schemaVersion: str = "proofsignal-spec-supersede-review/v1"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SupersedeReview":
+        return cls(
+            reviewId=str(data.get("reviewId", "")),
+            sourceRunId=str(data.get("sourceRunId", "")),
+            ownerDecision=str(data.get("ownerDecision", "")),
+            evidenceSummary=str(data.get("evidenceSummary", "")),
+            previousClassification=dict(data.get("previousClassification", {})),
+            resultingClassification=dict(data.get("resultingClassification", {})),
+            reason=str(data.get("reason", "")),
+            createdAt=str(data.get("createdAt", "")),
+            createdBy=data.get("createdBy"),
+            schemaVersion=str(data.get("schemaVersion", "proofsignal-spec-supersede-review/v1")),
+        )
+
+    def validate(self) -> list[dict[str, str]]:
+        findings: list[dict[str, str]] = []
+        required = {
+            "reviewId": self.reviewId,
+            "sourceRunId": self.sourceRunId,
+            "ownerDecision": self.ownerDecision,
+            "evidenceSummary": self.evidenceSummary,
+            "reason": self.reason,
+            "createdAt": self.createdAt,
+        }
+        for field_name, value in required.items():
+            if not str(value or "").strip():
+                findings.append(
+                    {
+                        "severity": "blocking",
+                        "code": "supersede-review-field-missing",
+                        "path": f"supersedeReview.{field_name}",
+                        "message": f"Supersede review requires {field_name}.",
+                    }
+                )
+        if not self.previousClassification:
+            findings.append({"severity": "blocking", "code": "supersede-review-previous-missing", "path": "supersedeReview.previousClassification", "message": "Supersede review requires previousClassification."})
+        if not self.resultingClassification:
+            findings.append({"severity": "blocking", "code": "supersede-review-resulting-missing", "path": "supersedeReview.resultingClassification", "message": "Supersede review requires resultingClassification."})
+        return findings
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
 class RerunPolicy:
     afterNoCommit: RerunDecision = "allowed"
     afterCommit: RerunDecision = "blocked"
     afterUnknown: RerunDecision = "requires-confirmation"
     refreshRuntimeInputs: list[str] = field(default_factory=list)
     notes: str | None = None
+    legacyFindings: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> "RerunPolicy":
         data = data if isinstance(data, dict) else {}
+        refresh_inputs = [str(item) for item in data.get("refreshRuntimeInputs") or data.get("refreshInputs", [])]
+        has_canonical = any(key in data for key in ["afterNoCommit", "afterCommit", "afterUnknown"])
+        legacy_findings: list[dict[str, Any]] = []
+        after_commit = data.get("afterCommit")
+        if after_commit is None and not has_canonical and data.get("rerunRisk"):
+            legacy_risk = str(data.get("rerunRisk"))
+            if legacy_risk == "safe-with-new-inputs" and refresh_inputs:
+                after_commit = "allowed-with-new-inputs"
+            elif legacy_risk == "blocked":
+                after_commit = "blocked"
+            elif legacy_risk == "requires-confirmation":
+                after_commit = "requires-confirmation"
+            elif legacy_risk == "safe":
+                after_commit = "allowed"
+            else:
+                legacy_findings.append(
+                    {
+                        "severity": "blocking",
+                        "code": "rerun-policy-legacy-ambiguous",
+                        "path": "rerunPolicy.rerunRisk",
+                        "message": "Legacy rerunRisk cannot be migrated without an unambiguous canonical rerun policy.",
+                    }
+                )
         return cls(
             afterNoCommit=data.get("afterNoCommit", "allowed"),
-            afterCommit=data.get("afterCommit", "blocked"),
+            afterCommit=after_commit or "blocked",
             afterUnknown=data.get("afterUnknown", "requires-confirmation"),
-            refreshRuntimeInputs=[str(item) for item in data.get("refreshRuntimeInputs") or data.get("refreshInputs", [])],
+            refreshRuntimeInputs=refresh_inputs,
             notes=data.get("notes"),
+            legacyFindings=legacy_findings,
         )
 
     def validate(self, *, refreshable_inputs: list[str] | None = None) -> list[dict[str, Any]]:
@@ -65,6 +178,7 @@ class RerunPolicy:
                 )
         refreshable = set(refreshable_inputs or [])
         declared = set(self.refreshRuntimeInputs)
+        findings.extend([dict(item) for item in self.legacyFindings])
         if self.afterCommit == "allowed-with-new-inputs" and not declared and not refreshable:
             findings.append(
                 {
@@ -85,6 +199,181 @@ class RerunPolicy:
                 }
             )
         return findings
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data.pop("legacyFindings", None)
+        return _clean(data)
+
+
+@dataclass(slots=True)
+class ResourceIdentity:
+    resourceType: str = ""
+    identityStrategy: ResourceIdentityStrategy | str = "manual-confirmation"
+    identityInput: str | None = None
+    postCommitBinding: str | None = None
+    postCommitBindings: list[str] = field(default_factory=list)
+    collisionPolicy: CollisionPolicy | str = "requires-confirmation"
+    targetScope: str | None = None
+    confidence: ResourceIdentityConfidence | str = "unknown"
+    present: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "ResourceIdentity":
+        if not isinstance(data, dict) or not data:
+            return cls(present=False)
+        return cls(
+            resourceType=str(data.get("resourceType", "")),
+            identityStrategy=str(data.get("identityStrategy") or "manual-confirmation"),
+            identityInput=data.get("identityInput"),
+            postCommitBinding=data.get("postCommitBinding"),
+            postCommitBindings=[str(item) for item in data.get("postCommitBindings", [])],
+            collisionPolicy=str(data.get("collisionPolicy") or "requires-confirmation"),
+            targetScope=data.get("targetScope"),
+            confidence=str(data.get("confidence") or "unknown"),
+            present=True,
+        )
+
+    def required_for(self, side_effect_class: str) -> bool:
+        return side_effect_class in {"write", "external-notification"}
+
+    def validate(self, *, side_effect_class: str, runtime_inputs: list[Any]) -> list[dict[str, Any]]:
+        if not self.required_for(side_effect_class):
+            return []
+        if not self.present:
+            return [
+                {
+                    "severity": "blocking",
+                    "code": "resource-identity-missing",
+                    "path": "resourceIdentity",
+                    "message": "Write and external-notification use cases require explicit resourceIdentity.",
+                }
+            ]
+        findings: list[dict[str, Any]] = []
+        if not self.resourceType:
+            findings.append(_identity_finding("resource-identity-type-missing", "resourceIdentity.resourceType", "Resource identity requires resourceType."))
+        valid_strategies = {"generated-input", "provided-input", "post-commit-binding", "manual-confirmation"}
+        if self.identityStrategy not in valid_strategies:
+            findings.append(_identity_finding("resource-identity-strategy-invalid", "resourceIdentity.identityStrategy", f"Unsupported identityStrategy: {self.identityStrategy}"))
+        runtime_by_name = {getattr(item, "name", ""): item for item in runtime_inputs}
+        if self.identityStrategy == "generated-input":
+            if not self.identityInput:
+                findings.append(_identity_finding("resource-identity-input-missing", "resourceIdentity.identityInput", "generated-input identity requires identityInput."))
+            else:
+                runtime_input = runtime_by_name.get(self.identityInput)
+                if runtime_input is None:
+                    findings.append(_identity_finding("resource-identity-input-not-found", "resourceIdentity.identityInput", f"identityInput is not declared as a runtime input: {self.identityInput}"))
+                elif getattr(runtime_input, "source", "") != "generated":
+                    findings.append(_identity_finding("resource-identity-input-not-generated", "resourceIdentity.identityInput", f"identityInput must reference a generated runtime input: {self.identityInput}"))
+                elif self.collisionPolicy == "avoid" and not bool(getattr(runtime_input, "refreshOnRerunAfterCommit", False)):
+                    findings.append(_identity_finding("resource-identity-input-not-refreshable", "resourceIdentity.identityInput", f"collisionPolicy=avoid requires refreshable generated input: {self.identityInput}"))
+        if self.collisionPolicy not in {"avoid", "allow-duplicates", "requires-confirmation"}:
+            findings.append(_identity_finding("resource-identity-collision-policy-invalid", "resourceIdentity.collisionPolicy", f"Unsupported collisionPolicy: {self.collisionPolicy}"))
+        return findings
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data.pop("present", None)
+        return _clean(data) if self.present else {}
+
+
+def _identity_finding(code: str, path: str, message: str) -> dict[str, Any]:
+    return {"severity": "blocking", "code": code, "path": path, "message": message}
+
+
+@dataclass(slots=True)
+class GeneratedRuntimeInput:
+    name: str
+    purpose: str = ""
+    generationStrategy: str = "template"
+    seed: str | None = None
+    template: str | None = None
+    refreshOnRerunAfterCommit: bool = False
+    persistValue: bool = False
+    secretSafe: bool = True
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "GeneratedRuntimeInput":
+        generation = data.get("generation") if isinstance(data.get("generation"), dict) else {}
+        return cls(
+            name=str(data.get("name", "")),
+            purpose=str(data.get("purpose", "")),
+            generationStrategy=str(generation.get("strategy") or data.get("generationStrategy") or "template"),
+            seed=generation.get("seed") or data.get("seed") or data.get("value"),
+            template=generation.get("template") or data.get("template"),
+            refreshOnRerunAfterCommit=bool(data.get("refreshOnRerunAfterCommit", False)),
+            persistValue=bool(data.get("persistValue", False)),
+            secretSafe=bool(data.get("secretSafe", True)),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ResolvedRuntimeBinding:
+    name: str
+    value: str
+    source: str = "generated"
+    runId: str | None = None
+    targetScope: str | None = None
+    useCaseAlias: str | None = None
+    refreshed: bool = False
+    committed: bool = False
+    status: ResolvedBindingStatus = "prepared"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ResolvedRuntimeBinding":
+        return cls(
+            name=str(data.get("name", "")),
+            value=str(data.get("value", "")),
+            source=str(data.get("source", "generated")),
+            runId=data.get("runId"),
+            targetScope=data.get("targetScope"),
+            useCaseAlias=data.get("useCaseAlias"),
+            refreshed=bool(data.get("refreshed", False)),
+            committed=bool(data.get("committed", False)),
+            status=data.get("status") or ("committed" if data.get("committed") else "prepared"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class NamedOutput:
+    name: str
+    value: str
+    sourceBinding: str
+    publishedByRunId: str
+    useCaseAlias: str
+    targetScope: str | None = None
+    resourceType: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "NamedOutput":
+        return cls(
+            name=str(data.get("name", "")),
+            value=str(data.get("value", "")),
+            sourceBinding=str(data.get("sourceBinding") or data.get("source") or ""),
+            publishedByRunId=str(data.get("publishedByRunId", "")),
+            useCaseAlias=str(data.get("useCaseAlias", "")),
+            targetScope=data.get("targetScope"),
+            resourceType=data.get("resourceType"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return _clean(asdict(self))
+
+
+@dataclass(slots=True)
+class ValidationFinding:
+    code: str
+    severity: str
+    category: str
+    message: str
+    repairability: str = "not-repairable"
+    suggestedReplacement: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return _clean(asdict(self))
@@ -535,7 +824,7 @@ class RuntimeInputRequirement:
     kind: Literal["parameter", "credential", "precondition-input"] = "parameter"
     required: bool = True
     description: str = ""
-    source: Literal["prompt", "environment", "local-config", "default", "generated"] = "prompt"
+    source: Literal["prompt", "environment", "local-config", "default", "generated", "named-output"] = "prompt"
     envVar: str | None = None
     credentialGroup: str | None = None
     persistValue: bool = False
@@ -738,6 +1027,7 @@ class UseCaseRecord:
     credentialGroups: list[dict[str, Any] | str] = field(default_factory=list)
     sideEffects: dict[str, Any] | None = None
     sideEffectLifecycle: dict[str, Any] | None = None
+    resourceIdentity: dict[str, Any] | None = None
     runtimeOutputs: list[dict[str, Any]] = field(default_factory=list)
     resolvedRuntimeInputs: list[dict[str, Any]] = field(default_factory=list)
     rerunPolicy: dict[str, Any] | None = None
@@ -776,6 +1066,7 @@ class UseCaseRecord:
             credentialGroups=list(data.get("credentialGroups", [])),
             sideEffects=data.get("sideEffects") if isinstance(data.get("sideEffects"), dict) else None,
             sideEffectLifecycle=data.get("sideEffectLifecycle") if isinstance(data.get("sideEffectLifecycle"), dict) else None,
+            resourceIdentity=data.get("resourceIdentity") if isinstance(data.get("resourceIdentity"), dict) else None,
             runtimeOutputs=list(data.get("runtimeOutputs", [])),
             resolvedRuntimeInputs=list(data.get("resolvedRuntimeInputs", [])),
             rerunPolicy=data.get("rerunPolicy") if isinstance(data.get("rerunPolicy"), dict) else None,
@@ -798,6 +1089,7 @@ class UseCaseRecord:
         data["runtimeInputs"] = [item.to_dict() for item in self.runtimeInputs]
         data["credentialRefs"] = dict(self.credentialRefs)
         data["sideEffectLifecycle"] = dict(self.sideEffectLifecycle) if self.sideEffectLifecycle else None
+        data["resourceIdentity"] = dict(self.resourceIdentity) if self.resourceIdentity else None
         data["runtimeOutputs"] = list(self.runtimeOutputs)
         data["resolvedRuntimeInputs"] = list(self.resolvedRuntimeInputs)
         data["artifactCapabilities"] = dict(self.artifactCapabilities) if self.artifactCapabilities else None

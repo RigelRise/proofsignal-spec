@@ -10,7 +10,12 @@ def _supported_contract() -> dict:
             "sideEffectGuardrails": {
                 "policyClasses": ["none", "authenticated-read", "write", "external-notification", "unknown"],
                 "policyModes": ["observe", "warn", "enforce"],
-                "confirmationSignalTypes": ["finalUrl", "runtimeOutput", "dom", "allowedNetworkObservation"],
+                "confirmationSignalTypes": ["finalUrl", "runtimeOutput", "allowedNetworkObservation"],
+                "confirmationSignals": {
+                    "supportedTypes": ["finalUrl", "runtimeOutput", "allowedNetworkObservation"],
+                    "unsupportedTypes": ["dom"],
+                    "unsupportedSignalError": "unsupported-confirmation-signal",
+                },
                 "runtimeOutputSources": ["finalUrl", "location", "dom", "network"],
                 "resultClassification": {
                     "failurePhases": ["pre-commit", "post-commit", "post-verification", "unknown"],
@@ -73,7 +78,7 @@ def test_unsupported_core_contract_values_block_readiness() -> None:
             "class": "write",
             "mode": "enforce",
             "commitStepId": "submit",
-            "allowed": [{"id": "create-resource", "kind": "network"}],
+            "allowed": [{"id": "create-resource", "kind": "network", "methods": ["POST"], "urlContains": "/resources"}],
             "confirmationSignals": [{"id": "created-url", "type": "missingType"}],
         }
     )
@@ -85,4 +90,3 @@ def test_unsupported_core_contract_values_block_readiness() -> None:
     )
 
     assert any(item["code"] == "side-effect-confirmation-signal-unsupported" for item in findings)
-

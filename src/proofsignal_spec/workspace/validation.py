@@ -12,11 +12,14 @@ from .models import (
     ArtifactReference,
     CredentialReadinessHint,
     RerunPolicy,
+    ResourceIdentity,
     SideEffectDeclaration,
     SideEffectLifecycleDeclaration,
+    SupersedeReview,
     UseCaseRecord,
 )
 from .repository import load_document, load_registry, load_use_case
+from proofsignal_spec.workflows.write_safety import confirmation_support_findings, normalize_side_effect_policy
 
 SECRET_FIELD_RE = re.compile(r"(password|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|authorization)", re.I)
 BEARER_RE = re.compile(r"\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}", re.I)
@@ -213,16 +216,19 @@ def validate_workspace(project: Path) -> list[dict[str, str]]:
         layout.CONFIRMATIONS_DIR,
         layout.REFRESH_IMPACT_DIR,
         layout.CAPABILITY_POLICIES_DIR,
+        layout.SUPERSEDE_REVIEWS_DIR,
     ]:
         root_dir = root / directory
         if not root_dir.exists():
             continue
-        for path in root_dir.glob("*.yaml"):
+        for path in root_dir.rglob("*.yaml"):
             data = load_document(path, default={})
-            rel = f"{layout.WORKSPACE_DIR}/{directory}/{path.name}"
+            rel = f"{layout.WORKSPACE_DIR}/{directory}/{path.relative_to(root_dir)}"
             findings.extend(validate_no_secret_values(data, rel))
             if directory == layout.CREDENTIAL_HINTS_DIR and isinstance(data, dict):
                 findings.extend(validate_credential_readiness_hint(data))
+            if directory == layout.SUPERSEDE_REVIEWS_DIR and isinstance(data, dict):
+                findings.extend(SupersedeReview.from_dict(data).validate())
     return findings
 
 
@@ -255,6 +261,8 @@ def validate_use_case(project: Path, record: UseCaseRecord) -> list[dict[str, st
         findings.extend(validate_no_secret_values(record.sideEffectLifecycle, f"{record.alias}.sideEffectLifecycle"))
     if record.artifactCapabilities:
         findings.extend(validate_no_secret_values(record.artifactCapabilities, f"{record.alias}.artifactCapabilities"))
+    findings.extend(_validate_generated_runtime_inputs(record))
+    findings.extend(_validate_named_output_declarations(record))
     findings.extend(
         validate_side_effect_declaration(
             record.sideEffects,
@@ -265,6 +273,13 @@ def validate_use_case(project: Path, record: UseCaseRecord) -> list[dict[str, st
     )
     side_effect_data = record.sideEffects if isinstance(record.sideEffects, dict) else {}
     side_effect_class = str(side_effect_data.get("class") or side_effect_data.get("sideEffectClass") or "none")
+    if record.resourceIdentity or "resource-identity" in _capability_names(record):
+        findings.extend(
+            ResourceIdentity.from_dict(record.resourceIdentity).validate(
+                side_effect_class=side_effect_class,
+                runtime_inputs=record.runtimeInputs,
+            )
+        )
     legacy = not bool(record.artifactCapabilities)
     findings.extend(validate_side_effect_lifecycle(record.sideEffectLifecycle or side_effect_data.get("lifecycle"), side_effect_class=side_effect_class, legacy=legacy))
     return findings
@@ -277,12 +292,26 @@ def validate_side_effect_declaration(
     runtime_inputs: list[dict[str, Any]] | None = None,
     *,
     core_contract: dict[str, Any] | None = None,
+    runtime_outcomes: list[dict[str, Any] | None] | None = None,
 ) -> list[dict[str, str]]:
     if isinstance(declaration, SideEffectDeclaration):
         side_effect = declaration
+        compatibility_findings: list[dict[str, Any]] = []
     else:
-        side_effect = SideEffectDeclaration.from_dict(declaration)
-    findings: list[dict[str, str]] = []
+        normalized, compatibility_findings = normalize_side_effect_policy(declaration if isinstance(declaration, dict) else None)
+        side_effect = SideEffectDeclaration.from_dict(normalized)
+    findings: list[dict[str, str]] = [
+        {
+            "severity": str(item.get("severity", "warning")),
+            "code": str(item.get("code", "side-effect-policy-compatibility")),
+            "path": str(item.get("path", "sideEffects")),
+            "message": str(item.get("message", "")),
+            **({"guidedChoices": item["guidedChoices"]} if item.get("guidedChoices") else {}),
+            **({"migrationAvailable": item["migrationAvailable"]} if "migrationAvailable" in item else {}),
+            **({"blocksExecution": item["blocksExecution"]} if "blocksExecution" in item else {}),
+        }
+        for item in compatibility_findings
+    ]
     side_effect_class = side_effect.sideEffectClass
     if side_effect_class == "none":
         return findings
@@ -315,6 +344,23 @@ def validate_side_effect_declaration(
                     f"Unsupported side-effect confirmation signal type: {signal_type}",
                 )
             )
+    if core_contract is not None or runtime_outcomes:
+        findings.extend(
+            [
+                {
+                    "severity": str(item.get("severity", "blocking")),
+                    "code": str(item.get("code", "unsupported-confirmation-signal")),
+                    "path": str(item.get("path", "sideEffects.confirmationSignals")),
+                    "message": str(item.get("message", "")),
+                    "signalType": str(item.get("signalType", "")),
+                }
+                for item in confirmation_support_findings(
+                    side_effect.confirmationSignals,
+                    core_contract=core_contract,
+                    runtime_outcomes=runtime_outcomes or [],
+                )
+            ]
+        )
     runtime_output_sources = set(supported.get("runtimeOutputSources", [])) if supported.get("supported", False) else _default_runtime_output_sources()
     for index, output in enumerate(runtime_outputs or []):
         source = str(output.get("source") or "")
@@ -393,7 +439,7 @@ def _side_effect_finding(code: str, path: str, message: str) -> dict[str, str]:
 
 
 def _default_confirmation_signal_types() -> set[str]:
-    return {"finalUrl", "runtimeOutput", "dom", "allowedNetworkObservation"}
+    return {"finalUrl", "runtimeOutput", "allowedNetworkObservation"}
 
 
 def _default_runtime_output_sources() -> set[str]:
@@ -412,6 +458,93 @@ def _list_values(value: Any) -> list[str]:
             if name:
                 result.append(str(name))
     return result
+
+
+def _validate_generated_runtime_inputs(record: UseCaseRecord) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    for item in record.runtimeInputs:
+        if item.source != "generated":
+            continue
+        path = f"{record.alias}.runtimeInputs.{item.name}"
+        if runtime_input_name_looks_secret(item.name):
+            findings.append(
+                {
+                    "severity": "blocking",
+                    "code": "generated-runtime-input-secret-name",
+                    "path": path,
+                    "message": f"Generated runtime input name looks secret-bearing: {item.name}",
+                }
+            )
+        for field_name, value in {"template": item.template, "default": item.default, "value": item.value}.items():
+            if value and looks_secret(value, field_name):
+                findings.append(
+                    {
+                        "severity": "blocking",
+                        "code": "generated-runtime-input-secret-value",
+                        "path": f"{path}.{field_name}",
+                        "message": f"Generated runtime input {item.name} contains a secret-looking {field_name}.",
+                    }
+                )
+    return findings
+
+
+def _validate_named_output_declarations(record: UseCaseRecord) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    for index, item in enumerate(record.runtimeOutputs):
+        if not isinstance(item, dict) or not item.get("publishAsNamedOutput"):
+            continue
+        path = f"{record.alias}.runtimeOutputs[{index}]"
+        name = str(item.get("name") or "")
+        if not name:
+            findings.append({"severity": "blocking", "code": "named-output-name-missing", "path": path, "message": "Published named outputs require a name."})
+        if runtime_input_name_looks_secret(name):
+            findings.append(
+                {
+                    "severity": "blocking",
+                    "code": "named-output-secret-name",
+                    "path": f"{path}.name",
+                    "message": f"Named output name looks secret-bearing: {name}",
+                }
+            )
+        source = str(item.get("source") or "")
+        if source in {"credential", "credentialValue", "env"}:
+            findings.append(
+                {
+                    "severity": "blocking",
+                    "code": "named-output-secret-source",
+                    "path": f"{path}.source",
+                    "message": "Credential or environment secret values cannot be published as named outputs.",
+                }
+            )
+    return findings
+
+
+def refresh_collision_finding(*, input_name: str, runtime_input: Any | None = None) -> dict[str, Any]:
+    repairability = "owner-action-required"
+    suggested_replacement: dict[str, Any] | None = None
+    if (
+        runtime_input is not None
+        and getattr(runtime_input, "source", "") == "generated"
+        and (
+            getattr(runtime_input, "template", None)
+            or getattr(runtime_input, "default", None)
+            or getattr(runtime_input, "value", None)
+            or getattr(runtime_input, "refreshOnRerunAfterCommit", False)
+        )
+    ):
+        repairability = "ai-repairable"
+        suggested_replacement = {"input": input_name, "action": "adjust-generation-template-or-seed"}
+    finding: dict[str, Any] = {
+        "severity": "blocking",
+        "code": "generated-binding-collision",
+        "category": "generated-binding",
+        "path": f"runtimeInputs.{input_name}",
+        "message": f"Generated runtime input {input_name} repeats a committed binding for this use case and target.",
+        "repairability": repairability,
+    }
+    if suggested_replacement:
+        finding["suggestedReplacement"] = suggested_replacement
+    return finding
 
 
 def _validate_artifact(project: Path, artifact: ArtifactReference, generated_dir: str) -> list[dict[str, str]]:
@@ -457,3 +590,13 @@ def _validate_artifact(project: Path, artifact: ArtifactReference, generated_dir
 
 def status_from_findings(findings: Iterable[dict[str, Any]]) -> str:
     return "blocked" if any(item.get("severity") == "blocking" for item in findings) else "passed"
+
+
+def _capability_names(record: UseCaseRecord) -> set[str]:
+    raw = record.artifactCapabilities if isinstance(record.artifactCapabilities, dict) else {}
+    if isinstance(raw.get("capabilities"), list):
+        return {str(item) for item in raw.get("capabilities", [])}
+    stamp = raw.get("stamp") if isinstance(raw.get("stamp"), dict) else {}
+    if isinstance(stamp.get("capabilities"), list):
+        return {str(item) for item in stamp.get("capabilities", [])}
+    return set()

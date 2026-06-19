@@ -15,7 +15,7 @@ from proofsignal_spec.workflows.evidence import extract_core_runtime_evidence, n
 from proofsignal_spec.workflows.first_run import classify_first_run_status, golden_path_state, update_golden_path_run_state
 from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
 from proofsignal_spec.workflows.models import GateCoverageResult, GoldenPathRunState, RepairRecommendation, RunOutcomeSummary
-from proofsignal_spec.workflows.repair_recommendations import combine_rerun_decision, recommend_repairs_for_gate_coverage
+from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
 from proofsignal_spec.workflows.readiness import executable_contract_blockers, legacy_executable_artifact_blockers, managed_runtime_contract_blockers
 from proofsignal_spec.workflows.stage_cards import run_result_card
 from proofsignal_spec.workflows.repository import load_artifact_plan
@@ -25,13 +25,17 @@ from proofsignal_spec.workspace.repository import (
     load_use_case,
     now_iso,
     record_run,
+    refresh_collision_findings,
+    load_supersede_reviews,
     resolve_artifacts,
+    resolve_named_output,
     run_confirmation_requirements,
     side_effect_class,
     side_effect_lifecycle_summary,
 )
 from proofsignal_spec.workspace.models import PostCommitInterpretation
 from proofsignal_spec.workspace.validation import validate_side_effect_declaration
+from proofsignal_spec.workflows.write_safety import evaluate_rerun_decision as _evaluate_rerun_decision
 
 
 def run(
@@ -170,7 +174,7 @@ def run(
             "reason": blockers[0]["message"],
             "nextAction": f"proofsignal workflow check run --alias {alias} --json",
         }
-    rerun_guard = _rerun_guard(record)
+    rerun_guard = evaluate_rerun_decision(record, supersede_reviews=load_supersede_reviews(project, alias))
     if rerun_guard["decision"] in {"blocked", "requires-confirmation"}:
         return {
             "alias": alias,
@@ -197,13 +201,65 @@ def run(
             "nextAction": rerun_guard["nextAction"],
         }
     prepared_run_id = f"{alias}-{now_iso().replace(':', '').replace('-', '')}"
+    named_output_values, named_output_error = _named_output_runtime_values(project, record)
+    if named_output_error:
+        return {
+            "alias": alias,
+            "status": "blocked",
+            "coreStatus": "blocked",
+            "coverageStatus": "not-run",
+            "coreBrowserStatus": "blocked",
+            "specCoverageStatus": "not-run",
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "profile": profile_name,
+            "profileSettings": profile_settings_model.to_dict(),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "blockers": [
+                {
+                    "code": "runtime.named-output-resolution-failed",
+                    "severity": "blocker",
+                    "category": "named-output",
+                    "message": named_output_error,
+                    "recoveryCommand": f"proofsignal workflow check run --alias {alias} --json",
+                }
+            ],
+            "reason": named_output_error,
+            "nextAction": "Publish or disambiguate the named output before running.",
+        }
     runtime_values = resolve_runtime_inputs(
         record.runtimeInputs,
         interactive=interactive,
-        provided=_run_request_parameters(run_request),
+        provided={**_run_request_parameters(run_request), **named_output_values},
         run_id=prepared_run_id,
         refresh_names=rerun_guard.get("refreshRuntimeInputs", []),
     )
+    collision_findings = _generated_binding_collision_findings(project, record, runtime_values)
+    if collision_findings:
+        return {
+            "alias": alias,
+            "status": "blocked",
+            "coreStatus": "blocked",
+            "coverageStatus": "not-run",
+            "coreBrowserStatus": "blocked",
+            "specCoverageStatus": "not-run",
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "profile": profile_name,
+            "profileSettings": profile_settings_model.to_dict(),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "rerunDecision": rerun_guard,
+            "blockers": [
+                {
+                    "code": f"runtime.{item.get('code')}",
+                    "severity": "blocker",
+                    "category": item.get("category", "generated-binding"),
+                    "message": item.get("message"),
+                    "recoveryCommand": f"proofsignal workflow check run --alias {alias} --json",
+                }
+                for item in collision_findings
+            ],
+            "reason": collision_findings[0]["message"],
+            "nextAction": "Adjust generated runtime input template or seed before running again.",
+        }
     output_dir = project / ".proofsignal" / "runs" / alias
     prepared_run_request = _prepared_run_request_path(run_request, output_dir, prepared_run_id, runtime_values)
     result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).run(
@@ -304,7 +360,11 @@ def run(
                 "value": value,
                 "source": "generated" if _runtime_input_source(record, name) == "generated" else "runtime",
                 "runId": str(run_id),
+                "targetScope": _target_scope(record),
+                "useCaseAlias": alias,
                 "refreshed": name in set(rerun_guard.get("refreshRuntimeInputs", [])),
+                "committed": bool(post_commit.postCommit or post_commit.sideEffectMayExist),
+                "status": "committed" if bool(post_commit.postCommit or post_commit.sideEffectMayExist) else "discarded",
             }
             for name, value in runtime_values.items()
             if _safe_resolved_runtime_input(record, name)
@@ -414,49 +474,57 @@ def _first_run_payload(
     }
 
 
-def _rerun_guard(record: Any) -> dict[str, Any]:
-    side_effect = record.sideEffects if isinstance(record.sideEffects, dict) else {}
-    if side_effect.get("class") not in {"write", "external-notification"}:
-        return {"decision": "allowed", "reason": "No write rerun guard is required for this side-effect class.", "refreshRuntimeInputs": []}
-    last_run = record.lastRun if isinstance(record.lastRun, dict) else None
-    if not last_run:
-        return {"decision": "allowed", "reason": "No previous run recorded for this write use case.", "refreshRuntimeInputs": []}
-    interpretation = last_run.get("postCommitInterpretation") if isinstance(last_run.get("postCommitInterpretation"), dict) else {}
-    classification = last_run.get("resultClassification") if isinstance(last_run.get("resultClassification"), dict) else {}
-    core_risk = str(interpretation.get("rerunRisk") or classification.get("rerunRisk") or "")
-    side_effect_may_exist = bool(interpretation.get("sideEffectMayExist"))
-    if not core_risk:
-        core_risk = "requires-confirmation" if side_effect_may_exist else "safe"
-    policy = RerunPolicy.from_dict(record.rerunPolicy)
-    spec_decision = policy.afterCommit if side_effect_may_exist or interpretation.get("postCommit") else policy.afterNoCommit
-    decision = combine_rerun_decision(core_risk, spec_decision)
-    refreshable = {item.name for item in record.runtimeInputs if item.source == "generated" and item.refreshOnRerunAfterCommit}
-    refresh_names = [name for name in policy.refreshRuntimeInputs if name in refreshable]
-    if decision == "allowed-with-new-inputs" and not refresh_names:
-        return {
-            "decision": "blocked",
-            "coreRisk": core_risk,
-            "specDecision": spec_decision,
-            "reason": "Rerun requires refreshed generated inputs, but no declared refreshable generated input is available.",
-            "refreshRuntimeInputs": [],
-            "nextAction": f"Update rerunPolicy.refreshRuntimeInputs for {record.alias} before rerunning.",
-        }
-    if decision == "blocked":
-        reason = "Rerun is blocked by the previous write outcome and declared rerun policy."
-    elif decision == "requires-confirmation":
-        reason = "Rerun requires explicit owner confirmation because the previous write may have crossed the commit boundary."
-    elif decision == "allowed-with-new-inputs":
-        reason = "Rerun is allowed only with refreshed generated runtime inputs."
-    else:
-        reason = "Rerun is allowed by Core risk and Spec rerun policy."
-    return {
-        "decision": decision,
-        "coreRisk": core_risk,
-        "specDecision": spec_decision,
-        "reason": reason,
-        "refreshRuntimeInputs": refresh_names,
-        "nextAction": "Resolve write rerun policy before running again." if decision in {"blocked", "requires-confirmation"} else "Proceed with run.",
+def evaluate_rerun_decision(record: Any, *, supersede_reviews: list[Any] | None = None) -> dict[str, Any]:
+    return _evaluate_rerun_decision(record, supersede_reviews=supersede_reviews)
+
+
+def _generated_binding_collision_findings(project: Path, record: Any, runtime_values: dict[str, str]) -> list[dict[str, Any]]:
+    identity = record.resourceIdentity if isinstance(getattr(record, "resourceIdentity", None), dict) else {}
+    if identity.get("collisionPolicy") != "avoid":
+        return []
+    identity_input = identity.get("identityInput")
+    if identity_input and identity_input in runtime_values:
+        return refresh_collision_findings(
+            project,
+            use_case_alias=record.alias,
+            target_scope=str(identity.get("targetScope") or _target_scope(record) or ""),
+            bindings={str(identity_input): runtime_values[str(identity_input)]},
+        )
+    generated = {
+        item.name: runtime_values[item.name]
+        for item in record.runtimeInputs
+        if item.source == "generated" and item.name in runtime_values
     }
+    return refresh_collision_findings(
+        project,
+        use_case_alias=record.alias,
+        target_scope=str(identity.get("targetScope") or _target_scope(record) or ""),
+        bindings=generated,
+    )
+
+
+def _named_output_runtime_values(project: Path, record: Any) -> tuple[dict[str, str], str | None]:
+    values: dict[str, str] = {}
+    for item in getattr(record, "runtimeInputs", []):
+        if getattr(item, "source", "") != "named-output":
+            continue
+        output_name = item.value or item.default or (item.references[0] if item.references else item.name)
+        try:
+            output = resolve_named_output(project, str(output_name))
+        except ValueError as exc:
+            return {}, str(exc)
+        values[item.name] = str(output.get("value") or "")
+    return values, None
+
+
+def _target_scope(record: Any) -> str | None:
+    identity = record.resourceIdentity if isinstance(getattr(record, "resourceIdentity", None), dict) else {}
+    if identity.get("targetScope"):
+        return str(identity.get("targetScope"))
+    for item in getattr(record, "runtimeInputs", []):
+        if getattr(item, "name", "") == "baseUrl" and getattr(item, "value", None):
+            return str(item.value)
+    return None
 
 
 def _core_contract(project: Path, core_command: str | None) -> dict[str, Any] | None:

@@ -5,6 +5,14 @@ from typing import Any
 
 PUBLIC_CONTRACT_VERSION = "proofsignal-public-cli-json/v1"
 
+REQUIRED_PUBLIC_SCHEMA_NAMES = [
+    PUBLIC_CONTRACT_VERSION,
+    "proofsignal-core-version/v1",
+    "proofsignal-core-authoring-check/v1",
+    "proofsignal-core-run-result/v1",
+    "proofsignal-core-report-inspect/v1",
+]
+
 REQUIRED_OPERATIONS = {
     "version": ("proofsignal.version/v1", 1),
     "contracts": ("proofsignal.contracts/v1", 1),
@@ -81,6 +89,7 @@ def public_contract_summary() -> dict[str, Any]:
     operations = list(REQUIRED_OPERATION_METADATA)
     return {
         "contractVersion": PUBLIC_CONTRACT_VERSION,
+        "requiredPublicSchemaNames": list(REQUIRED_PUBLIC_SCHEMA_NAMES),
         "requiredOperations": operations,
         "requiredOperationsByName": {item["operationName"]: item for item in operations},
     }

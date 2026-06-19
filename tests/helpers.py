@@ -112,3 +112,18 @@ def assert_compact_readiness_row(row: dict) -> None:
     assert set(["status", "checked", "reasons"]).issubset(row["current"])
     assert set(["runtimeInputs", "credentials", "sideEffectClass", "cleanupPolicy"]).issubset(row["requirements"])
     assert set(["classes", "write", "cleanupPolicy", "requiresConfirmation"]).issubset(row["risk"])
+
+
+def assert_guided_choices(finding: dict, expected: set[str]) -> None:
+    assert expected <= {choice.get("id") for choice in finding.get("guidedChoices", [])}
+
+
+def assert_secret_safe_bindings(bindings: list[dict]) -> None:
+    for binding in bindings:
+        assert_no_secret_values(binding)
+        assert binding.get("status") in {"prepared", "committed", "discarded"}
+
+
+def assert_effective_rerun_decision(decision: dict, expected: str) -> None:
+    assert decision.get("decision") == expected
+    assert decision.get("nextAction")

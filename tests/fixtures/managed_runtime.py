@@ -49,7 +49,12 @@ def side_effect_guardrails_section() -> dict[str, Any]:
         "status": "supported",
         "policyClasses": ["none", "authenticated-read", "write", "external-notification", "unknown"],
         "policyModes": ["observe", "warn", "enforce"],
-        "confirmationSignalTypes": ["finalUrl", "runtimeOutput", "dom", "allowedNetworkObservation"],
+        "confirmationSignalTypes": ["finalUrl", "runtimeOutput", "allowedNetworkObservation"],
+        "confirmationSignals": {
+            "supportedTypes": ["finalUrl", "runtimeOutput", "allowedNetworkObservation"],
+            "unsupportedTypes": ["dom"],
+            "unsupportedSignalError": "unsupported-confirmation-signal",
+        },
         "runtimeOutputSources": ["finalUrl", "location", "dom", "network"],
         "runtimeOutputStatuses": ["captured", "redacted", "missing", "invalid"],
         "sideEffectStatuses": [
@@ -82,6 +87,16 @@ def side_effect_guardrails_section() -> dict[str, Any]:
         },
         "reportFields": ["sideEffects.policy", "sideEffects.observations[]", "sideEffects.violations[]", "runtimeOutputs[]", "resultClassification"],
     }
+
+
+def side_effect_guardrails_with_runtime_confirmation_support(*, dom_supported: bool) -> dict[str, Any]:
+    section = side_effect_guardrails_section()
+    section["runtimeConfirmationSupport"] = [
+        {"type": "dom", "status": "supported" if dom_supported else "unsupported"},
+        {"type": "runtimeOutput", "status": "supported"},
+        {"type": "finalUrl", "status": "supported"},
+    ]
+    return section
 
 
 def core_contract_fixture_payload(

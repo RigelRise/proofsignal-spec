@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from proofsignal_spec.commands.list import run as list_run
+from proofsignal_spec.workspace.repository import load_use_case, save_use_case
 from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace, old_checked_at, save_ready_snapshot
 from tests.helpers import row_by_alias
 
@@ -17,8 +18,10 @@ def test_list_rows_are_compact_and_do_not_claim_current_ready_without_snapshot(t
     assert public["current"]["status"] == "not-checked"
     assert credentialed["current"]["status"] == "not-checked"
     assert write["current"]["status"] == "not-checked"
-    assert set(write["requirements"]) == {"runtimeInputs", "credentials", "sideEffectClass", "cleanupPolicy"}
+    assert set(write["requirements"]) == {"runtimeInputs", "credentials", "sideEffectClass", "cleanupPolicy", "namedOutputs"}
     assert set(write["risk"]).issuperset({"classes", "write", "cleanupPolicy", "requiresConfirmation"})
+    assert write["risk"]["rerun"]["required"] is True
+    assert "postCommitInterpretation" not in str(write["risk"])
 
 
 def test_list_applies_risk_based_snapshot_age(tmp_path) -> None:
@@ -49,3 +52,23 @@ def test_list_does_not_call_core_or_credential_runtime(tmp_path, monkeypatch) ->
         "APP_TEST_PASSWORD",
     ]
     assert "secret@example.test" not in str(payload)
+
+
+def test_list_shows_named_output_names_without_values(tmp_path) -> None:
+    create_live_write_readiness_workspace(tmp_path)
+    record = load_use_case(tmp_path, "add-collaboration-project")
+    record.runtimeOutputs = [
+        {
+            "name": "createdProjectUrl",
+            "source": "finalUrl",
+            "publishAsNamedOutput": True,
+            "value": "https://app.example.test/project/secret-test-resource",
+        }
+    ]
+    save_use_case(tmp_path, record)
+
+    payload = list_run(tmp_path)
+    row = row_by_alias(payload, "add-collaboration-project")
+
+    assert row["requirements"]["namedOutputs"] == ["createdProjectUrl"]
+    assert "secret-test-resource" not in str(row["requirements"])

@@ -33,6 +33,20 @@ evidence, and provide the exact next action without weakening validation intent.
   and follow `resumeCommand`; do not infer a new stage from chat history.
 - 009 workspace state compatibility: inspect/reset state through the public
   workflow commands below. Do not delete unrelated `.proofsignal/` artifacts.
+- Write rerun blocked by resource identity: validate the use case, then repair
+  or re-implement the generated identity input/template, `resourceIdentity`, or
+  `rerunPolicy`. Do not hand-edit `lastRun` or registry state to bypass a
+  write-safety guard.
+- Reviewed false-positive write outcome: record an auditable review with
+  `proofsignal workflow supersede-write-outcome`; do not hand-edit managed
+  run history. Write policies should use `sideEffectPolicy.allowed[]` and
+  `sideEffectPolicy.forbidden[]`, not legacy
+  `sideEffectPolicy.rules[].effect/match`, and confirmation signals must be
+  runtime-supported confirmation signals.
+- Generated identity collision: the refreshed value repeated a locally recorded
+  committed binding for the same use case and target. Adjust the generation
+  strategy or owner-approved seed before rerunning; no live target probe is
+  required by default.
 
 ## Workspace State
 

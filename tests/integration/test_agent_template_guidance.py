@@ -1,0 +1,20 @@
+from __future__ import annotations
+
+from proofsignal_spec.integrations.claude import ClaudeIntegration
+from proofsignal_spec.integrations.codex import CodexIntegration
+
+
+def test_installed_codex_and_claude_templates_include_write_safety_contract_guidance(tmp_path) -> None:
+    files = {item.path: item.content for item in CodexIntegration().render_files(tmp_path)}
+    files.update({item.path: item.content for item in ClaudeIntegration().render_files(tmp_path)})
+    combined = "\n".join(files.values())
+
+    for phrase in [
+        "sideEffectPolicy.allowed[]",
+        "sideEffectPolicy.forbidden[]",
+        "workflow supersede-write-outcome",
+        "runtime-supported confirmation",
+        "prepared/committed/discarded",
+    ]:
+        assert phrase in combined
+    assert "hand-edit `.proofsignal/` `lastRun`" not in combined

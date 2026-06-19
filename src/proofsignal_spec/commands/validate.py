@@ -21,7 +21,8 @@ from proofsignal_spec.workflows.readiness import (
     validation_readiness,
 )
 from proofsignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
-from proofsignal_spec.workspace.repository import create_readiness_snapshot_from_validation, resolve_artifacts, update_validation
+from proofsignal_spec.workspace.repository import create_readiness_snapshot_from_validation, load_supersede_reviews, resolve_artifacts, update_validation
+from proofsignal_spec.workspace.validation import validate_side_effect_declaration
 
 
 def _selected_main_skill(record_main_skill: Any, main_skill: Path) -> dict[str, Any]:
@@ -132,6 +133,42 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         update_validation(project, alias, result)
         _persist_readiness_snapshot(project, alias, result)
         return result
+    side_effect_findings = validate_side_effect_declaration(
+        record.sideEffects,
+        record.rerunPolicy,
+        record.runtimeOutputs,
+        [item.to_dict() for item in record.runtimeInputs],
+        core_contract=core_contract,
+        runtime_outcomes=[record.lastRun] if isinstance(record.lastRun, dict) else [],
+    )
+    side_effect_blockers = [item for item in side_effect_findings if item.get("severity") == "blocking"]
+    if side_effect_blockers:
+        result = {
+            "schemaVersion": WORKFLOW_VALIDATION_READINESS_SCHEMA,
+            "alias": alias,
+            "status": "blocked",
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "authoringCoherence": coherence.to_dict(),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "sideEffectPolicy": {"findings": side_effect_findings},
+            "runtimeReadiness": {
+                "status": "blocked",
+                "findingIds": [f"runtime.{item.get('code')}" for item in side_effect_blockers],
+                "message": str(side_effect_blockers[0].get("message") or "Side-effect policy is not runtime-ready."),
+                "fullBrowserFlowExecuted": False,
+            },
+            "blockers": [
+                ReadinessBlocker(
+                    code=f"runtime.{item.get('code')}",
+                    message=str(item.get("message") or "Side-effect policy is not runtime-ready."),
+                    recoveryCommand=f"proofsignal workflow check validate --alias {alias} --json",
+                ).to_dict()
+                for item in side_effect_blockers
+            ],
+        }
+        update_validation(project, alias, result)
+        _persist_readiness_snapshot(project, alias, result)
+        return result
     result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).authoring_check(
         run_request,
         main_skill,
@@ -149,6 +186,14 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         "managedRuntimeReadiness": managed_runtime.to_dict(),
         "core": result,
     }
+    side_effect = record.sideEffects if isinstance(record.sideEffects, dict) else {}
+    if side_effect.get("class") in {"write", "external-notification"}:
+        from proofsignal_spec.workflows.write_safety import evaluate_rerun_decision
+
+        wrapped["rerunDecision"] = evaluate_rerun_decision(record, supersede_reviews=load_supersede_reviews(project, alias))
+    named_outputs = _named_output_summary(record)
+    if named_outputs:
+        wrapped["namedOutputs"] = named_outputs
     entitlement_blocker_code = core_entitlement_blocker_code(result)
     if entitlement_blocker_code:
         blocker = RuntimeSetupBlocker(
@@ -219,6 +264,18 @@ def _persist_readiness_snapshot(project: Path, alias: str, result: dict[str, Any
     except Exception:
         # Readiness snapshots are advisory local metadata; validation output remains authoritative.
         pass
+
+
+def _named_output_summary(record: Any) -> list[dict[str, Any]]:
+    outputs: list[dict[str, Any]] = []
+    for item in getattr(record, "runtimeOutputs", []) or []:
+        if not isinstance(item, dict) or not item.get("publishAsNamedOutput"):
+            continue
+        data = {"name": str(item.get("name") or ""), "source": str(item.get("source") or "")}
+        if item.get("resourceType"):
+            data["resourceType"] = str(item.get("resourceType"))
+        outputs.append({key: value for key, value in data.items() if value})
+    return outputs
 
 
 def _authored_evidence_coverage_status(gate_coverage: list[dict[str, Any]]) -> str:

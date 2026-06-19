@@ -100,7 +100,7 @@ browser:
             sideEffects={
                 "class": "write",
                 "commitStepId": "submit-resource",
-                "allowed": [{"id": "create-resource", "kind": "network"}],
+                "allowed": [{"id": "create-resource", "kind": "network", "methods": ["POST"], "urlContains": "/resources"}],
             },
             rerunPolicy={"afterNoCommit": "allowed", "afterCommit": "blocked"},
         ),

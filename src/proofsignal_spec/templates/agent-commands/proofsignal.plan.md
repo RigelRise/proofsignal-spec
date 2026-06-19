@@ -16,7 +16,9 @@ Plan one run request and reusable skills before implementation.
 - Plan skills as decoupled reusable artifacts under `.proofsignal/skills/<name>.browser.md`; one skill may be referenced by multiple run requests.
 - Make the main skill executable by Core for the complete planned validation path. Supporting skills can capture reusable intent, but Core v0.1 may execute only the main browser skill during a run.
 - Identify the main skill, supporting skills, runtime input names, credential groups, expected app state, and validation gates.
-- For write and external-notification use cases, plan `sideEffects` with `mode: enforce` unless explicitly selected otherwise, the commit step id, allowed local envelope rules or confirmation signals, `runtimeOutputs` needed for follow-up validation, and `rerunPolicy`.
+- For write and external-notification use cases, plan `sideEffects` with `mode: enforce` unless explicitly selected otherwise, explicit `resourceIdentity`, the commit step id, allowed local envelope rules or confirmation signals, `runtimeOutputs` needed for follow-up validation, and `rerunPolicy`.
+- Express local envelopes with canonical `sideEffectPolicy.allowed[]` and `sideEffectPolicy.forbidden[]`; do not author `sideEffectPolicy.rules[].effect/match`. Use only runtime-supported confirmation signals proven by public capability data or accepted runtime outcomes.
+- When the owner accepts duplicate accumulation, record `collisionPolicy: allow-duplicates`; otherwise prefer a refreshable generated identity input or post-commit binding that can be checked locally on rerun.
 - Generated runtime inputs must use generic use-case-owned names and templates such as run identifiers; do not hard-code target-project-specific parameter names into guidance.
 - When a generated value must be validated later in the same run, plan it as a runtime input reference and, when Core supports it, a use-case-owned runtime output.
 - For browser page-view use cases, every required validation gate must have a stable `id`, `description`, and `required` flag. Conditional gates must include a human-readable `condition`.

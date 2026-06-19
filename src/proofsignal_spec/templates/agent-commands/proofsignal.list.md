@@ -15,5 +15,6 @@ List use cases and workflow status.
 - Include the compact row facts: alias, last run, current state, requirements, and risk.
 - For credentialed rows, show credential group and required runtime names only; never show values.
 - For write/external-notification rows, show side-effect class, cleanup policy, and confirmation/rerun risk when present.
+- Show normalized readiness/risk labels rather than raw post-commit field names. A historical passed write run is not proof that a rerun will use a fresh resource identity.
 - Do not inspect sensitive files.
 - Surface the next recommended `/proofsignal-*` command when a use case is blocked.

@@ -20,6 +20,7 @@ CREDENTIAL_HINTS_DIR = "credential-hints"
 CONFIRMATIONS_DIR = "confirmations"
 REFRESH_IMPACT_DIR = "refresh-impact"
 CAPABILITY_POLICIES_DIR = "capability-policies"
+SUPERSEDE_REVIEWS_DIR = "supersede-reviews"
 WORKFLOW_DEFINITIONS_DIR = "definitions"
 WORKFLOW_RUNS_DIR = "runs"
 WORKFLOW_USE_CASES_DIR = "use-cases"
@@ -76,6 +77,14 @@ def canonical_skill_rel(name: str) -> str:
 
 def repair_path(project: Path, repair_id: str) -> Path:
     return workspace_root(project) / REPAIRS_DIR / f"{repair_id}.yaml"
+
+
+def supersede_reviews_dir(project: Path, alias: str) -> Path:
+    return workspace_root(project) / SUPERSEDE_REVIEWS_DIR / ensure_path_safe_alias(alias)
+
+
+def supersede_review_path(project: Path, alias: str, review_id: str) -> Path:
+    return supersede_reviews_dir(project, alias) / f"{ensure_path_safe_alias(review_id)}.yaml"
 
 
 def run_history_path(project: Path, alias: str, run_id: str) -> Path:
@@ -206,6 +215,7 @@ def workspace_dirs(project: Path) -> list[Path]:
         root / CONFIRMATIONS_DIR,
         root / REFRESH_IMPACT_DIR,
         root / CAPABILITY_POLICIES_DIR,
+        root / SUPERSEDE_REVIEWS_DIR,
         root / INTEGRATIONS_DIR,
         root / INTEGRATIONS_DIR / MANIFESTS_DIR,
         root / WORKFLOWS_DIR,

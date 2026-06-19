@@ -141,6 +141,14 @@ credential, entitlement, target reachability, or browser checks in the normal
 list view. Use `proofsignal validate <alias> --runtime-readiness --json` or
 `proofsignal workflow check run --alias <alias> --json` for volatile readiness.
 
+Write use cases use canonical side-effect policy fields:
+`sideEffectPolicy.allowed[]` and `sideEffectPolicy.forbidden[]`. Legacy
+`sideEffectPolicy.rules[].effect/match` is compatibility input only and must be
+migrated or blocked with owner choices before run. Reviewed false-positive write
+outcomes are recorded through `proofsignal workflow supersede-write-outcome`,
+and generated write identity bindings are tracked as
+`prepared/committed/discarded`.
+
 Credentialed use cases may store non-secret readiness hints such as credential
 group names, required runtime variable names, or user-managed preparation
 guidance. Hints are not executed automatically and must not contain credential
@@ -153,6 +161,20 @@ capability metadata require structured owner confirmation before run. When Core
 does not emit a structured side-effect envelope for a write run, Spec reports
 write activity conservatively as unknown or inferred rather than treating the
 absence as proof that no side effect occurred.
+
+Write reruns also declare a Spec-owned `resourceIdentity`. The identity records
+the use-case-owned resource type, identity strategy, identity input or
+post-commit binding, collision policy, and target scope. Generated runtime
+inputs are materialized once per prepared run and reused by every same-run
+reference. For reruns that require fresh inputs, Spec checks the generated
+identity value against locally recorded committed bindings for the same use case
+and target before delegating to Core. A collision blocks before browser
+execution with repair guidance instead of requiring manual edits to run state.
+
+Generated values remain run-scoped unless a use case explicitly publishes a
+non-secret named output, such as a created resource URL. Later use cases may
+resolve only those published named outputs; ordinary generated inputs are not
+global workspace state.
 
 ## Golden Path
 

@@ -18,11 +18,13 @@ from .models import (
     ArtifactReference,
     ConfirmationRequirement,
     CredentialReadinessHint,
+    NamedOutput,
     ReadinessSnapshot,
     RefreshImpactResult,
     RerunPolicy,
     RunHistoryEntry,
     SideEffectLifecycleDeclaration,
+    SupersedeReview,
     UseCaseRecord,
 )
 
@@ -55,6 +57,10 @@ def save_document(path: Path, data: Any) -> None:
         tmp_path = Path(tmp)
         if tmp_path.exists():
             tmp_path.unlink()
+
+
+def _named_outputs_path(project: Path) -> Path:
+    return layout.workspace_root(project) / "named-outputs.yaml"
 
 
 def _load_simple_yaml(text: str) -> Any:
@@ -124,6 +130,7 @@ def init_workspace(project: Path, force: bool = False, core_cmd: str | None = No
             "credentialHintsDir": f"{layout.WORKSPACE_DIR}/{layout.CREDENTIAL_HINTS_DIR}",
             "confirmationsDir": f"{layout.WORKSPACE_DIR}/{layout.CONFIRMATIONS_DIR}",
             "refreshImpactDir": f"{layout.WORKSPACE_DIR}/{layout.REFRESH_IMPACT_DIR}",
+            "supersedeReviewsDir": f"{layout.WORKSPACE_DIR}/{layout.SUPERSEDE_REVIEWS_DIR}",
             "integrationsDir": f"{layout.WORKSPACE_DIR}/{layout.INTEGRATIONS_DIR}",
             "workflowsDir": f"{layout.WORKSPACE_DIR}/{layout.WORKFLOWS_DIR}",
         }
@@ -372,6 +379,7 @@ def update_validation(project: Path, alias: str, result: dict[str, Any]) -> UseC
     status = result.get("status") or result.get("data", {}).get("status")
     record.validation = result
     record.status = "ready" if status == "passed" else "blocked"
+    _canonicalize_unambiguous_rerun_policy(record)
     save_use_case(project, record)
     return record
 
@@ -404,7 +412,172 @@ def record_run(project: Path, entry: RunHistoryEntry) -> None:
         "evidenceDir": entry.evidenceDir,
     }
     record.status = "ready" if entry.status == "passed" else "failed"
+    _canonicalize_unambiguous_rerun_policy(record)
     save_use_case(project, record)
+    _publish_outputs_from_run(project, record, entry)
+
+
+def _canonicalize_unambiguous_rerun_policy(record: UseCaseRecord) -> None:
+    if not isinstance(record.rerunPolicy, dict):
+        return
+    policy = RerunPolicy.from_dict(record.rerunPolicy)
+    if policy.legacyFindings:
+        return
+    canonical = policy.to_dict()
+    if canonical:
+        record.rerunPolicy = canonical
+
+
+def committed_binding_values(
+    project: Path,
+    *,
+    use_case_alias: str,
+    target_scope: str | None,
+    binding_name: str,
+) -> set[str]:
+    values: set[str] = set()
+    for run in _iter_run_binding_sources(project, use_case_alias):
+        if not _run_has_committed_binding(run):
+            continue
+        for binding in run.get("resolvedRuntimeInputs", []):
+            if not isinstance(binding, dict):
+                continue
+            if str(binding.get("name") or "") != binding_name:
+                continue
+            if target_scope and binding.get("targetScope") and str(binding.get("targetScope")) != str(target_scope):
+                continue
+            value = binding.get("value")
+            if value is not None:
+                values.add(str(value))
+    return values
+
+
+def refresh_collision_findings(
+    project: Path,
+    *,
+    use_case_alias: str,
+    target_scope: str | None,
+    bindings: dict[str, str],
+) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    try:
+        record = load_use_case(project, use_case_alias)
+        runtime_inputs = {item.name: item for item in record.runtimeInputs}
+    except Exception:
+        runtime_inputs = {}
+    for name, value in bindings.items():
+        committed = committed_binding_values(
+            project,
+            use_case_alias=use_case_alias,
+            target_scope=target_scope,
+            binding_name=name,
+        )
+        if value in committed:
+            from proofsignal_spec.workspace.validation import refresh_collision_finding
+
+            findings.append(refresh_collision_finding(input_name=name, runtime_input=runtime_inputs.get(name)))
+    return findings
+
+
+def publish_named_outputs(project: Path, outputs: list[dict[str, Any] | NamedOutput]) -> list[dict[str, Any]]:
+    existing = load_document(_named_outputs_path(project), default={"schemaVersion": "proofsignal-spec-named-outputs/v1", "outputs": []}) or {}
+    rows = [item for item in existing.get("outputs", []) if isinstance(item, dict)]
+    for output in outputs:
+        model = output if isinstance(output, NamedOutput) else NamedOutput.from_dict(output)
+        rows.append(model.to_dict())
+    existing["schemaVersion"] = "proofsignal-spec-named-outputs/v1"
+    existing["outputs"] = rows
+    save_document(_named_outputs_path(project), existing)
+    return rows
+
+
+def resolve_named_output(
+    project: Path,
+    name: str,
+    *,
+    use_case_alias: str | None = None,
+    target_scope: str | None = None,
+) -> dict[str, Any]:
+    document = load_document(_named_outputs_path(project), default={"outputs": []}) or {}
+    matches: list[dict[str, Any]] = []
+    for item in document.get("outputs", []):
+        if not isinstance(item, dict) or item.get("name") != name:
+            continue
+        if use_case_alias and item.get("useCaseAlias") != use_case_alias:
+            continue
+        if target_scope and item.get("targetScope") != target_scope:
+            continue
+        matches.append(item)
+    if not matches:
+        raise ValueError(f"Named output not found: {name}")
+    if len(matches) > 1:
+        raise ValueError(f"Named output reference is ambiguous: {name}")
+    return matches[0]
+
+
+def _iter_run_binding_sources(project: Path, use_case_alias: str) -> list[dict[str, Any]]:
+    sources: list[dict[str, Any]] = []
+    try:
+        record = load_use_case(project, use_case_alias)
+        if isinstance(record.lastRun, dict):
+            sources.append(record.lastRun)
+    except Exception:
+        pass
+    run_dir = layout.workspace_root(project) / layout.RUNS_DIR / use_case_alias
+    if run_dir.exists():
+        for path in run_dir.glob("*.yaml"):
+            data = load_document(path, default={})
+            if isinstance(data, dict):
+                sources.append(data)
+    return sources
+
+
+def _run_has_committed_binding(run: dict[str, Any]) -> bool:
+    for binding in run.get("resolvedRuntimeInputs", []):
+        if isinstance(binding, dict) and (binding.get("status") == "committed" or binding.get("committed") is True):
+            return True
+    interpretation = run.get("postCommitInterpretation") if isinstance(run.get("postCommitInterpretation"), dict) else {}
+    return bool(interpretation.get("postCommit") or interpretation.get("sideEffectMayExist"))
+
+
+def _publish_outputs_from_run(project: Path, record: UseCaseRecord, entry: RunHistoryEntry) -> None:
+    published: list[dict[str, Any]] = []
+    declarations = [item for item in record.runtimeOutputs if isinstance(item, dict) and item.get("publishAsNamedOutput")]
+    if not declarations:
+        return
+    if not _run_has_committed_binding(entry.to_dict()):
+        return
+    outputs_by_name = {str(item.get("name")): item for item in entry.runtimeOutputs if isinstance(item, dict)}
+    target_scope = _target_scope_from_record(record)
+    for declaration in declarations:
+        name = str(declaration.get("name") or "")
+        output = outputs_by_name.get(name)
+        value = output.get("value") if isinstance(output, dict) else None
+        if not name or value is None:
+            continue
+        published.append(
+            NamedOutput(
+                name=name,
+                value=str(value),
+                sourceBinding=str(declaration.get("source") or output.get("source") or ""),
+                publishedByRunId=entry.runId,
+                useCaseAlias=entry.useCaseAlias,
+                targetScope=target_scope,
+                resourceType=declaration.get("resourceType"),
+            ).to_dict()
+        )
+    if published:
+        publish_named_outputs(project, published)
+
+
+def _target_scope_from_record(record: UseCaseRecord) -> str | None:
+    identity = record.resourceIdentity if isinstance(record.resourceIdentity, dict) else {}
+    if identity.get("targetScope"):
+        return str(identity.get("targetScope"))
+    for item in record.runtimeInputs:
+        if item.name == "baseUrl" and item.value:
+            return str(item.value)
+    return None
 
 
 def detect_conflict(path: Path, expected_sha256: str | None, hash_func) -> bool:
@@ -498,6 +671,23 @@ def save_refresh_impact(project: Path, impact: RefreshImpactResult) -> None:
 def load_refresh_impact(project: Path, alias: str) -> RefreshImpactResult | None:
     data = load_document(layout.refresh_impact_path(project, alias), default=None)
     return RefreshImpactResult.from_dict(data) if isinstance(data, dict) else None
+
+
+def save_supersede_review(project: Path, alias: str, review: SupersedeReview) -> SupersedeReview:
+    save_document(layout.supersede_review_path(project, alias, review.reviewId), review.to_dict())
+    return review
+
+
+def load_supersede_reviews(project: Path, alias: str) -> list[SupersedeReview]:
+    directory = layout.supersede_reviews_dir(project, alias)
+    if not directory.exists():
+        return []
+    reviews: list[SupersedeReview] = []
+    for path in sorted(directory.glob("*.yaml")):
+        data = load_document(path, default={})
+        if isinstance(data, dict):
+            reviews.append(SupersedeReview.from_dict(data))
+    return reviews
 
 
 def save_capability_policy(project: Path, policy: ArtifactCapabilityPolicy) -> None:
@@ -600,6 +790,11 @@ def list_requirements(record: UseCaseRecord) -> dict[str, Any]:
         "credentials": credential_runtime_requirements(record),
         "sideEffectClass": side_effect_class(record),
         "cleanupPolicy": lifecycle_declaration(record).cleanupPolicy,
+        "namedOutputs": [
+            str(item.get("name"))
+            for item in record.runtimeOutputs
+            if isinstance(item, dict) and item.get("publishAsNamedOutput") and item.get("name")
+        ],
     }
 
 
@@ -616,7 +811,30 @@ def list_risk(project: Path, record: UseCaseRecord) -> dict[str, Any]:
         "requiresConfirmation": bool(confirmation and confirmation.blocksExecution),
         "confirmationId": confirmation.id if confirmation else None,
         "riskAssertions": risk_assertions,
+        "rerun": _rerun_policy_summary(record),
     }
+
+
+def _rerun_policy_summary(record: UseCaseRecord) -> dict[str, Any]:
+    if side_effect_class(record) not in {"write", "external-notification"}:
+        return {"required": False}
+    policy = RerunPolicy.from_dict(record.rerunPolicy)
+    return {
+        "required": True,
+        "afterCommit": policy.afterCommit,
+        "refreshRuntimeInputs": list(policy.refreshRuntimeInputs),
+        "summary": _rerun_summary_text(policy.afterCommit),
+    }
+
+
+def _rerun_summary_text(decision: str) -> str:
+    if decision == "allowed-with-new-inputs":
+        return "Rerun allowed with refreshed generated inputs."
+    if decision == "requires-confirmation":
+        return "Rerun requires owner confirmation."
+    if decision == "blocked":
+        return "Rerun blocked until policy or state changes."
+    return "Rerun allowed by declared policy."
 
 
 def credential_runtime_requirements(record: UseCaseRecord) -> list[dict[str, Any]]:

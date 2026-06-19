@@ -15,6 +15,9 @@ Run a validated use case by alias through the managed ProofSignal runtime.
 - Resolve the alias to exactly one run request, main skill, and supporting reusable skills.
 - Use parameter values already declared in the run request. Prompt only for runtime values that are still missing.
 - Resolve generated runtime inputs during run preparation and keep the authored run request generic. Record only safe resolved values for that execution.
+- For write reruns with `allowed-with-new-inputs`, confirm the refreshed generated identity binding differs from locally recorded committed bindings for the same use case and target before Core execution. If it collides, stop and route to repair/implementation; do not run merely because the owner accepted write risk.
+- Generated identity bindings are `prepared/committed/discarded`: preflight prepares the value, successful commit records it as committed, and pre-commit failure records it as discarded without publishing named outputs.
+- If rerun is blocked by a reviewed false-positive write outcome, use the official `proofsignal workflow supersede-write-outcome --alias <alias> --payload <review.json> --json` flow. Do not hand-edit `lastRun`, registry, readiness, or run-history state.
 - For write and external-notification use cases, stop before Core execution when side-effect policy, local envelope, runtime output declarations, Core `sideEffectGuardrails`, or `rerunPolicy` are missing/unsupported.
 - For legacy write/external-notification artifacts missing lifecycle or safety-capability metadata, require structured confirmation and show migration guidance. Missing Core side-effect envelope is never proof of no side effect.
 - Never persist credential values.
@@ -24,7 +27,7 @@ Run a validated use case by alias through the managed ProofSignal runtime.
 - Report Core/browser status separately from Spec coverage status using `coreBrowserStatus` and `specCoverageStatus`. A Core `passed` result can still be `specCoverageStatus: incomplete` when planned gates are missing, network-only, screenshot-only, or unmapped.
 - Backward-compatible summary wording may still mention that a Core `passed` result can still be `coverageStatus: incomplete`; interpret that as Spec coverage, not browser execution.
 - When Core/browser execution fails, call Spec coverage diagnostic; do not summarize diagnostic coverage as browser validation passed.
-- When public Core result fields show the commit step was reached, report execution status, verification status, side-effect status, failure phase, rerun risk, and recommended action separately. Do not call it a safe pre-commit failure.
+- When public Core result fields show the commit step was reached, summarize the normalized side-effect/rerun assertion instead of enumerating every raw field name. Do not call it a safe pre-commit failure.
 - When a write run completes without a structured Core side-effect envelope, report write activity as unknown or inferred from declared intent/evidence. Require cleanup, refreshed generated inputs, idempotency, or confirmation before rerun when risk is unknown.
 - Include side-effect lifecycle status in the run summary: cleanup policy, whether cleanup is declared, safe resource refs when available, and manual/external cleanup instructions when declared.
 - Do not summarize `status: incomplete` as passed, even when `coreStatus` is `passed`; name the missing required gates and next action.

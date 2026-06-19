@@ -17,7 +17,11 @@ Repair invalid or failed use cases through the workflow.
 - Treat `skill-execution.*` and execution-boundary findings as skill-set/composition problems. Prefer composing required helper behavior into the main skill or reclassifying helpers as source-only metadata; do not weaken required gates to compensate for helper-skill misexecution.
 - Treat runtime contradictions and incomplete planned gate coverage as repair/replan inputs. Do not silently weaken browser skills when a planned gate is absent in the target product state.
 - If public Core fields indicate post-commit, committed-confirmed, violation, or unknown mutating activity, do not recommend blind repair-and-rerun. Require review, cleanup, or explicit rerun policy/confirmation first.
+- For false-positive write outcome review, route to `proofsignal workflow supersede-write-outcome --alias <alias> --payload <review.json> --json`; do not hand-edit managed run history. Artifact repair is separate from superseding prior write-risk state.
+- When repairing side-effect policy, use canonical `sideEffectPolicy.allowed[]` and `sideEffectPolicy.forbidden[]`. Do not author `sideEffectPolicy.rules[].effect/match`.
+- Do not propose unsupported confirmation repairs. Require a runtime-supported confirmation proven by public capability data or accepted runtime outcomes.
 - Apply the most restrictive rerun decision between Core `rerunRisk` and Spec `rerunPolicy`; refresh only generated runtime inputs explicitly declared refreshable.
+- If a generated identity binding collides with a committed local binding, prefer safe template/seed adjustment when intent is preserved; otherwise route to clarification. Do not overwrite managed last-run state to bypass the guard.
 - Safe mechanical selector, wait strategy, step ordering, target specificity, equivalent-flow, and run-profile repairs may auto-apply only when the result classifies them as intent-preserving.
 - If a safe mechanical repair is auto-applied, show before/after repair feedback, revalidation status, rerun status, and the next command. Do not report success until validate and rerun produce strict pass.
 - Data assumptions, credentials, required gates, target selection, dynamic-versus-fixed data, and expected product behavior changes still require explicit confirmation.

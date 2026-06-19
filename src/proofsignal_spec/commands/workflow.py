@@ -11,6 +11,9 @@ from proofsignal_spec.workflows.first_run import accept_first_run, build_first_r
 from proofsignal_spec.workflows.repository import inspect_golden_path_workspace_state, reset_golden_path_workspace_state
 from proofsignal_spec.workflows.models import WORKFLOW_ID
 from proofsignal_spec.workflows.prerequisites import check_prerequisites
+from proofsignal_spec.workspace.models import SupersedeReview
+from proofsignal_spec.workspace.repository import now_iso, save_supersede_review
+from proofsignal_spec.workspace.validation import validate_no_secret_values
 
 
 def run_workflow(project: Path, workflow_id: str, goal: str, alias: str | None = None, integration: str | None = None) -> dict[str, Any]:
@@ -60,6 +63,29 @@ def check(project: Path, stage: str, alias: str | None = None, refresh_decision:
 
 def persist(project: Path, stage: str, alias: str | None = None, scope: str | None = None, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     return stage_persistence.persist_stage(project, stage, alias=alias, scope=scope, payload=payload)
+
+
+def supersede_write_outcome(project: Path, alias: str, payload: dict[str, Any]) -> dict[str, Any]:
+    review_data = dict(payload)
+    review_data.setdefault("createdAt", now_iso())
+    review = SupersedeReview.from_dict(review_data)
+    findings = [*review.validate(), *validate_no_secret_values(review.to_dict(), "supersedeReview")]
+    blockers = [item for item in findings if item.get("severity") == "blocking"]
+    if blockers:
+        return {
+            "schemaVersion": "proofsignal-spec-supersede-review-result/v1",
+            "alias": alias,
+            "status": "blocked",
+            "blockers": blockers,
+        }
+    saved = save_supersede_review(project, alias, review)
+    return {
+        "schemaVersion": "proofsignal-spec-supersede-review-result/v1",
+        "alias": alias,
+        "status": "persisted",
+        "review": saved.to_dict(),
+        "nextAction": f"proofsignal workflow check run --alias {alias} --json",
+    }
 
 
 def migrate(project: Path, migration_id: str) -> dict[str, Any]:

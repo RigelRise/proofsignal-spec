@@ -45,7 +45,9 @@ def render_run_request(
     if record.runtimeOutputs:
         document["runtimeOutputs"] = list(record.runtimeOutputs)
     if record.sideEffects:
-        document["sideEffectPolicy"] = record.sideEffects
+        from proofsignal_spec.workflows.write_safety import normalize_side_effect_policy
+
+        document["sideEffectPolicy"] = normalize_side_effect_policy(record.sideEffects)[0]
     if record.rerunPolicy:
         document["rerunPolicy"] = record.rerunPolicy
     return json.dumps(document, indent=2) + "\n"
