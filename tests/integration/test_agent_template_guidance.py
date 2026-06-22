@@ -15,6 +15,8 @@ def test_installed_codex_and_claude_templates_include_write_safety_contract_guid
         "workflow supersede-write-outcome",
         "runtime-supported confirmation",
         "prepared/committed/discarded",
+        "seed plus a run-attempt token",
+        "Resolve `{{parameters.*}}` confirmation expected values before Core execution",
     ]:
         assert phrase in combined
     assert "hand-edit `.proofsignal/` `lastRun`" not in combined

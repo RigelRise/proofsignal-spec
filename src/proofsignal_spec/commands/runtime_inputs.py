@@ -74,4 +74,4 @@ def _render_generated_template(template: str, *, run_id: str | None, seed: str |
 
 def _short_id(run_id: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9]", "", run_id).lower()
-    return cleaned[:12] or "run"
+    return cleaned[-12:] or "run"

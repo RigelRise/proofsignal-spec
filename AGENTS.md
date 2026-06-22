@@ -2,7 +2,7 @@
 Follow `.specify/memory/constitution.md` as the governing project rules.
 For additional context about technologies to be used, project structure,
 shell commands, and other important information for the active feature, read
-`specs/021-fix-side-effect-contract/plan.md`.
+`specs/022-generated-confirmation-values/plan.md`.
 
 Write project documentation, specs, plans, tasks, generated agent instructions,
 runtime guidance, run requests, and skills in English.

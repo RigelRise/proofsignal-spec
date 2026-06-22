@@ -24,4 +24,7 @@ case ready.
 For write use cases, author canonical `sideEffectPolicy.allowed[]` and
 `sideEffectPolicy.forbidden[]`, never `sideEffectPolicy.rules[].effect/match`.
 Use runtime-supported confirmation signals only, and preserve generated
-identity binding status as `prepared/committed/discarded`.
+identity binding status as `prepared/committed/discarded`. Fresh generated
+write values preserve the seed plus a run-attempt token. Resolve
+`{{parameters.*}}` confirmation expected values before Core execution, and
+route unresolved or credential placeholders through the managed workflow.

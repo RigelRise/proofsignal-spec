@@ -93,7 +93,7 @@ def write_specification(project: Path, alias: str, goal: str, runtime_assumption
             "Runtime Assumptions": runtime_assumptions or [],
             "Acceptance Scenarios": ["To be refined before artifact planning."],
             "Unresolved Questions": ["Confirm target URL, credential group names, and expected success evidence."],
-            "Write-Flow Safety": "Declare sideEffects.class explicitly. Write and external-notification cases can be drafted here, but executable readiness requires Core sideEffectGuardrails, commitStepId, a local envelope, resourceIdentity, collisionPolicy, and rerunPolicy.",
+            "Write-Flow Safety": "Declare sideEffects.class explicitly. Write and external-notification cases can be drafted here, but executable readiness requires Core sideEffectGuardrails, commitStepId, a local envelope, resourceIdentity, collisionPolicy, and rerunPolicy. Fresh generated write values preserve the seed plus a run-attempt token; Resolve `{{parameters.*}}` confirmation expected values before Core execution.",
             "Public Stage Contract": _stage_contract_note("specify"),
         },
     )
@@ -121,7 +121,7 @@ def write_artifact_plan(project: Path, plan: ArtifactPlan) -> str:
             "Gate Evidence Mappings": _render_gate_evidence_mappings(plan.gateEvidenceMappings),
             "Skill Reuse": [str(item) for item in plan.skillReuse],
             "Runtime Inputs": _render_runtime_inputs(plan.runtimeInputs),
-            "Write-Flow Safety": "For write/external-notification plans, include sideEffects, resourceIdentity, collisionPolicy, runtimeOutputs when needed, and rerunPolicy in the stage payload. Draft plans do not guarantee executable readiness until validation checks Core guardrails.",
+            "Write-Flow Safety": "For write/external-notification plans, include sideEffects, resourceIdentity, collisionPolicy, runtimeOutputs when needed, and rerunPolicy in the stage payload. Fresh generated write values preserve the seed plus a run-attempt token, and confirmation placeholders must be safe `{{parameters.*}}` references resolved before Core execution. Draft plans do not guarantee executable readiness until validation checks Core guardrails.",
             "Preconditions": plan.preconditions,
             "Validation Gates": plan.validationGates,
             "Gate Intent Changes": plan.gateIntentChanges,

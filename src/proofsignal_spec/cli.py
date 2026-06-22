@@ -148,6 +148,11 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     workflow_supersede.add_argument("--stdin", action="store_true", help="Read JSON payload from stdin")
     workflow_supersede.add_argument("--project", default=".")
     workflow_supersede.add_argument("--json", action="store_true")
+    workflow_approve_rerun = workflow_sub.add_parser("approve-rerun", help="Record owner approval for a confirmed write rerun")
+    workflow_approve_rerun.add_argument("--alias", required=True)
+    workflow_approve_rerun.add_argument("--confirm-risk", help="Structured rerun confirmation id from workflow check run")
+    workflow_approve_rerun.add_argument("--project", default=".")
+    workflow_approve_rerun.add_argument("--json", action="store_true")
     workflow_migrate = workflow_sub.add_parser("migrate", help="Apply an approved workspace migration plan")
     workflow_migrate.add_argument("--approve", required=True, help="Migration id to apply")
     workflow_migrate.add_argument("--project", default=".")
@@ -286,6 +291,8 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
             return workflow_command.persist(project, args.stage, alias=args.alias, scope=args.scope, payload=_load_payload(args)), args.json
         if args.workflow_command == "supersede-write-outcome":
             return workflow_command.supersede_write_outcome(project, args.alias, payload=_load_payload(args)), args.json
+        if args.workflow_command == "approve-rerun":
+            return workflow_command.approve_rerun(project, args.alias, confirm_risk=args.confirm_risk), args.json
         if args.workflow_command == "migrate":
             return workflow_command.migrate(project, args.approve), args.json
         if args.workflow_command == "recommend-first-run":

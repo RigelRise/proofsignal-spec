@@ -35,3 +35,31 @@ def test_generated_binding_resolves_once_for_same_run() -> None:
     second = resolve_runtime_inputs([requirement], interactive=False, run_id="run-one")
 
     assert first["projectTitle"] == second["projectTitle"]
+
+
+def test_generated_short_id_uses_fresh_attempt_component_not_alias_prefix() -> None:
+    requirement = RuntimeInputRequirement(
+        name="projectTitle",
+        source="generated",
+        template="{{seed}} {{run.shortId}}",
+        value="ProofSignal collab seed",
+        refreshOnRerunAfterCommit=True,
+    )
+
+    first = resolve_runtime_inputs(
+        [requirement],
+        interactive=False,
+        run_id="add-collaboration-project-20260619T174233Z",
+        refresh_names=["projectTitle"],
+    )
+    second = resolve_runtime_inputs(
+        [requirement],
+        interactive=False,
+        run_id="add-collaboration-project-20260619T180001Z",
+        refresh_names=["projectTitle"],
+    )
+
+    assert first["projectTitle"].startswith("ProofSignal collab seed ")
+    assert second["projectTitle"].startswith("ProofSignal collab seed ")
+    assert first["projectTitle"] != second["projectTitle"]
+    assert "addcollabora" not in first["projectTitle"]

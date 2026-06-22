@@ -127,3 +127,18 @@ def assert_secret_safe_bindings(bindings: list[dict]) -> None:
 def assert_effective_rerun_decision(decision: dict, expected: str) -> None:
     assert decision.get("decision") == expected
     assert decision.get("nextAction")
+
+
+def assert_placeholder_finding(finding: dict, *, code: str, placeholder: str) -> None:
+    assert finding["severity"] == "blocking"
+    assert finding["code"] == code
+    assert finding["category"] == "side-effect-confirmation"
+    assert finding["placeholder"] == placeholder
+    assert finding["path"].startswith("sideEffects.confirmationSignals[")
+    assert finding.get("nextAction")
+
+
+def assert_prepared_confirmation_value(document: dict, signal_id: str, field: str, expected: str) -> None:
+    policy = document.get("sideEffectPolicy") or document.get("sideEffects") or {}
+    signal = next(item for item in policy["confirmationSignals"] if item["id"] == signal_id)
+    assert signal[field] == expected

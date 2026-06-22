@@ -195,7 +195,11 @@ def stage_contracts_payload() -> dict[str, Any]:
         "schemaVersion": STAGE_CONTRACTS_SCHEMA,
         "stages": list(_STAGE_CONTRACTS),
         "byStage": contracts,
-        "guidance": "Use these public workflow contracts; do not inspect installed package source to infer payload schemas.",
+        "guidance": (
+            "Use these public workflow contracts; do not inspect installed package source to infer payload schemas. "
+            "Fresh generated write values preserve the seed plus a run-attempt token. "
+            "Resolve `{{parameters.*}}` confirmation expected values before Core execution."
+        ),
         "skillExecutionBoundary": {
             "source": "spec-public-workflow-contract",
             "defaultMode": "single-main",
@@ -214,6 +218,11 @@ def stage_contracts_payload() -> dict[str, Any]:
                 "skill-execution.gate-evidence-unmapped",
                 "skill-execution.source-only-excluded",
             ],
+        },
+        "writeValueResolution": {
+            "generatedFreshness": "Fresh generated write values preserve the seed plus a run-attempt token derived from the prepared run id.",
+            "confirmationPlaceholders": "Resolve `{{parameters.*}}` confirmation expected values before Core execution; block missing, credential, unsupported, or secret-looking placeholders.",
+            "coreBoundary": "Core receives concrete prepared run-request values, not unresolved Spec placeholders.",
         },
     }
 

@@ -146,8 +146,9 @@ Write use cases use canonical side-effect policy fields:
 `sideEffectPolicy.rules[].effect/match` is compatibility input only and must be
 migrated or blocked with owner choices before run. Reviewed false-positive write
 outcomes are recorded through `proofsignal workflow supersede-write-outcome`,
-and generated write identity bindings are tracked as
-`prepared/committed/discarded`.
+normal owner-approved reruns after committed writes are recorded through
+`proofsignal workflow approve-rerun`, and generated write identity bindings are
+tracked as `prepared/committed/discarded`.
 
 Credentialed use cases may store non-secret readiness hints such as credential
 group names, required runtime variable names, or user-managed preparation
@@ -166,10 +167,19 @@ Write reruns also declare a Spec-owned `resourceIdentity`. The identity records
 the use-case-owned resource type, identity strategy, identity input or
 post-commit binding, collision policy, and target scope. Generated runtime
 inputs are materialized once per prepared run and reused by every same-run
-reference. For reruns that require fresh inputs, Spec checks the generated
-identity value against locally recorded committed bindings for the same use case
-and target before delegating to Core. A collision blocks before browser
-execution with repair guidance instead of requiring manual edits to run state.
+reference. For reruns that require fresh inputs, Spec preserves the readable
+seed plus a run-attempt token derived from the prepared run id, then checks the
+generated identity value against locally recorded committed bindings for the
+same use case and target before delegating to Core. A collision blocks before
+browser execution with repair guidance instead of requiring manual edits to run
+state.
+
+Confirmation expected values may reference safe runtime parameters with
+`{{parameters.<name>}}`. Spec resolves those placeholders into concrete values
+in the prepared Core-facing run request. Missing parameters, credential
+namespaces, unsupported namespaces, or secret-looking resolved values block
+before browser execution. Literal expected values such as `/project/` are
+preserved unchanged.
 
 Generated values remain run-scoped unless a use case explicitly publishes a
 non-secret named output, such as a created resource URL. Later use cases may

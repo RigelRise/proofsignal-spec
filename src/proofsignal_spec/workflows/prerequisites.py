@@ -189,18 +189,39 @@ def check_prerequisites(
         record = load_use_case(project, resolved_alias)
         rerun_decision = evaluate_rerun_decision(record, supersede_reviews=load_supersede_reviews(project, resolved_alias))
         if rerun_decision.get("decision") in {"blocked", "requires-confirmation"}:
+            requires_rerun_confirmation = rerun_decision.get("decision") == "requires-confirmation"
+            blocker = {
+                "code": "runtime.rerun-confirmation-required" if requires_rerun_confirmation else "runtime.rerun-policy-blocked",
+                "severity": "blocker",
+                "category": "write-flow-safety",
+                "message": str(rerun_decision.get("reason", "")),
+                "recoveryCommand": str(rerun_decision.get("nextAction") or _native_next(stage, resolved_alias)),
+            }
+            confirmation = (
+                {
+                    "id": rerun_decision.get("confirmationId"),
+                    "scope": rerun_decision.get("confirmationScope"),
+                    "sourceRunId": rerun_decision.get("sourceRunId"),
+                    "reason": rerun_decision.get("reason"),
+                    "blocksExecution": True,
+                }
+                if requires_rerun_confirmation
+                else None
+            )
             return _result(
                 stage,
                 resolved_alias,
-                "blocked" if rerun_decision.get("decision") == "blocked" else "ready",
-                can_proceed=False if rerun_decision.get("decision") == "blocked" else True,
-                requires_confirmation=rerun_decision.get("decision") == "requires-confirmation",
+                "blocked",
+                can_proceed=False,
+                requires_confirmation=requires_rerun_confirmation,
                 warnings=[str(rerun_decision.get("reason", ""))],
                 recommended_action="review-or-supersede-write-outcome"
-                if rerun_decision.get("decision") == "blocked"
-                else "confirm-risk",
-                next_command=_native_next(stage, resolved_alias),
+                if not requires_rerun_confirmation
+                else "approve-rerun",
+                next_command=str(rerun_decision.get("nextAction") or _native_next(stage, resolved_alias)),
+                confirmation=confirmation,
                 rerunDecision=rerun_decision,
+                blockers=[blocker],
                 **understanding_payload,
             )
         rerun_decision_for_result = rerun_decision
@@ -616,6 +637,7 @@ def _result(
     understandingFreshness: dict[str, Any] | None = None,
     confirmation: dict[str, Any] | None = None,
     rerunDecision: dict[str, Any] | None = None,
+    blockers: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "schemaVersion": WORKFLOW_CAPABILITY_SCHEMA,
@@ -642,6 +664,7 @@ def _result(
         "onboardingPreparation": onboardingPreparation,
         "resumeCommand": resumeCommand,
         "stageCards": stageCards or [],
+        "blockers": blockers or [],
     }
     if refreshImpact is not None:
         result["refreshImpact"] = refreshImpact

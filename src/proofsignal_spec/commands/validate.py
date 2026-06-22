@@ -3,6 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from proofsignal_spec.commands.run_request_preparation import (
+    confirmation_placeholder_blockers,
+    prepare_run_request_document,
+    write_prepared_run_request,
+)
 from proofsignal_spec.core.adapter import CoreAdapter
 from proofsignal_spec.core.contracts import core_entitlement_blocker_code
 from proofsignal_spec.core.errors import CoreExecutionError, CoreIncompatibleError, CoreMissingError
@@ -46,11 +51,13 @@ def _core_contract_for_coherence(project: Path, core_command: str | None) -> dic
 def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: str | None = None, api_base_url: str | None = None) -> dict[str, Any]:
     structural = structural_validation(project, alias=alias)
     if structural.status == "blocked":
+        structural_dict = structural.to_dict()
+        detailed_blockers = _structural_guided_blockers(structural_dict.get("findings", []), alias)
         return {
             "schemaVersion": WORKFLOW_VALIDATION_READINESS_SCHEMA,
             "alias": alias,
             "status": "blocked",
-            "structuralValidation": structural.to_dict(),
+            "structuralValidation": structural_dict,
             "coreReadiness": CoreReadiness(status="error", message="Core readiness was not checked because structural workspace validation is blocked.").to_dict(),
             "blockers": [
                 ReadinessBlocker(
@@ -58,7 +65,8 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
                     message="Workspace structure is blocked. Review structuralValidation.findings and apply approved migrations when offered.",
                     recoveryCommand=f"proofsignal workflow check validate --alias {alias} --json",
                 ).to_dict()
-            ],
+            ]
+            + detailed_blockers,
         }
     managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="validate")
     if managed_runtime.status != "ready":
@@ -169,8 +177,46 @@ def run(project: Path, alias: str, runtime_readiness: bool = False, core_cmd: st
         update_validation(project, alias, result)
         _persist_readiness_snapshot(project, alias, result)
         return result
-    result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).authoring_check(
+    validation_runtime_values = _validation_runtime_values(record, run_request, alias)
+    prepared_document, confirmation_findings, prepared_changed = prepare_run_request_document(
         run_request,
+        validation_runtime_values,
+    )
+    if confirmation_findings:
+        blockers = [
+            ReadinessBlocker(
+                code=str(item["code"]),
+                message=str(item.get("message") or "Confirmation placeholder could not be resolved before Core validation."),
+                recoveryCommand=str(item.get("recoveryCommand") or f"proofsignal workflow check validate --alias {alias} --json"),
+            ).to_dict()
+            for item in confirmation_placeholder_blockers(confirmation_findings)
+        ]
+        result = {
+            "schemaVersion": WORKFLOW_VALIDATION_READINESS_SCHEMA,
+            "alias": alias,
+            "status": "blocked",
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "authoringCoherence": coherence.to_dict(),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "sideEffectPolicy": {"findings": confirmation_findings},
+            "runtimeReadiness": {
+                "status": "blocked",
+                "findingIds": [str(item["code"]) for item in blockers],
+                "message": str(blockers[0].get("message") or "Runtime readiness is blocked."),
+                "fullBrowserFlowExecuted": False,
+            },
+            "blockers": blockers,
+        }
+        update_validation(project, alias, result)
+        _persist_readiness_snapshot(project, alias, result)
+        return result
+    authoring_run_request = (
+        write_prepared_run_request(project / ".proofsignal" / "readiness" / alias, f"{alias}-validation", prepared_document)
+        if prepared_changed and prepared_document is not None
+        else run_request
+    )
+    result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).authoring_check(
+        authoring_run_request,
         main_skill,
         skills,
         runtime_readiness=runtime_readiness,
@@ -266,6 +312,24 @@ def _persist_readiness_snapshot(project: Path, alias: str, result: dict[str, Any
         pass
 
 
+def _structural_guided_blockers(findings: list[dict[str, Any]], alias: str) -> list[dict[str, Any]]:
+    guided: list[dict[str, Any]] = []
+    for item in findings:
+        if item.get("severity") != "blocking":
+            continue
+        if item.get("category") not in {"side-effect-confirmation", "generated-binding"}:
+            continue
+        code = str(item.get("code") or "workspace.structural-finding")
+        guided.append(
+            ReadinessBlocker(
+                code=f"runtime.{code}",
+                message=str(item.get("message") or "Workspace structure is blocked."),
+                recoveryCommand=str(item.get("recoveryCommand") or f"proofsignal workflow check validate --alias {alias} --json"),
+            ).to_dict()
+        )
+    return guided
+
+
 def _named_output_summary(record: Any) -> list[dict[str, Any]]:
     outputs: list[dict[str, Any]] = []
     for item in getattr(record, "runtimeOutputs", []) or []:
@@ -276,6 +340,55 @@ def _named_output_summary(record: Any) -> list[dict[str, Any]]:
             data["resourceType"] = str(item.get("resourceType"))
         outputs.append({key: value for key, value in data.items() if value})
     return outputs
+
+
+def _validation_runtime_values(record: Any, run_request: Path, alias: str) -> dict[str, Any]:
+    from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
+    from proofsignal_spec.core.errors import RuntimeInputError
+
+    values = _run_request_parameters(run_request)
+    try:
+        resolved = resolve_runtime_inputs(
+            record.runtimeInputs,
+            interactive=False,
+            provided=values,
+            run_id=f"{alias}-validation",
+            refresh_names=[item.name for item in record.runtimeInputs if item.source == "generated" and item.refreshOnRerunAfterCommit],
+        )
+        return {**values, **resolved}
+    except RuntimeInputError:
+        pass
+
+    for item in getattr(record, "runtimeInputs", []):
+        if getattr(item, "kind", "") == "credential" or getattr(item, "name", "") in values:
+            continue
+        if getattr(item, "source", "") == "generated":
+            try:
+                values.update(
+                    resolve_runtime_inputs(
+                        [item],
+                        interactive=False,
+                        run_id=f"{alias}-validation",
+                        refresh_names=[item.name],
+                    )
+                )
+            except RuntimeInputError:
+                continue
+        elif getattr(item, "value", None) not in {None, ""}:
+            values[item.name] = item.value
+        elif getattr(item, "default", None) not in {None, ""}:
+            values[item.name] = item.default
+    return values
+
+
+def _run_request_parameters(run_request: Path) -> dict[str, Any]:
+    from proofsignal_spec.workspace.repository import load_document
+
+    data = load_document(run_request, default={}) or {}
+    if not isinstance(data, dict):
+        return {}
+    parameters = data.get("parameters")
+    return dict(parameters) if isinstance(parameters, dict) else {}
 
 
 def _authored_evidence_coverage_status(gate_coverage: list[dict[str, Any]]) -> str:

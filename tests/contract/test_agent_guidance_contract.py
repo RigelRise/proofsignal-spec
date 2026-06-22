@@ -23,6 +23,8 @@ def test_agent_command_guidance_uses_canonical_side_effect_policy_and_supersede_
     assert "workflow supersede-write-outcome" in combined
     assert "runtime-supported confirmation" in combined
     assert "prepared/committed/discarded" in combined
+    assert "seed plus a run-attempt token" in combined
+    assert "Resolve `{{parameters.*}}` confirmation expected values before Core execution" in combined
 
 
 def test_workflow_template_documents_canonical_policy_without_legacy_examples() -> None:
@@ -32,3 +34,5 @@ def test_workflow_template_documents_canonical_policy_without_legacy_examples() 
     assert "sideEffectPolicy.forbidden[]" in content
     assert "sideEffectPolicy.rules[].effect/match" in content
     assert "Do not author" in content
+    assert "seed plus a run-attempt token" in content
+    assert "Resolve `{{parameters.*}}` confirmation expected values before Core execution" in content

@@ -7,6 +7,7 @@ from proofsignal_spec.workspace.repository import save_use_case
 
 from tests.fixtures.workflows.side_effect_contract_alignment import (
     blocked_write_last_run,
+    confirmable_write_last_run,
     create_write_policy_workspace,
     unsupported_dom_last_run,
 )
@@ -54,6 +55,27 @@ def test_workflow_check_run_surfaces_same_blocked_rerun_decision_as_run_prefligh
     assert result["canProceed"] is False
     assert result["rerunDecision"]["decision"] == "blocked"
     assert result["recommendedAction"] == "review-or-supersede-write-outcome"
+
+
+def test_workflow_check_run_blocks_confirmable_write_rerun_with_guided_approval(tmp_path) -> None:
+    create_current_understanding_workspace(tmp_path)
+    record = create_write_policy_workspace(tmp_path, last_run=confirmable_write_last_run())
+    record.status = "ready"
+    save_use_case(tmp_path, record)
+    _write_minimal_stage_artifacts(tmp_path, "add-collaboration-project")
+
+    result = check_prerequisites(tmp_path, "run", alias="add-collaboration-project")
+
+    assert result["status"] == "blocked"
+    assert result["canProceed"] is False
+    assert result["requiresConfirmation"] is True
+    assert result["recommendedAction"] == "approve-rerun"
+    assert result["rerunDecision"]["decision"] == "requires-confirmation"
+    assert result["rerunDecision"]["confirmationId"] == "confirm.add-collaboration-project.rerun-after-commit.committed-run"
+    assert result["confirmation"]["id"] == result["rerunDecision"]["confirmationId"]
+    assert result["blockers"][0]["code"] == "runtime.rerun-confirmation-required"
+    assert "proofsignal workflow approve-rerun --alias add-collaboration-project" in result["nextCommand"]
+    assert result["rerunDecision"]["confirmationId"] in result["nextCommand"]
 
 
 def _write_minimal_stage_artifacts(project, alias: str) -> None:

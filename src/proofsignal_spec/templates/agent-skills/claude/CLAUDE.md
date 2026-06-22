@@ -15,6 +15,7 @@ collision policy, side-effect policy, or rerun policy through
 Author write policies with canonical `sideEffectPolicy.allowed[]` and
 `sideEffectPolicy.forbidden[]`; do not author
 `sideEffectPolicy.rules[].effect/match`. Use only runtime-supported
-confirmation signals, route reviewed false-positive write outcomes through
-`proofsignal workflow supersede-write-outcome`, and treat generated identity
-bindings as `prepared/committed/discarded`.
+confirmation signals, route normal owner-approved reruns after committed writes
+through `proofsignal workflow approve-rerun`, route reviewed false-positive
+write outcomes through `proofsignal workflow supersede-write-outcome`, and treat
+generated identity bindings as `prepared/committed/discarded`.

@@ -37,6 +37,9 @@ evidence, and provide the exact next action without weakening validation intent.
   or re-implement the generated identity input/template, `resourceIdentity`, or
   `rerunPolicy`. Do not hand-edit `lastRun` or registry state to bypass a
   write-safety guard.
+- Write rerun requires owner confirmation after a committed write: run
+  `proofsignal workflow approve-rerun --alias <alias> --confirm-risk <id> --json`
+  using the confirmation id from `workflow check run`, then re-check/run.
 - Reviewed false-positive write outcome: record an auditable review with
   `proofsignal workflow supersede-write-outcome`; do not hand-edit managed
   run history. Write policies should use `sideEffectPolicy.allowed[]` and
@@ -45,8 +48,14 @@ evidence, and provide the exact next action without weakening validation intent.
   runtime-supported confirmation signals.
 - Generated identity collision: the refreshed value repeated a locally recorded
   committed binding for the same use case and target. Adjust the generation
-  strategy or owner-approved seed before rerunning; no live target probe is
+  strategy or owner-approved seed before rerunning. Fresh generated write values
+  should preserve the seed plus a run-attempt token; no live target probe is
   required by default.
+- Unresolved confirmation placeholder: confirmation expected values can use
+  `{{parameters.<name>}}`, but Spec must resolve them before Core execution.
+  Declare/provide the missing runtime parameter or route through
+  clarify/plan/implement. Do not replace the blocker with a weaker literal or
+  a credential placeholder.
 
 ## Workspace State
 

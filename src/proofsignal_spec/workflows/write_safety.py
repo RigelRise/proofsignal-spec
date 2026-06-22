@@ -1,11 +1,26 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict
+from collections.abc import Callable
 from typing import Any
 
-from proofsignal_spec.workspace.models import ConfirmationSignalSupport, PolicyCompatibilityFinding, RerunPolicy
+from proofsignal_spec.workspace.models import ConfirmationSignalSupport, PolicyCompatibilityFinding, RerunPolicy, SupersedeReview
 from proofsignal_spec.workflows.repair_recommendations import combine_rerun_decision
+
+
+PLACEHOLDER_RE = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
+CONFIRMATION_EXPECTED_VALUE_FIELDS = {
+    "expected",
+    "expectedContains",
+    "expectedEquals",
+    "contains",
+    "equals",
+    "pattern",
+    "urlContains",
+}
+RERUN_CONFIRMATION_SCOPE = "rerun-after-commit"
 
 
 def normalize_side_effect_policy(policy: dict[str, Any] | None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -109,6 +124,166 @@ def policy_compatibility_findings(policy: dict[str, Any] | None) -> list[dict[st
     return findings
 
 
+def resolve_confirmation_signal_placeholders(
+    signals: list[dict[str, Any]],
+    parameters: dict[str, Any],
+    *,
+    path_prefix: str = "sideEffects.confirmationSignals",
+    secret_checker: Callable[[Any, str], bool] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Resolve safe Spec placeholders in confirmation expected-value fields.
+
+    Core-facing run requests compare concrete values. This accepts only
+    `{{parameters.<name>}}` placeholders in expected-value fields and reports
+    blocking findings for missing values, unsupported namespaces, or resolved
+    secret-looking values.
+    """
+
+    resolved_signals: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    for index, signal in enumerate(signals):
+        if not isinstance(signal, dict):
+            resolved_signals.append(signal)
+            continue
+        next_signal = dict(signal)
+        signal_id = str(signal.get("id") or f"confirmation-{index}")
+        for field in sorted(CONFIRMATION_EXPECTED_VALUE_FIELDS):
+            raw_value = next_signal.get(field)
+            if not isinstance(raw_value, str) or "{{" not in raw_value:
+                continue
+            path = f"{path_prefix}[{index}].{field}"
+            resolved_value, field_findings = _resolve_confirmation_expected_value(
+                raw_value,
+                parameters,
+                path=path,
+                signal_id=signal_id,
+                field=field,
+                secret_checker=secret_checker,
+            )
+            findings.extend(field_findings)
+            if not field_findings:
+                next_signal[field] = resolved_value
+        resolved_signals.append(next_signal)
+    return resolved_signals, findings
+
+
+def confirmation_placeholder_findings(
+    signals: list[dict[str, Any]],
+    parameters: dict[str, Any],
+    *,
+    path_prefix: str = "sideEffects.confirmationSignals",
+    secret_checker: Callable[[Any, str], bool] | None = None,
+) -> list[dict[str, Any]]:
+    _resolved, findings = resolve_confirmation_signal_placeholders(
+        signals,
+        parameters,
+        path_prefix=path_prefix,
+        secret_checker=secret_checker,
+    )
+    return findings
+
+
+def _resolve_confirmation_expected_value(
+    raw_value: str,
+    parameters: dict[str, Any],
+    *,
+    path: str,
+    signal_id: str,
+    field: str,
+    secret_checker: Callable[[Any, str], bool] | None,
+) -> tuple[str, list[dict[str, Any]]]:
+    matches = list(PLACEHOLDER_RE.finditer(raw_value))
+    if not matches:
+        return raw_value, []
+
+    findings: list[dict[str, Any]] = []
+    replacements: dict[str, str] = {}
+    for match in matches:
+        placeholder = match.group(0)
+        expression = match.group(1).strip()
+        namespace, separator, name = expression.partition(".")
+        if separator != "." or namespace != "parameters":
+            findings.append(
+                _confirmation_placeholder_finding(
+                    code="confirmation-placeholder-unsupported-namespace",
+                    path=path,
+                    message=f"Confirmation {signal_id} uses unsupported placeholder namespace {namespace or expression}.",
+                    placeholder=placeholder,
+                    signal_id=signal_id,
+                    namespace=namespace or expression,
+                )
+            )
+            continue
+        if name not in parameters or parameters.get(name) in {None, ""}:
+            findings.append(
+                _confirmation_placeholder_finding(
+                    code="confirmation-placeholder-unresolved",
+                    path=path,
+                    message=f"Confirmation {signal_id} references unresolved placeholder {placeholder}.",
+                    placeholder=placeholder,
+                    signal_id=signal_id,
+                    parameter=name,
+                )
+            )
+            continue
+        replacements[placeholder] = str(parameters[name])
+
+    if findings:
+        return raw_value, findings
+
+    resolved = raw_value
+    for placeholder, value in replacements.items():
+        resolved = resolved.replace(placeholder, value)
+    if secret_checker and secret_checker(resolved, field):
+        return raw_value, [
+            _confirmation_placeholder_finding(
+                code="confirmation-placeholder-secret-value",
+                path=path,
+                message=f"Confirmation {signal_id} resolves to a secret-looking value and cannot be persisted in a prepared run request.",
+                placeholder=matches[0].group(0),
+                signal_id=signal_id,
+            )
+        ]
+    return resolved, []
+
+
+def _confirmation_placeholder_finding(
+    *,
+    code: str,
+    path: str,
+    message: str,
+    placeholder: str,
+    signal_id: str,
+    namespace: str | None = None,
+    parameter: str | None = None,
+) -> dict[str, Any]:
+    finding: dict[str, Any] = {
+        "severity": "blocking",
+        "code": code,
+        "category": "side-effect-confirmation",
+        "path": path,
+        "message": message,
+        "placeholder": placeholder,
+        "signalId": signal_id,
+        "blocksExecution": True,
+        "nextAction": _confirmation_placeholder_next_action(code),
+        "recoveryCommand": "proofsignal workflow check validate --alias <alias> --json",
+    }
+    if namespace:
+        finding["namespace"] = namespace
+    if parameter:
+        finding["parameter"] = parameter
+    return finding
+
+
+def _confirmation_placeholder_next_action(code: str) -> str:
+    if code == "confirmation-placeholder-unsupported-namespace":
+        return "Use a non-secret runtime parameter or a literal expected value in the confirmation signal."
+    if code == "confirmation-placeholder-secret-value":
+        return "Replace the confirmation with a non-secret runtime parameter or a safe literal expected value."
+    return "Declare or provide the runtime input before running this write use case."
+
+
 def effective_confirmation_support(
     signal_type: str,
     *,
@@ -203,17 +378,18 @@ def evaluate_rerun_decision(record: Any, *, supersede_reviews: list[Any] | None 
         }
     if decision == "blocked":
         reason = "Rerun is blocked by the previous write outcome and declared rerun policy."
-        next_action = "Review or supersede the previous write outcome before rerunning."
+        next_action = f"proofsignal workflow supersede-write-outcome --alias {record.alias} --json"
     elif decision == "requires-confirmation":
         reason = "Rerun requires explicit owner confirmation because the previous write may have crossed the commit boundary."
-        next_action = "Confirm the write rerun risk or review the previous outcome before running."
+        confirmation_id = rerun_confirmation_id(record.alias, str(last_run.get("runId") or "unknown-run"))
+        next_action = f"proofsignal workflow approve-rerun --alias {record.alias} --confirm-risk {confirmation_id} --json"
     elif decision == "allowed-with-new-inputs":
         reason = "Rerun is allowed only with refreshed generated runtime inputs."
         next_action = "Proceed with run."
     else:
         reason = "Rerun is allowed by Core risk and Spec rerun policy."
         next_action = "Proceed with run."
-    return {
+    result = {
         "decision": decision,
         "coreRisk": core_risk,
         "specDecision": spec_decision,
@@ -222,6 +398,64 @@ def evaluate_rerun_decision(record: Any, *, supersede_reviews: list[Any] | None 
         "nextAction": next_action,
         **({"supersededBy": getattr(supersede, "reviewId", None) or (supersede.get("reviewId") if isinstance(supersede, dict) else None)} if supersede is not None else {}),
     }
+    if decision == "requires-confirmation":
+        result.update(
+            {
+                "confirmationId": confirmation_id,
+                "confirmationScope": RERUN_CONFIRMATION_SCOPE,
+                "sourceRunId": str(last_run.get("runId") or "unknown-run"),
+            }
+        )
+    return result
+
+
+def rerun_confirmation_id(alias: str, source_run_id: str) -> str:
+    return f"confirm.{_path_safe(alias)}.{RERUN_CONFIRMATION_SCOPE}.{_path_safe(source_run_id)}"
+
+
+def build_rerun_approval_review(
+    record: Any,
+    rerun_decision: dict[str, Any],
+    *,
+    created_at: str,
+    created_by: str | None = None,
+) -> SupersedeReview:
+    last_run = record.lastRun if isinstance(record.lastRun, dict) else {}
+    source_run_id = str(last_run.get("runId") or rerun_decision.get("sourceRunId") or "unknown-run")
+    previous = _classification_from_last_run(last_run)
+    resulting = dict(previous)
+    resulting["rerunRisk"] = "safe-with-new-inputs" if rerun_decision.get("refreshRuntimeInputs") else "safe"
+    resulting.setdefault("sideEffectStatus", previous.get("sideEffectStatus") or "committed-confirmed")
+    resulting.setdefault("postCommit", previous.get("postCommit", True))
+    resulting.setdefault("sideEffectMayExist", previous.get("sideEffectMayExist", True))
+    return SupersedeReview(
+        reviewId=f"approve-rerun-{_path_safe(record.alias)}-{_path_safe(source_run_id)}-{_path_safe(created_at)}",
+        sourceRunId=source_run_id,
+        ownerDecision="approved-rerun-after-write",
+        evidenceSummary="Owner approved rerun after reviewing that the previous write may have crossed the commit boundary.",
+        previousClassification=previous,
+        resultingClassification=resulting,
+        reason="Owner approved rerun under the declared rerun policy; prior run history is preserved and the next run must refresh generated inputs when required.",
+        createdAt=created_at,
+        createdBy=created_by,
+    )
+
+
+def _classification_from_last_run(last_run: dict[str, Any]) -> dict[str, Any]:
+    interpretation = last_run.get("postCommitInterpretation") if isinstance(last_run.get("postCommitInterpretation"), dict) else {}
+    classification = last_run.get("resultClassification") if isinstance(last_run.get("resultClassification"), dict) else {}
+    previous: dict[str, Any] = {}
+    for key in ["sideEffectStatus", "rerunRisk", "postCommit", "sideEffectMayExist", "failurePhase"]:
+        if key in interpretation:
+            previous[key] = interpretation[key]
+        elif key in classification:
+            previous[key] = classification[key]
+    return previous
+
+
+def _path_safe(value: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9._-]+", "-", str(value).strip().lower()).strip(".-_")
+    return cleaned or "unknown"
 
 
 def _migrate_legacy_rule(item: Any) -> tuple[dict[str, Any] | None, str | None]:

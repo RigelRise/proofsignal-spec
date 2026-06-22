@@ -17,6 +17,8 @@ Create or update only planned draft artifacts.
 - For write/external-notification, implementation must include explicit `resourceIdentity`. Use the use-case-owned identity input or post-commit binding from clarify/plan; do not infer it from memory or hard-code domain-specific names.
 - Implement write policy using canonical `sideEffectPolicy.allowed[]` / `sideEffectPolicy.forbidden[]`. Do not author `sideEffectPolicy.rules[].effect/match`; migrate unambiguous legacy rules and block conflicts with guided owner choices.
 - Do not add a confirmation signal unless it is a runtime-supported confirmation for the selected Core. A statically listed signal is not enough if public runtime outcomes reported it unsupported.
+- Generated write identities should preserve a readable seed plus a run-attempt token when freshness is required; do not hard-code one fixed literal value to simulate generation.
+- Resolve `{{parameters.*}}` confirmation expected values before Core execution. Keep authored placeholders only when the runtime input exists and can be resolved safely during run/validate preparation.
 - Generated write identity bindings move through `prepared/committed/discarded`; keep preflight-resolved values consistent through run metadata and publish named outputs only after commit.
 - Preserve or provide `sideEffectLifecycle` for write and external-notification use cases. Newly authored side-effecting artifacts without lifecycle declarations must block before run; legacy artifacts require explicit confirmation and migration guidance.
 - Preserve credential readiness hints only as non-secret guidance. Do not read, execute, or persist credential-bearing files or `KEY=value` content.

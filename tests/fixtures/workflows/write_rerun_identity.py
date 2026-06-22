@@ -128,6 +128,23 @@ def committed_last_run(*, value: str = "ProofSignal collab seed", run_id: str = 
     }
 
 
+def discarded_last_run(*, value: str = "ProofSignal collab seed", run_id: str = "discarded-run") -> dict[str, Any]:
+    payload = committed_last_run(value=value, run_id=run_id)
+    payload["status"] = "failed"
+    payload["coreStatus"] = "failed"
+    payload["coverageStatus"] = "not-run"
+    payload["resolvedRuntimeInputs"][0]["committed"] = False
+    payload["resolvedRuntimeInputs"][0]["status"] = "discarded"
+    payload["postCommitInterpretation"] = {
+        "postCommit": False,
+        "sideEffectMayExist": False,
+        "sideEffectStatus": "not-started",
+        "failurePhase": "pre-commit",
+        "rerunRisk": "safe",
+    }
+    return payload
+
+
 def assert_no_secret_values(data: Any) -> None:
     serialized = json.dumps(data, sort_keys=True)
     assert "APP_TEST_PASSWORD" not in serialized

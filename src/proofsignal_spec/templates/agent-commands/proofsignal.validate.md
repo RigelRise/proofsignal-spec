@@ -30,10 +30,12 @@ Validate draft artifacts through ProofSignal Spec and the managed ProofSignal ru
 - For write and external-notification use cases, treat missing `sideEffectGuardrails`, missing commit step, missing local envelope, missing `rerunPolicy`, unsupported confirmation signal types, and unsupported runtime output sources as readiness blockers.
 - Treat `sideEffectPolicy.allowed[]` / `sideEffectPolicy.forbidden[]` as the runtime-compatible policy shape. `sideEffectPolicy.rules[].effect/match` is legacy compatibility input only; readiness must migrate it or block with guided owner choices before run.
 - A runtime-supported confirmation must be proven by public capability data or accepted public runtime outcomes. If a real outcome reported `unsupported-confirmation-signal`, trust that over static authoring acceptance until newer capability data proves support.
+- Resolve `{{parameters.*}}` confirmation expected values before Core execution. If a confirmation references a missing parameter, credential namespace, unsupported namespace, or secret-looking resolved value, report the exact finding and route through clarify/plan/implement instead of calling Core.
 - For newly authored write and external-notification use cases, require persisted `resourceIdentity`. If identity is unclear, route back to clarify instead of relying on AI memory.
 - Report the normalized `rerunDecision` when present; validation and run preflight must agree for the same workspace state.
 - Newly authored write and external-notification use cases require side-effect lifecycle declarations. Legacy artifacts without lifecycle or safety-capability metadata require conservative confirmation/migration guidance instead of optimistic readiness.
 - Generated runtime inputs are resolved at run preparation, not during static validation; do not mark them missing merely because the authored run request does not persist a fixed value.
+- Fresh generated write values use the authored seed plus a run-attempt token when rerun policy requires new inputs; repeated committed values should block with guided recovery rather than requiring manual run-history edits.
 - Distinguish coherent planned validation from a narrow technical pass. A page-view validation requires mapped rendered-result UI evidence and declared backend checks, not only navigation or HTTP 200.
 - Preserve Core verdicts exactly and do not reinterpret passed, failed, blocked, or error outcomes.
 - Record redacted validation summaries in workflow state and stage documents.

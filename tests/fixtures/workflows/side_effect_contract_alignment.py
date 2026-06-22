@@ -48,6 +48,31 @@ def legacy_rules_policy(*, mode: str = "observe") -> dict[str, Any]:
     }
 
 
+def templated_confirmation_policy(*, placeholder: str = "{{parameters.projectTitle}}") -> dict[str, Any]:
+    return {
+        "class": "write",
+        "mode": "enforce",
+        "commitStepId": "confirm-publish-dialog",
+        "allowed": [{"id": "allow-backend-graphql", "kind": "network", "methods": ["POST"], "urlContains": "be.example.test/graphql"}],
+        "confirmationSignals": [
+            {
+                "id": "published-title-confirmed",
+                "type": "runtimeOutput",
+                "reference": "publishedProjectTitleText",
+                "expectedContains": placeholder,
+                "required": True,
+            },
+            {
+                "id": "created-project-url-confirmed",
+                "type": "runtimeOutput",
+                "reference": "createdProjectUrl",
+                "expectedContains": "/project/",
+                "required": True,
+            },
+        ],
+    }
+
+
 def conflicting_policy() -> dict[str, Any]:
     policy = legacy_rules_policy()
     policy["allowed"] = [{"id": "canonical-different", "urlContains": "api.example.test"}]
@@ -83,6 +108,20 @@ def blocked_write_last_run(run_id: str = "violated-run") -> dict[str, Any]:
             "failurePhase": "post-commit",
             "sideEffectStatus": "violated",
             "rerunRisk": "blocked",
+        },
+    }
+
+
+def confirmable_write_last_run(run_id: str = "committed-run") -> dict[str, Any]:
+    return {
+        "runId": run_id,
+        "status": "passed",
+        "postCommitInterpretation": {
+            "postCommit": True,
+            "sideEffectMayExist": True,
+            "failurePhase": "post-commit",
+            "sideEffectStatus": "committed-confirmed",
+            "rerunRisk": "requires-confirmation",
         },
     }
 

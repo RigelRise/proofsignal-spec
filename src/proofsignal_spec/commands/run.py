@@ -5,6 +5,11 @@ from pathlib import Path
 from typing import Any
 
 from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
+from proofsignal_spec.commands.run_request_preparation import (
+    confirmation_placeholder_blockers,
+    prepare_run_request_document,
+    write_prepared_run_request,
+)
 from proofsignal_spec.core.adapter import CoreAdapter, core_status
 from proofsignal_spec.core.errors import CoreMissingError
 from proofsignal_spec.core.executable_contract import project_core_contract
@@ -30,12 +35,16 @@ from proofsignal_spec.workspace.repository import (
     resolve_artifacts,
     resolve_named_output,
     run_confirmation_requirements,
+    save_supersede_review,
     side_effect_class,
     side_effect_lifecycle_summary,
 )
 from proofsignal_spec.workspace.models import PostCommitInterpretation
 from proofsignal_spec.workspace.validation import validate_side_effect_declaration
-from proofsignal_spec.workflows.write_safety import evaluate_rerun_decision as _evaluate_rerun_decision
+from proofsignal_spec.workflows.write_safety import (
+    build_rerun_approval_review,
+    evaluate_rerun_decision as _evaluate_rerun_decision,
+)
 
 
 def run(
@@ -175,7 +184,21 @@ def run(
             "nextAction": f"proofsignal workflow check run --alias {alias} --json",
         }
     rerun_guard = evaluate_rerun_decision(record, supersede_reviews=load_supersede_reviews(project, alias))
+    if rerun_guard["decision"] == "requires-confirmation" and rerun_guard.get("confirmationId") in set(confirmed_risks or []):
+        review = build_rerun_approval_review(record, rerun_guard, created_at=now_iso(), created_by="run --confirm-risk")
+        save_supersede_review(project, alias, review)
+        rerun_guard = evaluate_rerun_decision(record, supersede_reviews=load_supersede_reviews(project, alias))
     if rerun_guard["decision"] in {"blocked", "requires-confirmation"}:
+        requires_rerun_confirmation = rerun_guard["decision"] == "requires-confirmation"
+        blocker: dict[str, Any] = {
+            "code": "runtime.rerun-policy-blocked" if rerun_guard["decision"] == "blocked" else "runtime.rerun-confirmation-required",
+            "severity": "blocker",
+            "category": "write-flow-safety",
+            "message": rerun_guard["reason"],
+            "recoveryCommand": rerun_guard["nextAction"],
+        }
+        if requires_rerun_confirmation:
+            blocker["confirmationId"] = rerun_guard.get("confirmationId")
         return {
             "alias": alias,
             "status": "blocked",
@@ -188,15 +211,19 @@ def run(
             "profileSettings": profile_settings_model.to_dict(),
             "managedRuntimeReadiness": managed_runtime.to_dict(),
             "rerunDecision": rerun_guard,
-            "blockers": [
+            "requiresConfirmation": requires_rerun_confirmation,
+            "confirmation": (
                 {
-                    "code": "runtime.rerun-policy-blocked" if rerun_guard["decision"] == "blocked" else "runtime.rerun-confirmation-required",
-                    "severity": "blocker",
-                    "category": "write-flow-safety",
-                    "message": rerun_guard["reason"],
-                    "recoveryCommand": f"proofsignal workflow check run --alias {alias} --json",
+                    "id": rerun_guard.get("confirmationId"),
+                    "scope": rerun_guard.get("confirmationScope"),
+                    "sourceRunId": rerun_guard.get("sourceRunId"),
+                    "reason": rerun_guard.get("reason"),
+                    "blocksExecution": True,
                 }
-            ],
+                if requires_rerun_confirmation
+                else None
+            ),
+            "blockers": [blocker],
             "reason": rerun_guard["reason"],
             "nextAction": rerun_guard["nextAction"],
         }
@@ -261,7 +288,30 @@ def run(
             "nextAction": "Adjust generated runtime input template or seed before running again.",
         }
     output_dir = project / ".proofsignal" / "runs" / alias
-    prepared_run_request = _prepared_run_request_path(run_request, output_dir, prepared_run_id, runtime_values)
+    prepared_document, confirmation_findings, prepared_changed = prepare_run_request_document(run_request, runtime_values)
+    if confirmation_findings:
+        blockers = confirmation_placeholder_blockers(confirmation_findings)
+        return {
+            "alias": alias,
+            "status": "blocked",
+            "coreStatus": "blocked",
+            "coverageStatus": "not-run",
+            "coreBrowserStatus": "blocked",
+            "specCoverageStatus": "not-run",
+            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "profile": profile_name,
+            "profileSettings": profile_settings_model.to_dict(),
+            "managedRuntimeReadiness": managed_runtime.to_dict(),
+            "rerunDecision": rerun_guard,
+            "blockers": blockers,
+            "reason": blockers[0]["message"],
+            "nextAction": blockers[0].get("nextAction") or f"proofsignal workflow check run --alias {alias} --json",
+        }
+    prepared_run_request = (
+        write_prepared_run_request(output_dir, prepared_run_id, prepared_document)
+        if prepared_changed and prepared_document is not None
+        else run_request
+    )
     result = CoreAdapter(executable=managed_runtime.runtimeCommand, cwd=project).run(
         prepared_run_request,
         main_skill,
@@ -600,17 +650,13 @@ def _public_result_field(result: dict[str, Any], field_name: str) -> Any:
 
 
 def _prepared_run_request_path(run_request: Path, output_dir: Path, run_id: str, runtime_values: dict[str, str]) -> Path:
-    if not runtime_values:
+    document, findings, changed = prepare_run_request_document(run_request, runtime_values)
+    if findings:
+        message = str(findings[0].get("message") or "Confirmation placeholder could not be resolved.")
+        raise ValueError(message)
+    if not changed or document is None:
         return run_request
-    document = load_document(run_request, default={}) or {}
-    if not isinstance(document, dict):
-        return run_request
-    parameters = document.get("parameters") if isinstance(document.get("parameters"), dict) else {}
-    document["parameters"] = {**parameters, **runtime_values}
-    output_dir.mkdir(parents=True, exist_ok=True)
-    prepared = output_dir / f"{run_id}.run-request.json"
-    prepared.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-    return prepared
+    return write_prepared_run_request(output_dir, run_id, document)
 
 
 def _runtime_input_source(record: Any, name: str) -> str:

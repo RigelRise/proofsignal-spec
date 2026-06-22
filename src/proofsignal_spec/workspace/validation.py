@@ -293,7 +293,7 @@ def validate_side_effect_declaration(
     core_contract: dict[str, Any] | None = None,
     runtime_outcomes: list[dict[str, Any] | None] | None = None,
 ) -> list[dict[str, str]]:
-    from proofsignal_spec.workflows.write_safety import confirmation_support_findings, normalize_side_effect_policy
+    from proofsignal_spec.workflows.write_safety import confirmation_placeholder_findings, confirmation_support_findings, normalize_side_effect_policy
 
     if isinstance(declaration, SideEffectDeclaration):
         side_effect = declaration
@@ -362,6 +362,29 @@ def validate_side_effect_declaration(
                 )
             ]
         )
+    findings.extend(
+        [
+            {
+                "severity": str(item.get("severity", "blocking")),
+                "code": str(item.get("code", "confirmation-placeholder-unresolved")),
+                "category": str(item.get("category", "side-effect-confirmation")),
+                "path": str(item.get("path", "sideEffects.confirmationSignals")),
+                "message": str(item.get("message", "")),
+                "placeholder": str(item.get("placeholder", "")),
+                "signalId": str(item.get("signalId", "")),
+                "nextAction": str(item.get("nextAction", "")),
+                "recoveryCommand": str(item.get("recoveryCommand", "")),
+                **({"namespace": str(item["namespace"])} if item.get("namespace") else {}),
+                **({"parameter": str(item["parameter"])} if item.get("parameter") else {}),
+                **({"blocksExecution": item["blocksExecution"]} if "blocksExecution" in item else {}),
+            }
+            for item in confirmation_placeholder_findings(
+                side_effect.confirmationSignals,
+                _runtime_input_static_values(runtime_inputs or []),
+                secret_checker=looks_secret,
+            )
+        ]
+    )
     runtime_output_sources = set(supported.get("runtimeOutputSources", [])) if supported.get("supported", False) else _default_runtime_output_sources()
     for index, output in enumerate(runtime_outputs or []):
         source = str(output.get("source") or "")
@@ -445,6 +468,24 @@ def _default_confirmation_signal_types() -> set[str]:
 
 def _default_runtime_output_sources() -> set[str]:
     return {"finalUrl", "location", "dom", "network"}
+
+
+def _runtime_input_static_values(runtime_inputs: list[dict[str, Any]]) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    for item in runtime_inputs:
+        if not isinstance(item, dict):
+            continue
+        if item.get("kind") == "credential":
+            continue
+        name = item.get("name")
+        if not name:
+            continue
+        value = item.get("value")
+        if value is None or value == "":
+            value = item.get("default")
+        if value is not None and value != "":
+            values[str(name)] = value
+    return values
 
 
 def _list_values(value: Any) -> list[str]:
