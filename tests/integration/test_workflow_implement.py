@@ -71,6 +71,61 @@ def test_write_implementation_infers_high_confidence_generated_identity(tmp_path
     assert identity["confidence"] == "high"
 
 
+def test_repersist_implement_preserves_parameter_values(tmp_path) -> None:
+    # Regression (dogfood Bug 2): re-persisting implement with runtimeInputs that omit `value`
+    # (persistValue:false-style) must NOT zero previously author-supplied parameter values.
+    init_workspace(tmp_path)
+    create_workflow_run(tmp_path, "Validate labelled page.", alias="labelled-page", integration="codex")
+    save_artifact_plan(
+        tmp_path,
+        ArtifactPlan(
+            useCaseAlias="labelled-page",
+            runRequest=".proofsignal/run-requests/labelled-page.yaml",
+            mainSkill=".proofsignal/skills/labelled-page.browser.md",
+            runtimeInputs=[
+                {"name": "baseUrl", "source": "default", "value": "https://example.test"},
+                {"name": "label", "source": "prompt"},
+            ],
+            validationGates=[{"id": "page-visible", "required": True}],
+        ),
+    )
+
+    def _payload(with_value: bool) -> dict:
+        label_input = {"name": "label", "source": "prompt", "required": True}
+        if with_value:
+            label_input["value"] = "Hello Label"
+        return {
+            "runRequest": {"path": ".proofsignal/run-requests/labelled-page.yaml"},
+            "runtimeInputs": [
+                {"name": "baseUrl", "source": "default", "value": "https://example.test"},
+                label_input,
+            ],
+            "skills": [
+                {
+                    "path": ".proofsignal/skills/labelled-page.browser.md",
+                    "kind": "skill",
+                    "intent": {
+                        "browser": {
+                            "targets": {"page": {"css": "body"}},
+                            "steps": [{"id": "open", "action": "navigate", "value": "{{parameters.baseUrl}}"}],
+                            "assertions": [{"id": "page-visible", "kind": "visible", "target": "page", "gateId": "page-visible"}],
+                        }
+                    },
+                }
+            ],
+            "sideEffects": {"class": "none"},
+        }
+
+    first = persist_stage(tmp_path, "implement", alias="labelled-page", payload=_payload(with_value=True))
+    assert first["status"] == "persisted", first
+    run_request_path = tmp_path / ".proofsignal" / "run-requests" / "labelled-page.yaml"
+    assert "Hello Label" in run_request_path.read_text()
+
+    second = persist_stage(tmp_path, "implement", alias="labelled-page", payload=_payload(with_value=False))
+    assert second["status"] == "persisted", second
+    assert "Hello Label" in run_request_path.read_text()
+
+
 def _save_create_resource_plan(tmp_path) -> None:
     save_artifact_plan(
         tmp_path,

@@ -51,3 +51,22 @@ def test_artifact_change_invalidates_snapshot(tmp_path) -> None:
 
     assert current["status"] == "stale"
     assert any(item["code"] == "artifact-changed" for item in current["invalidationReasons"])
+
+
+def test_recording_a_run_does_not_invalidate_the_snapshot(tmp_path) -> None:
+    # Regression (dogfood Bug 3): a passing run mutates lastRun/status on the use-case record but
+    # must NOT mark the use case stale via "artifact-changed" — only authoring edits should.
+    from proofsignal_spec.workspace.repository import save_use_case
+
+    create_live_write_readiness_workspace(tmp_path)
+    save_ready_snapshot(tmp_path, "about-page-unauth", side_effect_class="none")
+
+    record = load_use_case(tmp_path, "about-page-unauth")
+    record.lastRun = {"runId": "about-page-unauth-20260622T185840Z", "status": "passed"}
+    record.status = "ready"
+    save_use_case(tmp_path, record)
+
+    current = readiness_current_state(tmp_path, load_use_case(tmp_path, "about-page-unauth"))
+
+    assert current["status"] == "ready", current
+    assert not any(item["code"] == "artifact-changed" for item in current["invalidationReasons"])

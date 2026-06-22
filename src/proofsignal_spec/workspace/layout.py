@@ -27,6 +27,7 @@ WORKFLOW_USE_CASES_DIR = "use-cases"
 WORKFLOW_GLOBAL_UNDERSTANDING = "understanding.md"
 
 ALIAS_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,79}$")
+ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,199}$")
 
 
 def resolve_project_path(project_path: str | None = None, here: bool = False) -> Path:
@@ -84,7 +85,7 @@ def supersede_reviews_dir(project: Path, alias: str) -> Path:
 
 
 def supersede_review_path(project: Path, alias: str, review_id: str) -> Path:
-    return supersede_reviews_dir(project, alias) / f"{ensure_path_safe_alias(review_id)}.yaml"
+    return supersede_reviews_dir(project, alias) / f"{ensure_path_safe_id(review_id)}.yaml"
 
 
 def run_history_path(project: Path, alias: str, run_id: str) -> Path:
@@ -176,8 +177,16 @@ def workflow_global_understanding_path(project: Path) -> Path:
 
 def ensure_path_safe_alias(alias: str) -> str:
     if not ALIAS_RE.match(alias):
-        raise ValueError("Alias must be lowercase path-safe text using letters, numbers, '.', '_' or '-'.")
+        raise ValueError("Alias must be lowercase path-safe text using letters, numbers, '.', '_' or '-' and at most 80 characters.")
     return alias
+
+
+def ensure_path_safe_id(value: str) -> str:
+    # For SYSTEM-GENERATED ids/filenames (e.g. supersede review ids) that are charset-safe but
+    # may legitimately exceed the 80-char alias bound. NOT for user-facing aliases.
+    if not ID_RE.match(value):
+        raise ValueError("Generated id must be lowercase path-safe text (letters, numbers, '.', '_', '-'), up to 200 characters.")
+    return value
 
 
 def to_project_relative(project: Path, path: Path) -> str:

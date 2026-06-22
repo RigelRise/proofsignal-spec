@@ -604,7 +604,15 @@ def artifact_fingerprints(project: Path, record: UseCaseRecord) -> dict[str, str
             fingerprints[ref.path] = hashlib.sha256(path.read_bytes()).hexdigest()
     record_path = layout.use_case_path(project, record.alias)
     if record_path.exists():
-        fingerprints[layout.to_project_relative(project, record_path)] = hashlib.sha256(record_path.read_bytes()).hexdigest()
+        # Hash a normalized projection (Bug 3): drop volatile run/validate state so a passing
+        # `run` (which mutates lastRun/status) does not invalidate the readiness snapshot.
+        # Genuine authoring edits (runRequest/skills/runtimeInputs/sideEffects/...) still change
+        # this projection and so still trigger an artifact-changed staleness reason.
+        projection = record.to_dict()
+        for volatile in ("status", "lastRun", "validation", "repair", "workflow"):
+            projection.pop(volatile, None)
+        normalized = json.dumps(projection, sort_keys=True, default=str).encode("utf-8")
+        fingerprints[layout.to_project_relative(project, record_path)] = hashlib.sha256(normalized).hexdigest()
     return fingerprints
 
 
