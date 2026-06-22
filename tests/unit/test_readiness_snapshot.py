@@ -53,6 +53,44 @@ def test_artifact_change_invalidates_snapshot(tmp_path) -> None:
     assert any(item["code"] == "artifact-changed" for item in current["invalidationReasons"])
 
 
+def test_committed_write_surfaces_rerun_confirmation_not_stale(tmp_path) -> None:
+    # Issue 5: a committed write must surface as 'needs-rerun-confirmation' (cleared by
+    # supersede/approve), NOT 'stale — Needs validation' (which validate cannot clear).
+    from proofsignal_spec.workspace.repository import save_use_case
+    from tests.fixtures.workflows.side_effect_contract_alignment import confirmable_write_last_run
+
+    create_live_write_readiness_workspace(tmp_path)
+    save_ready_snapshot(tmp_path, "add-collaboration-project", side_effect_class="write")
+
+    record = load_use_case(tmp_path, "add-collaboration-project")
+    record.lastRun = confirmable_write_last_run(run_id="add-collaboration-project-20260622T202124Z")
+    save_use_case(tmp_path, record)
+
+    current = readiness_current_state(tmp_path, load_use_case(tmp_path, "add-collaboration-project"))
+
+    assert current["status"] == "needs-rerun-confirmation", current
+    assert any(item["code"] == "write-post-commit-risk" for item in current["invalidationReasons"])
+    assert "validate" not in (current.get("nextAction") or "")
+
+
+def test_committed_write_with_freshness_drift_stays_stale(tmp_path) -> None:
+    # When BOTH a freshness reason (age-expired) and the write-rerun guard are present,
+    # freshness wins (validate first), so the status remains 'stale'.
+    from proofsignal_spec.workspace.repository import save_use_case
+    from tests.fixtures.workflows.side_effect_contract_alignment import confirmable_write_last_run
+
+    create_live_write_readiness_workspace(tmp_path)
+    save_ready_snapshot(tmp_path, "add-collaboration-project", checked_at=old_checked_at(hours=25), side_effect_class="write")
+
+    record = load_use_case(tmp_path, "add-collaboration-project")
+    record.lastRun = confirmable_write_last_run()
+    save_use_case(tmp_path, record)
+
+    current = readiness_current_state(tmp_path, load_use_case(tmp_path, "add-collaboration-project"))
+
+    assert current["status"] == "stale", current
+
+
 def test_recording_a_run_does_not_invalidate_the_snapshot(tmp_path) -> None:
     # Regression (dogfood Bug 3): a passing run mutates lastRun/status on the use-case record but
     # must NOT mark the use case stale via "artifact-changed" — only authoring edits should.

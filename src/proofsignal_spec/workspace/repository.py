@@ -746,14 +746,20 @@ def readiness_current_state(project: Path, record: UseCaseRecord) -> dict[str, A
             "lastRunStatus": last_run.get("status") if last_run else None,
         }
     reasons = snapshot_invalidation_reasons(project, record, snapshot)
+    reason_codes = {item["code"] for item in reasons}
     status = "ready" if snapshot.status == "ready" and not reasons else "needs-validate"
     if snapshot.status == "blocked":
         status = "blocked"
-    if reasons and any(item["code"] in {"age-expired", "artifact-changed", "target-revision-changed", "write-post-commit-risk"} for item in reasons):
+    if reason_codes & {"age-expired", "artifact-changed", "target-revision-changed"}:
+        # Freshness drift — re-validating clears it (and takes precedence over the write-rerun guard).
         status = "stale"
+    elif "write-post-commit-risk" in reason_codes:
+        # A committed write needs supersede/approve before rerun, NOT validation.
+        status = "needs-rerun-confirmation"
     return {
         "status": status,
         "label": _current_label(status),
+        "nextAction": _readiness_next_action(status, record.alias),
         "checked": True,
         "checkedAt": snapshot.checkedAt,
         "ageSeconds": _snapshot_age_seconds(snapshot),
@@ -1117,6 +1123,19 @@ def _current_label(status: str) -> str:
         "not-checked": "Not checked",
         "stale": "Needs validation",
         "needs-validate": "Needs validation",
+        "needs-rerun-confirmation": "Confirm rerun (prior write committed)",
         "blocked": "Blocked",
     }
     return labels.get(status, "Unknown")
+
+
+def _readiness_next_action(status: str, alias: str) -> str | None:
+    # The committed-write guard is cleared by supersede/approve, NOT by validation, so route it
+    # to the rerun-confirmation entry instead of telling the user to re-validate.
+    if status == "needs-rerun-confirmation":
+        return f"proofsignal workflow check run --alias {alias} --json"
+    if status == "stale":
+        return f"proofsignal validate {alias} --runtime-readiness --json"
+    if status == "needs-validate":
+        return f"proofsignal validate {alias} --json"
+    return None

@@ -110,6 +110,17 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     core_setup.add_argument("--no-persist", action="store_true", help="Use an explicit Core command for this setup invocation without saving it")
     core_setup.add_argument("--json", action="store_true")
 
+    policy_parser = subparsers.add_parser("policy", help="Manage a use case side-effect policy")
+    policy_sub = policy_parser.add_subparsers(dest="policy_command", required=True)
+    policy_set = policy_sub.add_parser("set", help="Set a use case's side-effect policy class without re-persisting implement")
+    policy_set.add_argument("alias")
+    policy_set.add_argument("--class", dest="policy_class", required=True, choices=["none", "authenticated-read", "write", "external-notification"])
+    policy_set.add_argument("--mode", choices=["enforce", "warn", "observe"])
+    policy_set.add_argument("--payload", help="Optional side-effect policy JSON/YAML file merged before setting the class")
+    policy_set.add_argument("--stdin", action="store_true", help="Read optional policy JSON from stdin")
+    policy_set.add_argument("--project", default=".")
+    policy_set.add_argument("--json", action="store_true")
+
     workflow_parser = subparsers.add_parser("workflow", help="Run guided ProofSignal workflows")
     workflow_sub = workflow_parser.add_subparsers(dest="workflow_command", required=True)
     workflow_run = workflow_sub.add_parser("run")
@@ -287,6 +298,13 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
             return CoreAdapter(executable=args.core_cmd or get_core_command(project), cwd=project).version(), args.json
         if args.core_command == "setup":
             return core_setup_command.run(project, core_cmd=args.core_cmd, persist=not args.no_persist), args.json
+    if command == "policy":
+        from .commands import policy as policy_command
+
+        project = Path(args.project).resolve()
+        if args.policy_command == "set":
+            payload = _load_payload(args) if (args.payload or args.stdin) else None
+            return policy_command.set_policy(project, args.alias, side_effect_class=args.policy_class, mode=args.mode, payload=payload), args.json
     if command == "workflow":
         project = Path(args.project).resolve()
         if args.workflow_command == "run":
