@@ -49,6 +49,13 @@ artifacts that may support multiple run requests. Store staged workflow
 documents under `.proofsignal/workflows/` and use structured workflow state for
 status, gates, and resume.
 
+To change ONLY a use case's side-effect policy (class/mode/allowed/forbidden),
+use `proofsignal policy set <alias> --class <class> [--mode <mode>] [--payload
+<policy.json>]`. It mutates only the policy, re-syncs the run request, and
+preserves runtime inputs and skills — do NOT re-author the full `implement`
+payload to declare or change a policy. Re-persist `implement` only for
+skill/target/step/resourceIdentity/rerun-policy changes.
+
 Golden Path first runs are agent-chat first. {REAL_TARGET_FIRST_RECOMMENDATION}.
 {FIRST_RUN_STAGE_CARD_GUIDANCE}.
 {MISSING_UNDERSTANDING_AUTO_PREPARE}.

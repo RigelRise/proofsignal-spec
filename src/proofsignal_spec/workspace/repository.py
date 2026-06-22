@@ -772,6 +772,14 @@ def readiness_current_state(project: Path, record: UseCaseRecord) -> dict[str, A
     }
 
 
+def _spec_minor(version: str | None) -> tuple[int, int]:
+    parts = (version or "").split(".")
+    try:
+        return (int(parts[0]), int(parts[1]))
+    except (ValueError, IndexError):
+        return (0, 0)
+
+
 def snapshot_invalidation_reasons(project: Path, record: UseCaseRecord, snapshot: ReadinessSnapshot) -> list[dict[str, str]]:
     reasons: list[dict[str, str]] = []
     current_fingerprints = artifact_fingerprints(project, record)
@@ -779,8 +787,10 @@ def snapshot_invalidation_reasons(project: Path, record: UseCaseRecord, snapshot
         if current_fingerprints.get(path) != old_hash:
             reasons.append({"code": "artifact-changed", "message": f"Artifact changed since readiness check: {path}"})
             break
-    if snapshot.specVersion and snapshot.specVersion != SPEC_VERSION:
-        reasons.append({"code": "spec-version-changed", "message": f"Spec version changed from {snapshot.specVersion} to {SPEC_VERSION}."})
+    if snapshot.specVersion and _spec_minor(snapshot.specVersion) != _spec_minor(SPEC_VERSION):
+        # Wart #1: only a minor/major Spec change invalidates readiness — a patch (bug fix) does
+        # not change readiness semantics, so it must not churn every snapshot to needs-validate.
+        reasons.append({"code": "spec-version-changed", "message": f"Spec major/minor version changed from {snapshot.specVersion} to {SPEC_VERSION}."})
     current_revision = current_project_revision(project)
     if snapshot.targetProjectRevision and current_revision and snapshot.targetProjectRevision != current_revision:
         reasons.append({"code": "target-revision-changed", "message": "Target project revision changed since readiness check."})

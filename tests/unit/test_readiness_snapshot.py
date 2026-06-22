@@ -91,6 +91,49 @@ def test_committed_write_with_freshness_drift_stays_stale(tmp_path) -> None:
     assert current["status"] == "stale", current
 
 
+def _save_snapshot_with_spec_version(tmp_path, alias: str, spec_version: str) -> None:
+    from datetime import UTC, datetime
+
+    from proofsignal_spec.workspace.models import ReadinessSnapshot
+    from proofsignal_spec.workspace.repository import artifact_fingerprints, save_readiness_snapshot
+
+    record = load_use_case(tmp_path, alias)
+    save_readiness_snapshot(
+        tmp_path,
+        ReadinessSnapshot(
+            alias=alias,
+            status="ready",
+            checkedAt=datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            artifactFingerprints=artifact_fingerprints(tmp_path, record),
+            specVersion=spec_version,
+            sideEffectClass="none",
+        ),
+    )
+
+
+def test_patch_spec_bump_does_not_invalidate_snapshot(tmp_path) -> None:
+    # Wart #1: a PATCH spec bump must NOT churn readiness snapshots (only minor/major may).
+    from proofsignal_spec import __version__ as SPEC_VERSION
+
+    create_live_write_readiness_workspace(tmp_path)
+    major, minor = SPEC_VERSION.split(".")[:2]
+    _save_snapshot_with_spec_version(tmp_path, "about-page-unauth", f"{major}.{minor}.99")
+
+    current = readiness_current_state(tmp_path, load_use_case(tmp_path, "about-page-unauth"))
+
+    assert current["status"] == "ready", current
+    assert not any(item["code"] == "spec-version-changed" for item in current["invalidationReasons"])
+
+
+def test_minor_spec_bump_invalidates_snapshot(tmp_path) -> None:
+    create_live_write_readiness_workspace(tmp_path)
+    _save_snapshot_with_spec_version(tmp_path, "about-page-unauth", "0.0.0")
+
+    current = readiness_current_state(tmp_path, load_use_case(tmp_path, "about-page-unauth"))
+
+    assert any(item["code"] == "spec-version-changed" for item in current["invalidationReasons"])
+
+
 def test_recording_a_run_does_not_invalidate_the_snapshot(tmp_path) -> None:
     # Regression (dogfood Bug 3): a passing run mutates lastRun/status on the use-case record but
     # must NOT mark the use case stale via "artifact-changed" — only authoring edits should.
