@@ -391,7 +391,16 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
         return
     if "useCases" in result:
         for item in result["useCases"]:
-            print(f"{item.get('alias', '-'):<24} {item.get('status', item.get('runnableStatus', '-')):<10} {item.get('title', '')}")
+            current = item.get("current") or {}
+            presentation = current.get("presentation") or {}
+            icon = presentation.get("icon") or ""
+            # Show current READINESS (with its lock/severity icon), not just lifecycle status —
+            # a locked ceiling reads as trusted, amber/red as needing attention.
+            readiness = current.get("status") or item.get("status") or item.get("runnableStatus", "-")
+            print(f"{item.get('alias', '-'):<28} {icon:<2} {readiness:<24} {item.get('title', '')}")
+            next_action = current.get("nextAction")
+            if next_action:
+                print(f"{'':<28}    -> {next_action}")
         for warning in result.get("warnings", []):
             print(f"warning: {warning}", file=sys.stderr)
         return
