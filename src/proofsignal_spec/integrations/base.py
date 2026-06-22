@@ -32,6 +32,7 @@ class WorkflowCommandSpec:
     stage: str
     description: str
     argument_hint: str = ""
+    skill_name_override: str | None = None
 
     @property
     def canonical_name(self) -> str:
@@ -39,7 +40,7 @@ class WorkflowCommandSpec:
 
     @property
     def skill_name(self) -> str:
-        return f"proofsignal-{self.stage}"
+        return self.skill_name_override or f"proofsignal-{self.stage}"
 
 
 WORKFLOW_COMMANDS = [
@@ -53,6 +54,12 @@ WORKFLOW_COMMANDS = [
     WorkflowCommandSpec("list", "List registered use cases and workflow state", ""),
     WorkflowCommandSpec("run", "Run a selected validated use case", "<alias>"),
     WorkflowCommandSpec("repair", "Repair invalid or failed use cases", "<alias> [report path]"),
+    WorkflowCommandSpec(
+        "auto",
+        "Drive discover, author, validate, run, and safe repair in one pass (the default happy path)",
+        "<goal or alias>",
+        skill_name_override="proofsignal",
+    ),
 ]
 
 
@@ -113,22 +120,24 @@ def build_onboarding_guidance(
     ]
     fallback = (
         "ProofSignal Golden Path\n"
-        "Next: /proofsignal-specify\n"
-        "Expected first run: recommended -> accepted -> running -> pass or repaired-pass.\n"
+        "Next: /proofsignal\n"
+        "One pass: discover -> author -> validate -> run -> safe repair, stopping only when it needs you.\n"
+        "Step-by-step control: /proofsignal-specify, /proofsignal-plan, /proofsignal-run, ...\n"
         "Safety: sensitive files and credential values require explicit approval and are never persisted."
     )
     return OnboardingGuidance(
         integrationKey=integration_key,
         terminalTitle="ProofSignal Golden Path",
         terminalSummary=(
-            f"{display_name} integration installed. Run /proofsignal-specify next; accepting the recommended first run is highly recommended "
-            "so a new user sees the full workflow before choosing deeper validations."
+            f"{display_name} integration installed. Run /proofsignal next: it drives the whole validation in one pass "
+            "(discover, author, validate, run, safe repair) and stops only when it needs you. Use the staged "
+            "/proofsignal-specify ... commands when you want step-by-step control."
         ),
         generatedGuidePath=generated_guide_path,
         stageMarkers=stage_markers,
         usesColor=True,
         plainTextFallback=fallback,
-        nextCommand="/proofsignal-specify",
+        nextCommand="/proofsignal",
         safetyBoundaries=safety,
         successSemantics=success,
         coreStatus=core_status,

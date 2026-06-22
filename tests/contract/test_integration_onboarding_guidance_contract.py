@@ -20,7 +20,7 @@ class IntegrationOnboardingGuidanceContractTests(CliTestCase):
         assert_guidance_shape(guide)
         self.assertEqual(guide["schemaVersion"], "proofsignal-spec-onboarding-guidance/v1")
         self.assertEqual(guide["integrationKey"], "codex")
-        self.assertIn("/proofsignal-specify", guide["nextCommand"])
+        self.assertEqual(guide["nextCommand"], "/proofsignal")
         self.assertIn("[RECOMMENDED]", guide["stageMarkers"])
         self.assertIn("repaired", " ".join(guide["successSemantics"]).lower())
         self.assertIn("sensitive", " ".join(guide["safetyBoundaries"]).lower())

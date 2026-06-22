@@ -87,6 +87,13 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     repair_parser.add_argument("--api-base-url", help="Override the ProofSignal entitlement API base URL for staging, local development, or tests")
     repair_parser.add_argument("--json", action="store_true")
 
+    discover_parser = subparsers.add_parser("discover", help="Ground a drafted browser skill's targets against the live DOM via Core")
+    discover_parser.add_argument("--url", required=True, help="Page URL to ground targets against")
+    discover_parser.add_argument("--skill", required=True, help="Drafted browser skill Markdown path")
+    discover_parser.add_argument("--project", default=".")
+    discover_parser.add_argument("--core-cmd", help="Override configured ProofSignal Core command")
+    discover_parser.add_argument("--json", action="store_true")
+
     core_parser = subparsers.add_parser("core", help="Inspect configured ProofSignal Core")
     core_sub = core_parser.add_subparsers(dest="core_command", required=True)
     core_version = core_sub.add_parser("version")
@@ -264,6 +271,13 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
         ), args.json
     if command == "repair":
         return repair_command.run(Path(args.project).resolve(), args.alias, from_report=args.from_report, approve=args.approve, core_cmd=args.core_cmd, api_base_url=args.api_base_url), args.json
+    if command == "discover":
+        from .core.adapter import CoreAdapter
+        from .workspace.repository import get_core_command
+
+        project = Path(args.project).resolve()
+        adapter = CoreAdapter(executable=args.core_cmd or get_core_command(project), cwd=project)
+        return adapter.discover(url=args.url, skill=Path(args.skill)), args.json
     if command == "core":
         from .core.adapter import CoreAdapter
         from .workspace.repository import get_core_command
