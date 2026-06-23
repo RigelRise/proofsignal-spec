@@ -434,6 +434,36 @@ def _persist_tasks(project: Path, alias: str, content: dict[str, Any]) -> StageP
     )
 
 
+def _preserve_prior_runtime_input_values(incoming: list[dict[str, Any]], prior: list[Any]) -> list[dict[str, Any]]:
+    """Backfill a runtime input's value from the prior record when a re-persist payload omits it.
+
+    Bug 2 (dogfood): re-persisting `implement` with runtimeInputs that drop `value`
+    (persistValue:false style) zeroed previously author-supplied parameter values. Only backfill
+    when BOTH `value` and `default` keys are ABSENT (so an explicit clear to "" is honored); skip
+    credential and generated inputs.
+    """
+    prior_values: dict[str, Any] = {}
+    for item in prior or []:
+        name = getattr(item, "name", None)
+        value = getattr(item, "value", None)
+        kind = getattr(item, "kind", None)
+        if name and kind != "credential" and value not in (None, ""):
+            prior_values[name] = value
+    merged: list[dict[str, Any]] = []
+    for item in incoming:
+        if (
+            isinstance(item, dict)
+            and item.get("kind") != "credential"
+            and item.get("source") != "generated"
+            and "value" not in item
+            and "default" not in item
+            and item.get("name") in prior_values
+        ):
+            item = {**item, "value": prior_values[item["name"]]}
+        merged.append(item)
+    return merged
+
+
 def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) -> StagePersistenceResult:
     alias = _alias(alias)
     content = _normalize_implementation_content(alias, content)
@@ -491,6 +521,7 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
     runtime_inputs = content.get("runtimeInputs") or _runtime_inputs_from_run_request_payload(content.get("runRequest")) or _planned_runtime_inputs(project, alias)
     runtime_inputs = _merge_resolved_target_runtime_input(runtime_inputs, _stage_handoff_target(record))
     runtime_inputs = _filter_runtime_credential_inputs(runtime_inputs, credential_refs)
+    runtime_inputs = _preserve_prior_runtime_input_values(runtime_inputs, record.runtimeInputs)
     content["runtimeInputs"] = runtime_inputs
     record.runtimeInputs = [_runtime_input(item) for item in runtime_inputs]
     record.credentialRefs = credential_refs

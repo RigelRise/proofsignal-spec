@@ -132,6 +132,24 @@ class CoreAdapter:
         args.append("--json")
         return self._run(args, env={**(env or {}), **_receipt_env(entitlement_receipt)})
 
+    def discover(
+        self,
+        *,
+        url: str,
+        skill: Path,
+        headed: bool = False,
+        env: dict[str, str] | None = None,
+        entitlement_receipt: Path | str | None = None,
+    ) -> dict[str, Any]:
+        """Ground a drafted skill's targets against the live DOM via Core's
+        optional, entitlement-free `discover` operation (Core feature 016)."""
+        self.require_compatible()
+        args = ["discover", "--url", url, "--skill", str(skill)]
+        if headed:
+            args.append("--headed")
+        args.append("--json")
+        return self._run(args, env={**(env or {}), **_receipt_env(entitlement_receipt)})
+
     def inspect_report(self, report_path: Path, entitlement_receipt: Path | str | None = None) -> dict[str, Any]:
         self.require_compatible()
         return self._run(["report", "inspect", str(report_path), "--json"], env=_receipt_env(entitlement_receipt))

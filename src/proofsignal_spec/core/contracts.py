@@ -149,6 +149,23 @@ def validate_version_response(data: dict[str, Any]) -> CompatibilityResult:
     )
 
 
+def core_supports_discover(version_response: dict[str, Any]) -> bool:
+    """Optional-capability check for Core feature 016 dynamic grounding.
+
+    `discover` is intentionally NOT part of REQUIRED_OPERATIONS (adding it would
+    mark every current Core incompatible). A client treats it as available only
+    when the public `version` operations array advertises it.
+    """
+    payload = version_response.get("data", {}) if isinstance(version_response, dict) else {}
+    operations = payload.get("operations", []) if isinstance(payload, dict) else []
+    if not isinstance(operations, list):
+        return False
+    for item in operations:
+        if isinstance(item, dict) and item.get("name") == "discover" and item.get("schema") == "proofsignal.discover/v1":
+            return True
+    return False
+
+
 def normalize_status(data: dict[str, Any]) -> str:
     status = data.get("status")
     if status in ALLOWED_CORE_STATUSES:

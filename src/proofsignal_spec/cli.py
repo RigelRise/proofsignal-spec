@@ -87,6 +87,13 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     repair_parser.add_argument("--api-base-url", help="Override the ProofSignal entitlement API base URL for staging, local development, or tests")
     repair_parser.add_argument("--json", action="store_true")
 
+    discover_parser = subparsers.add_parser("discover", help="Ground a drafted browser skill's targets against the live DOM via Core")
+    discover_parser.add_argument("--url", required=True, help="Page URL to ground targets against")
+    discover_parser.add_argument("--skill", required=True, help="Drafted browser skill Markdown path")
+    discover_parser.add_argument("--project", default=".")
+    discover_parser.add_argument("--core-cmd", help="Override configured ProofSignal Core command")
+    discover_parser.add_argument("--json", action="store_true")
+
     core_parser = subparsers.add_parser("core", help="Inspect configured ProofSignal Core")
     core_sub = core_parser.add_subparsers(dest="core_command", required=True)
     core_version = core_sub.add_parser("version")
@@ -102,6 +109,17 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     core_setup.add_argument("--core-cmd", help="ProofSignal Core executable, command string, or local Core repository path")
     core_setup.add_argument("--no-persist", action="store_true", help="Use an explicit Core command for this setup invocation without saving it")
     core_setup.add_argument("--json", action="store_true")
+
+    policy_parser = subparsers.add_parser("policy", help="Manage a use case side-effect policy")
+    policy_sub = policy_parser.add_subparsers(dest="policy_command", required=True)
+    policy_set = policy_sub.add_parser("set", help="Set a use case's side-effect policy class without re-persisting implement")
+    policy_set.add_argument("alias")
+    policy_set.add_argument("--class", dest="policy_class", required=True, choices=["none", "authenticated-read", "write", "external-notification"])
+    policy_set.add_argument("--mode", choices=["enforce", "warn", "observe"])
+    policy_set.add_argument("--payload", help="Optional side-effect policy JSON/YAML file merged before setting the class")
+    policy_set.add_argument("--stdin", action="store_true", help="Read optional policy JSON from stdin")
+    policy_set.add_argument("--project", default=".")
+    policy_set.add_argument("--json", action="store_true")
 
     workflow_parser = subparsers.add_parser("workflow", help="Run guided ProofSignal workflows")
     workflow_sub = workflow_parser.add_subparsers(dest="workflow_command", required=True)
@@ -264,6 +282,13 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
         ), args.json
     if command == "repair":
         return repair_command.run(Path(args.project).resolve(), args.alias, from_report=args.from_report, approve=args.approve, core_cmd=args.core_cmd, api_base_url=args.api_base_url), args.json
+    if command == "discover":
+        from .core.adapter import CoreAdapter
+        from .workspace.repository import get_core_command
+
+        project = Path(args.project).resolve()
+        adapter = CoreAdapter(executable=args.core_cmd or get_core_command(project), cwd=project)
+        return adapter.discover(url=args.url, skill=Path(args.skill)), args.json
     if command == "core":
         from .core.adapter import CoreAdapter
         from .workspace.repository import get_core_command
@@ -273,6 +298,13 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
             return CoreAdapter(executable=args.core_cmd or get_core_command(project), cwd=project).version(), args.json
         if args.core_command == "setup":
             return core_setup_command.run(project, core_cmd=args.core_cmd, persist=not args.no_persist), args.json
+    if command == "policy":
+        from .commands import policy as policy_command
+
+        project = Path(args.project).resolve()
+        if args.policy_command == "set":
+            payload = _load_payload(args) if (args.payload or args.stdin) else None
+            return policy_command.set_policy(project, args.alias, side_effect_class=args.policy_class, mode=args.mode, payload=payload), args.json
     if command == "workflow":
         project = Path(args.project).resolve()
         if args.workflow_command == "run":
@@ -359,7 +391,16 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
         return
     if "useCases" in result:
         for item in result["useCases"]:
-            print(f"{item.get('alias', '-'):<24} {item.get('status', item.get('runnableStatus', '-')):<10} {item.get('title', '')}")
+            current = item.get("current") or {}
+            presentation = current.get("presentation") or {}
+            icon = presentation.get("icon") or ""
+            # Show current READINESS (with its lock/severity icon), not just lifecycle status —
+            # a locked ceiling reads as trusted, amber/red as needing attention.
+            readiness = current.get("status") or item.get("status") or item.get("runnableStatus", "-")
+            print(f"{item.get('alias', '-'):<28} {icon:<2} {readiness:<24} {item.get('title', '')}")
+            next_action = current.get("nextAction")
+            if next_action:
+                print(f"{'':<28}    -> {next_action}")
         for warning in result.get("warnings", []):
             print(f"warning: {warning}", file=sys.stderr)
         return

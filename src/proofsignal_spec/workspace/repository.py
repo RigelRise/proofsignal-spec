@@ -604,7 +604,15 @@ def artifact_fingerprints(project: Path, record: UseCaseRecord) -> dict[str, str
             fingerprints[ref.path] = hashlib.sha256(path.read_bytes()).hexdigest()
     record_path = layout.use_case_path(project, record.alias)
     if record_path.exists():
-        fingerprints[layout.to_project_relative(project, record_path)] = hashlib.sha256(record_path.read_bytes()).hexdigest()
+        # Hash a normalized projection (Bug 3): drop volatile run/validate state so a passing
+        # `run` (which mutates lastRun/status) does not invalidate the readiness snapshot.
+        # Genuine authoring edits (runRequest/skills/runtimeInputs/sideEffects/...) still change
+        # this projection and so still trigger an artifact-changed staleness reason.
+        projection = record.to_dict()
+        for volatile in ("status", "lastRun", "validation", "repair", "workflow"):
+            projection.pop(volatile, None)
+        normalized = json.dumps(projection, sort_keys=True, default=str).encode("utf-8")
+        fingerprints[layout.to_project_relative(project, record_path)] = hashlib.sha256(normalized).hexdigest()
     return fingerprints
 
 
@@ -725,27 +733,59 @@ def create_readiness_snapshot_from_validation(project: Path, alias: str, result:
     return snapshot
 
 
+# Reasons that are inherent, structural properties of a use case (a credentialed binding, a
+# committed write) rather than fixable drift. A snapshot that PASSED and carries only these is a
+# trusted ceiling, not a problem — it renders as green-with-lock and suggests no command, because
+# no command would move it. Reserve amber strictly for drift a command can clear.
+CEILING_REASONS = {"environment-bound", "write-post-commit-risk"}
+# Freshness drift that a plain re-validate/rerun clears.
+FRESHNESS_REASONS = {"age-expired", "artifact-changed", "target-revision-changed"}
+
+
 def readiness_current_state(project: Path, record: UseCaseRecord) -> dict[str, Any]:
     snapshot = load_readiness_snapshot(project, record.alias)
     last_run = record.lastRun if isinstance(record.lastRun, dict) else None
     if not snapshot:
         return {
             "status": "not-checked",
-            "label": "Not checked",
+            "label": _current_label("not-checked"),
+            "nextAction": _readiness_next_action("not-checked", record.alias),
+            "presentation": _readiness_presentation("not-checked"),
             "checked": False,
             "checkedAt": None,
             "reasons": ["No current readiness snapshot has been recorded."],
             "lastRunStatus": last_run.get("status") if last_run else None,
         }
     reasons = snapshot_invalidation_reasons(project, record, snapshot)
-    status = "ready" if snapshot.status == "ready" and not reasons else "needs-validate"
+    reason_codes = {item["code"] for item in reasons}
+    freshness = reason_codes & FRESHNESS_REASONS
+    actionable_drift = reason_codes - CEILING_REASONS - FRESHNESS_REASONS  # spec-version / refresh-impact
     if snapshot.status == "blocked":
+        # A failed validation must win over freshness so a real failure is never hidden as 'stale'.
         status = "blocked"
-    if reasons and any(item["code"] in {"age-expired", "artifact-changed", "target-revision-changed", "write-post-commit-risk"} for item in reasons):
+    elif freshness:
+        # Freshness drift — re-validating clears it (and takes precedence over the write-rerun guard).
         status = "stale"
-    return {
+    elif actionable_drift:
+        # spec-version / refresh-impact drift — a re-validate re-stamps/clears it.
+        status = "needs-validate"
+    elif "write-post-commit-risk" in reason_codes:
+        # A committed write that PASSED: trusted, but the NEXT run needs confirmation. The lock flips
+        # to 'confirmed' once a supersede/approve review matches this run (read the same source the
+        # rerun gate reads). Re-validating never clears it; it is a ceiling, not a problem.
+        status = "rerun-confirmed" if _has_matching_supersede_review(project, record) else "needs-rerun-confirmation"
+    elif "environment-bound" in reason_codes:
+        # A credentialed read that PASSED: trusted ceiling, credentials re-checked at run preflight.
+        status = "ready-credential-bound"
+    elif snapshot.status == "ready":
+        status = "ready"
+    else:
+        status = "needs-validate"
+    current = {
         "status": status,
         "label": _current_label(status),
+        "nextAction": _readiness_next_action(status, record.alias),
+        "presentation": _readiness_presentation(status),
         "checked": True,
         "checkedAt": snapshot.checkedAt,
         "ageSeconds": _snapshot_age_seconds(snapshot),
@@ -756,6 +796,43 @@ def readiness_current_state(project: Path, record: UseCaseRecord) -> dict[str, A
         "environmentBoundCredentialGroups": snapshot.environmentBoundCredentialGroups,
         "testedCodeScopeStatus": snapshot.testedCodeScopeStatus,
     }
+    if status == "needs-rerun-confirmation":
+        # Informational pointer, NOT a 'fix this' command: only when the owner intends to rerun.
+        current["confirmHint"] = f"proofsignal workflow approve-rerun --alias {record.alias} --json"
+    if status == "stale" and "write-post-commit-risk" in reason_codes:
+        # Disclose the still-pending rerun gate during the stale window so it does not ambush the
+        # owner after they re-validate the freshness drift.
+        current["pendingCeilingNote"] = (
+            "After re-checking freshness, this committed write still needs rerun confirmation before the next run."
+        )
+    return current
+
+
+def _has_matching_supersede_review(project: Path, record: UseCaseRecord) -> bool:
+    """True when a supersede/approve review exists for the use case whose ``sourceRunId`` matches the
+    current ``lastRun.runId`` — i.e. the owner has confirmed THIS run. Mirrors the gate's matching
+    logic (``write_safety._matching_supersede_review``) but reads locally to avoid a workspace↔workflows
+    import cycle. The readiness badge reads the same source the rerun gate already honors."""
+
+    last_run = record.lastRun if isinstance(record.lastRun, dict) else {}
+    run_id = str(last_run.get("runId") or "")
+    if not run_id:
+        return False
+    for review in load_supersede_reviews(project, record.alias):
+        source_run_id = getattr(review, "sourceRunId", None)
+        if source_run_id is None and isinstance(review, dict):
+            source_run_id = review.get("sourceRunId")
+        if str(source_run_id or "") == run_id:
+            return True
+    return False
+
+
+def _spec_minor(version: str | None) -> tuple[int, int]:
+    parts = (version or "").split(".")
+    try:
+        return (int(parts[0]), int(parts[1]))
+    except (ValueError, IndexError):
+        return (0, 0)
 
 
 def snapshot_invalidation_reasons(project: Path, record: UseCaseRecord, snapshot: ReadinessSnapshot) -> list[dict[str, str]]:
@@ -765,8 +842,10 @@ def snapshot_invalidation_reasons(project: Path, record: UseCaseRecord, snapshot
         if current_fingerprints.get(path) != old_hash:
             reasons.append({"code": "artifact-changed", "message": f"Artifact changed since readiness check: {path}"})
             break
-    if snapshot.specVersion and snapshot.specVersion != SPEC_VERSION:
-        reasons.append({"code": "spec-version-changed", "message": f"Spec version changed from {snapshot.specVersion} to {SPEC_VERSION}."})
+    if snapshot.specVersion and _spec_minor(snapshot.specVersion) != _spec_minor(SPEC_VERSION):
+        # Wart #1: only a minor/major Spec change invalidates readiness — a patch (bug fix) does
+        # not change readiness semantics, so it must not churn every snapshot to needs-validate.
+        reasons.append({"code": "spec-version-changed", "message": f"Spec major/minor version changed from {snapshot.specVersion} to {SPEC_VERSION}."})
     current_revision = current_project_revision(project)
     if snapshot.targetProjectRevision and current_revision and snapshot.targetProjectRevision != current_revision:
         reasons.append({"code": "target-revision-changed", "message": "Target project revision changed since readiness check."})
@@ -1106,9 +1185,40 @@ def _snapshot_age_seconds(snapshot: ReadinessSnapshot) -> int | None:
 def _current_label(status: str) -> str:
     labels = {
         "ready": "Last checked ready",
+        "ready-credential-bound": "Verified · credential-bound (re-checked at run)",
         "not-checked": "Not checked",
-        "stale": "Needs validation",
+        "stale": "Out of date — re-check",
         "needs-validate": "Needs validation",
+        "needs-rerun-confirmation": "Verified · confirm before next run",
+        "rerun-confirmed": "Verified · rerun confirmed",
         "blocked": "Blocked",
     }
     return labels.get(status, "Unknown")
+
+
+def _readiness_presentation(status: str) -> dict[str, Any]:
+    # Ceiling statuses (ceiling=True) are a use case that PASSED and sits at an inherent safety floor;
+    # they render as a calm green-with-lock and carry NO suggested command (running one would not move
+    # them). Amber/red carry a command that provably moves the state.
+    presentations = {
+        "ready": {"severity": "ok", "icon": "🟢", "ceiling": False, "headline": "Ready"},
+        "ready-credential-bound": {"severity": "ok-ceiling", "icon": "🔒", "ceiling": True, "headline": "Verified · credentials re-checked at run"},
+        "needs-rerun-confirmation": {"severity": "ok-ceiling", "icon": "🔒", "ceiling": True, "headline": "Verified · confirm before next run"},
+        "rerun-confirmed": {"severity": "ok-ceiling", "icon": "🔓", "ceiling": True, "headline": "Verified · rerun confirmed"},
+        "needs-validate": {"severity": "attention", "icon": "🟡", "ceiling": False, "headline": "Needs validation"},
+        "stale": {"severity": "attention", "icon": "🟡", "ceiling": False, "headline": "Out of date — re-check"},
+        "blocked": {"severity": "failed", "icon": "🔴", "ceiling": False, "headline": "Blocked — validation failed"},
+        "not-checked": {"severity": "unknown", "icon": "⚪", "ceiling": False, "headline": "Not checked yet"},
+    }
+    return presentations.get(status, {"severity": "unknown", "icon": "⚪", "ceiling": False, "headline": "Unknown"})
+
+
+def _readiness_next_action(status: str, alias: str) -> str | None:
+    # Honesty invariant: a status carries a suggested command ONLY when running it can move the
+    # state. Ceiling (lock) and plain ready carry none — the no-op 'workflow check run' suggestion
+    # for committed writes is intentionally gone (it never cleared the badge).
+    if status == "stale":
+        return f"proofsignal validate {alias} --runtime-readiness --json"
+    if status in {"needs-validate", "blocked", "not-checked"}:
+        return f"proofsignal validate {alias} --json"
+    return None
