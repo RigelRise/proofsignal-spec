@@ -354,6 +354,17 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
     raise ValueError(f"Unsupported command: {command}")
 
 
+def _emit_mcp(mcp: dict[str, Any] | None) -> None:
+    if not mcp:
+        return
+    if mcp.get("skipped"):
+        print(f"Live authoring: .mcp.json left untouched ({mcp.get('reason', 'not safely mergeable')}).")
+        return
+    print("Live authoring: Playwright MCP written to .mcp.json — approve it in Claude Code on first session.")
+    if not mcp.get("nodeAvailable", True):
+        print("  warning: Node/npx not found — install Node so the Playwright MCP can run.")
+
+
 def emit(result: dict[str, Any], json_output: bool = False) -> None:
     if json_output:
         print(json.dumps(result, indent=2, sort_keys=False))
@@ -379,6 +390,7 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
         print("")
         print(f"Guide: {guide.get('generatedGuidePath')}")
         print(f"Next: {guide.get('nextCommand')}")
+        _emit_mcp(result.get("mcp"))
         return
     if result.get("upgraded") and any(item.get("onboardingGuide") for item in result.get("upgraded", [])):
         print("ProofSignal integration upgrade")
@@ -388,6 +400,7 @@ def emit(result: dict[str, Any], json_output: bool = False) -> None:
             core = guide.get("coreStatus", {})
             core_marker = f" | Core {core.get('statusMarker')}" if core else ""
             print(f"- {item.get('integration', {}).get('key')}: {guide.get('generatedGuidePath')} | next {guide.get('nextCommand')}{core_marker}")
+            _emit_mcp(item.get("mcp"))
         return
     if "useCases" in result:
         for item in result["useCases"]:

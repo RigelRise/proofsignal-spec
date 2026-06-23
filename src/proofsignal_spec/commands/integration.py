@@ -7,6 +7,7 @@ from proofsignal_spec.integrations.claude import ClaudeIntegration
 from proofsignal_spec.integrations.codex import CodexIntegration
 from proofsignal_spec.integrations.base import build_onboarding_guidance
 from proofsignal_spec.integrations.manifests import install_rendered_files, load_all_states, remove_integration, set_default
+from proofsignal_spec.integrations.mcp import merge_mcp_servers
 from proofsignal_spec.runtime.resolver import ensure_core_runtime
 from proofsignal_spec.workflows.core_setup import onboarding_core_status, run_core_setup
 
@@ -37,6 +38,15 @@ def install(project: Path, key: str, force: bool = False, default: bool = True) 
         force=force,
         default=default,
     )
+    # Live authoring: merge the integration's declared MCP servers into the agent's project config
+    # (e.g. Claude Code's .mcp.json). Merge-safe and never fatal to install.
+    mcp = None
+    servers = integration.mcp_servers()
+    if servers:
+        try:
+            mcp = merge_mcp_servers(project, servers)
+        except OSError as exc:
+            mcp = {"path": ".mcp.json", "skipped": True, "reason": f"could not write .mcp.json: {exc}", "nodeAvailable": False}
     guide_path = ".agents/PROOFSIGNAL_ONBOARDING.md" if integration.key == "codex" else ".claude/PROOFSIGNAL_ONBOARDING.md"
     guide = build_onboarding_guidance(
         integration_key=integration.key,
@@ -51,6 +61,7 @@ def install(project: Path, key: str, force: bool = False, default: bool = True) 
         "runtime": runtime.to_dict(),
         "managedRuntimeReadiness": runtime.to_dict(),
         "onboardingGuide": guide,
+        "mcp": mcp,
     }
 
 

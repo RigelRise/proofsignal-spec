@@ -26,6 +26,13 @@ class AgentIntegration:
     def render_files(self, project: Path, core_status: dict[str, object] | None = None) -> list[RenderedFile]:
         raise NotImplementedError
 
+    def mcp_servers(self) -> dict[str, object]:
+        """MCP servers this integration configures in the host agent's project MCP config.
+
+        Default: none. Claude overrides with the Playwright MCP so live authoring is enabled on
+        install. ProofSignal merges these into the agent's project config (e.g. ``.mcp.json``)."""
+        return {}
+
 
 @dataclass(frozen=True, slots=True)
 class WorkflowCommandSpec:
@@ -144,15 +151,15 @@ def build_onboarding_guidance(
     )
 
 
-_LIVE_AUTHORING_ONBOARDING = """## Live Authoring (optional)
+_LIVE_AUTHORING_ONBOARDING = """## Live Authoring
 
-ProofSignal can author and repair selectors against the live page if your agent has a Playwright MCP server. This is optional — without it, ProofSignal authors from source and grounds with `discover` as usual. To enable it in Claude Code:
+ProofSignal set up live authoring for you: it added a Playwright MCP server to this project's `.mcp.json`, so the agent can author and repair selectors against the live page. Claude Code will ask you to approve the server on first session (this needs Node/npx installed). To do it manually, or for another agent:
 
 ```
-claude mcp add playwright npx @playwright/mcp@latest
+claude mcp add playwright -- npx -y @playwright/mcp@latest
 ```
 
-The Playwright MCP is an authoring aid only: `proofsignal discover` and `proofsignal run` remain the deterministic authority, and if they disagree with the MCP, they win. MCP snapshots, screenshots, and storage state are never persisted into `.proofsignal/`."""
+The Playwright MCP is an authoring aid only: `proofsignal discover` and `proofsignal run` remain the deterministic authority, and if they disagree with the MCP, they win. Without it, ProofSignal authors from source and grounds with `discover` as usual. MCP snapshots, screenshots, and storage state are never persisted into `.proofsignal/`."""
 
 
 def render_onboarding_guide(guide: OnboardingGuidance) -> str:

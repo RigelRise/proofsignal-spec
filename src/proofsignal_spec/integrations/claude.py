@@ -10,6 +10,7 @@ from proofsignal_spec.templates.agent_guidance import (
 )
 
 from .base import AgentIntegration, RenderedFile, build_onboarding_guidance, render_onboarding_guide, render_workflow_skill_files
+from .mcp import PLAYWRIGHT_MCP_SERVER
 
 
 class ClaudeIntegration(AgentIntegration):
@@ -30,6 +31,10 @@ class ClaudeIntegration(AgentIntegration):
         files.append(RenderedFile(".claude/PROOFSIGNAL_ONBOARDING.md", render_onboarding_guide(guide), "claude/onboarding-guide", "onboarding-guide"))
         files.extend(render_workflow_skill_files(".claude/skills", "Claude Code", include_argument_hint=True))
         return files
+
+    def mcp_servers(self) -> dict[str, object]:
+        # Live authoring is enabled on install: ProofSignal merges this into the project `.mcp.json`.
+        return {"playwright": PLAYWRIGHT_MCP_SERVER}
 
 
 def _context() -> str:

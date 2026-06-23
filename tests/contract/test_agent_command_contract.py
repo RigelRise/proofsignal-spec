@@ -60,9 +60,13 @@ def test_context_includes_playwright_mcp_authoring_guidance(tmp_path) -> None:
         assert "commit" in content.lower()
 
 
-def test_onboarding_guide_has_optional_playwright_mcp_install_hint(tmp_path) -> None:
+def test_onboarding_guide_advertises_auto_enabled_playwright_mcp(tmp_path) -> None:
+    # Live authoring is auto-enabled on install (the MCP is written into .mcp.json), and Claude Code
+    # prompts the user to approve it — the onboarding must say so and keep the manual fallback command.
     claude = {item.path: item.content for item in ClaudeIntegration().render_files(tmp_path)}
     guide = claude[".claude/PROOFSIGNAL_ONBOARDING.md"]
-    assert "claude mcp add playwright npx @playwright/mcp@latest" in guide
-    assert "optional" in guide.lower()
-    assert "wins" in guide.lower() or "authority" in guide.lower()
+    assert "Playwright MCP" in guide
+    assert ".mcp.json" in guide
+    assert "approve" in guide.lower()  # Claude Code's approval gate
+    assert "claude mcp add playwright -- npx -y @playwright/mcp@latest" in guide  # manual fallback
+    assert "authority" in guide.lower() or "wins" in guide.lower()
