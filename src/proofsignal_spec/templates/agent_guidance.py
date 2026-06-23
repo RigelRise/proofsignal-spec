@@ -26,3 +26,14 @@ PUBLIC_WORKFLOW_CONTRACT_BOUNDARY = (
     "Use the public workflow contract from `proofsignal workflow info proofsignal-use-case --json` "
     "and `stagePayloadContracts`; Do not inspect installed package source to infer payload schemas"
 )
+PLAYWRIGHT_MCP_GUIDANCE = (
+    "If you have a Playwright MCP server available (live browser tools such as `browser_navigate` and "
+    "`browser_snapshot`), you MAY use it to author and repair browser selectors against the live page instead "
+    "of guessing from source — but it is an authoring aid, never a validator: every selector it suggests must "
+    "still be confirmed by `proofsignal discover` and the use case must still pass `proofsignal run`, and if the "
+    "MCP and `discover` disagree, `discover` wins. Without a Playwright MCP, author from source as usual; the "
+    "deterministic grounding and gate are unchanged. Never persist or print MCP snapshots, DOM, screenshots, "
+    "cookies, or storage state. On authenticated surfaces load auth only from the environment or a "
+    "developer-controlled `--storage-state` file (never written into `.proofsignal/`); on write surfaces let the "
+    "MCP explore only up to the commit step and never cross it — only the deterministic `run` crosses the commit"
+)

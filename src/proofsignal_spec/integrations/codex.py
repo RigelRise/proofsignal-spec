@@ -5,6 +5,7 @@ from pathlib import Path
 from proofsignal_spec.templates.agent_guidance import (
     FIRST_RUN_STAGE_CARD_GUIDANCE,
     MISSING_UNDERSTANDING_AUTO_PREPARE,
+    PLAYWRIGHT_MCP_GUIDANCE,
     REAL_TARGET_FIRST_RECOMMENDATION,
 )
 
@@ -59,4 +60,6 @@ skill/target/step/resourceIdentity/rerun-policy changes.
 Golden Path first runs are agent-chat first. {REAL_TARGET_FIRST_RECOMMENDATION}.
 {FIRST_RUN_STAGE_CARD_GUIDANCE}.
 {MISSING_UNDERSTANDING_AUTO_PREPARE}.
+
+{PLAYWRIGHT_MCP_GUIDANCE}.
 """

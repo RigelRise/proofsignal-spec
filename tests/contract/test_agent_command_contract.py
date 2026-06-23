@@ -45,3 +45,24 @@ def test_codex_and_claude_validation_guidance_share_live_readiness_facts(tmp_pat
     ]:
         assert phrase in codex_content
         assert phrase in claude_content
+
+
+def test_context_includes_playwright_mcp_authoring_guidance(tmp_path) -> None:
+    # Always-loaded context must teach the agent to use a Playwright MCP for live authoring as an
+    # aid only — `discover`/`run` remain the deterministic authority; nothing MCP is persisted.
+    claude = {item.path: item.content for item in ClaudeIntegration().render_files(tmp_path)}
+    codex = {item.path: item.content for item in CodexIntegration().render_files(tmp_path)}
+    for content in (claude["CLAUDE.md"], codex["AGENTS.md"]):
+        assert "Playwright MCP" in content
+        assert "discover" in content and "wins" in content
+        assert "browser_snapshot" in content or "browser_navigate" in content
+        assert "never" in content.lower() and "persist" in content.lower()
+        assert "commit" in content.lower()
+
+
+def test_onboarding_guide_has_optional_playwright_mcp_install_hint(tmp_path) -> None:
+    claude = {item.path: item.content for item in ClaudeIntegration().render_files(tmp_path)}
+    guide = claude[".claude/PROOFSIGNAL_ONBOARDING.md"]
+    assert "claude mcp add playwright npx @playwright/mcp@latest" in guide
+    assert "optional" in guide.lower()
+    assert "wins" in guide.lower() or "authority" in guide.lower()

@@ -13,6 +13,8 @@ Repair invalid or failed use cases through the workflow.
 - Use validation findings or public report inspection through `proofsignal repair <alias>` (or the backward-compatible `proofsignal repair <alias>`).
 - Do not edit artifacts when no deterministic validation/run finding exists; runtime setup, API, entitlement, distribution, package verification, and missing Core blockers must remain no-op repair results.
 - Classify the root cause before proposing edits. Name whether the finding is a missing prerequisite, environment recovery, wait/flow issue, selector issue, data/product-state issue, coverage-mapping issue, or unsupported feedback.
+- For a selector finding (an element moved, renamed, or became ambiguous), you MAY live-investigate with a Playwright MCP if available: navigate to the target, snapshot the page, and read the element's current accessibility role/name to inform a corrected `browser.targets` entry. This is read-only reconnaissance and only proposes a candidate — re-run `proofsignal discover` (or use the `discover` candidates/alternates already in the finding) to confirm the corrected selector deterministically before applying. The MCP never confirms a repair; `discover` + revalidation + rerun do.
+- Live MCP investigation during repair must stay read-only: do not submit forms, click through a write/commit boundary, or perform any product mutation.
 - Treat missing coverage from an aborted Core/browser run as diagnostic. Required gates remain required unless clarify/plan or an explicit gate-intent confirmation changes product intent.
 - Treat `skill-execution.*` and execution-boundary findings as skill-set/composition problems. Prefer composing required helper behavior into the main skill or reclassifying helpers as source-only metadata; do not weaken required gates to compensate for helper-skill misexecution.
 - Treat runtime contradictions and incomplete planned gate coverage as repair/replan inputs. Do not silently weaken browser skills when a planned gate is absent in the target product state.
@@ -37,4 +39,4 @@ Repair invalid or failed use cases through the workflow.
 - Do not write managed `.proofsignal/` artifacts directly. Persist managed artifacts through ProofSignal Spec CLI operations only.
 - Preserve original specification, plan, task history, and skill reuse relationships.
 - Never persist credential values.
-- Never print or persist raw email addresses, email unlock tokens, signed download URLs, receipt payloads, credentials, browser storage, screenshots, source snapshots, or private runtime contents.
+- Never print or persist raw email addresses, email unlock tokens, signed download URLs, receipt payloads, credentials, browser storage, screenshots, MCP accessibility snapshots, MCP DOM dumps, source snapshots, or private runtime contents.

@@ -338,3 +338,12 @@ def test_next_action_present_iff_state_is_actionable() -> None:
             assert not has_action, status
         else:
             assert has_action, status
+
+
+def test_patch_bump_keeps_readiness_minor_stable() -> None:
+    # Guard: the MCP-guidance increment is a PATCH (0.17.0 -> 0.17.1) precisely so it does NOT churn
+    # readiness snapshots. A future careless minor bump that would re-invalidate must trip this.
+    from proofsignal_spec.workspace.repository import _spec_minor
+
+    assert _spec_minor("0.17.1") == _spec_minor("0.17.0")
+    assert _spec_minor("0.18.0") != _spec_minor("0.17.0")

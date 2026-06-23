@@ -67,3 +67,29 @@ def test_run_template_uses_single_outcome_summary_without_manual_gate_tables() -
     assert "Render exactly one final run result section" in content
     assert "Do not build markdown tables from `gateCoverage`" in content
     assert "Do not repeat gate coverage" in content
+
+
+def test_auto_loop_documents_mcp_capability_selfcheck_and_fallback() -> None:
+    content = agent_template("auto")
+    assert "Playwright MCP" in content
+    assert "self-check" in content
+    assert "author from source" in content  # graceful fallback when no MCP
+    assert "discover" in content and "wins" in content  # discover beats MCP on disagreement
+    assert "ref=" in content  # MCP refs are per-snapshot, not a selector signal
+    assert "commitStepId" in content  # live exploration stops before the write commit
+    assert "MCP accessibility snapshots" in content or "Never persist or print MCP" in content
+
+
+def test_repair_template_documents_mcp_readonly_investigation() -> None:
+    content = agent_template("repair")
+    assert "Playwright MCP" in content
+    assert "read-only" in content.lower()
+    assert "discover" in content  # discover confirms the repair, not the MCP
+    assert "MCP accessibility snapshots" in content  # extended no-persist list
+
+
+def test_auto_loop_mcp_credential_safety() -> None:
+    content = agent_template("auto")
+    assert "storage-state" in content
+    assert "environment" in content.lower()
+    assert "never persist" in content.lower()

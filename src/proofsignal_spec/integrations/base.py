@@ -144,6 +144,17 @@ def build_onboarding_guidance(
     )
 
 
+_LIVE_AUTHORING_ONBOARDING = """## Live Authoring (optional)
+
+ProofSignal can author and repair selectors against the live page if your agent has a Playwright MCP server. This is optional — without it, ProofSignal authors from source and grounds with `discover` as usual. To enable it in Claude Code:
+
+```
+claude mcp add playwright npx @playwright/mcp@latest
+```
+
+The Playwright MCP is an authoring aid only: `proofsignal discover` and `proofsignal run` remain the deterministic authority, and if they disagree with the MCP, they win. MCP snapshots, screenshots, and storage state are never persisted into `.proofsignal/`."""
+
+
 def render_onboarding_guide(guide: OnboardingGuidance) -> str:
     data = guide.to_dict()
     stages = "\n".join(f"- {item}" for item in data.get("stageMarkers", []))
@@ -187,6 +198,8 @@ Run `{data.get("nextCommand", "/proofsignal-specify")}`.
 - {REAL_TARGET_FIRST_RECOMMENDATION}.
 - {MISSING_UNDERSTANDING_AUTO_PREPARE}.
 - Repaired strict pass is a success only after safe repair, revalidation, rerun, and strict pass.
+
+{_LIVE_AUTHORING_ONBOARDING}
 
 ## Plain Text Fallback
 
