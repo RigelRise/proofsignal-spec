@@ -15,10 +15,12 @@ class ManagedRuntimeSecretSafetyTests(CliTestCase):
         os.environ["PROOFSIGNAL_RUNTIME_CACHE_DIR"] = str(self.project / "user-cache")
         os.environ["PROOFSIGNAL_EMAIL_UNLOCK_TOKEN"] = "ps_valid"
         os.environ["PROOFSIGNAL_EMAIL"] = "person@example.com"
+        os.environ["PROOFSIGNAL_CORE_VERSION"] = "0.5.1"
         self.addCleanup(lambda: os.environ.pop("PROOFSIGNAL_RUNTIME_CACHE_DIR", None))
         self.addCleanup(lambda: os.environ.pop("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", None))
         self.addCleanup(lambda: os.environ.pop("PROOFSIGNAL_EMAIL", None))
         self.addCleanup(lambda: os.environ.pop("PROOFSIGNAL_API_BASE_URL", None))
+        self.addCleanup(lambda: os.environ.pop("PROOFSIGNAL_CORE_VERSION", None))
         distribution = build_managed_runtime_distribution(self.project / "distribution", platform=normalize_platform() or "darwin-arm64")
         with serve_fake_entitlement_backend(distribution) as (api_base_url, _state):
             os.environ["PROOFSIGNAL_API_BASE_URL"] = api_base_url

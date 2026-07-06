@@ -7,7 +7,11 @@ from pathlib import Path
 from proofsignal_spec.core.adapter import CoreAdapter
 from proofsignal_spec.core.contracts import PUBLIC_CONTRACT_VERSION
 from proofsignal_spec.core.errors import CoreExecutionError, CoreMissingError
-from proofsignal_spec.workspace.repository import get_core_command, get_entitlement_api_base_url
+from proofsignal_spec.workspace.repository import (
+    get_core_command,
+    get_core_configuration,
+    get_entitlement_api_base_url,
+)
 
 from .cache import load_cache_entry, mark_cache_used
 from .distribution import (
@@ -30,6 +34,30 @@ from .models import (
     RuntimeSetupBlocker,
     RuntimeSourceAttempt,
 )
+
+
+def resolve_requested_core_version(project: Path) -> tuple[str | None, RuntimeSetupBlocker | None]:
+    """Resolve the Core version to request from the managed distribution API.
+
+    Order: explicit env pin, then the workspace-persisted version (recorded by
+    `core setup` as the last verified version). There is no shipped default —
+    guessing a version yields opaque 404s from the exact-match download API.
+    """
+    env_version = (os.environ.get("PROOFSIGNAL_CORE_VERSION") or "").strip()
+    if env_version:
+        return env_version, None
+    workspace_version = get_core_configuration(project).get("coreVersion")
+    if workspace_version:
+        return str(workspace_version), None
+    return None, RuntimeSetupBlocker(
+        code="distribution.version-unspecified",
+        message="No ProofSignal Core version is pinned for managed runtime download.",
+        recoveryCommand=(
+            "Set PROOFSIGNAL_CORE_VERSION=<version>, configure "
+            "PROOFSIGNAL_RUNTIME_MANIFEST_PATH, or run "
+            "`proofsignal core setup --core-cmd <path>`."
+        ),
+    )
 
 
 def ensure_core_runtime(
@@ -234,14 +262,25 @@ def ensure_core_runtime(
             result.verificationKeys = verification_keys
             result.api = api_status
             return result
+        requested_version, version_blocker = resolve_requested_core_version(project)
+        if version_blocker or not requested_version:
+            version_blocker = version_blocker or RuntimeSetupBlocker(
+                code="distribution.version-unspecified",
+                message="No ProofSignal Core version is pinned for managed runtime download.",
+            )
+            attempts.append(RuntimeSourceAttempt(source="managed-download", status="blocked", terminal=True, platform=platform, message=version_blocker.message, blockerCode=version_blocker.code))
+            result = ManagedRuntimeReadinessResult.blocked(version_blocker, attempts=attempts, entitlement=entitlement, cache=RuntimeCacheStatus(status="miss", platform=platform))
+            result.verificationKeys = verification_keys
+            result.api = api_status
+            return result
         distribution_client = RuntimeDistributionClient(config)
-        grant = distribution_client.authorize_runtime_download(os.environ.get("PROOFSIGNAL_CORE_VERSION", "0.12.0"), platform, receipt)
+        grant = distribution_client.authorize_runtime_download(requested_version, platform, receipt)
         if grant.blocker:
             attempts.append(RuntimeSourceAttempt(source="managed-download", status="blocked", terminal=True, platform=platform, message=grant.blocker.message, blockerCode=grant.blocker.code))
             result = ManagedRuntimeReadinessResult.blocked(grant.blocker, attempts=attempts, entitlement=entitlement, cache=RuntimeCacheStatus(status="miss", platform=platform), verification_keys=verification_keys)
             result.api = api_status
             return result
-        runtime_core_version = str(grant.data.get("coreVersion", os.environ.get("PROOFSIGNAL_CORE_VERSION", "0.12.0")))
+        runtime_core_version = str(grant.data.get("coreVersion", requested_version))
         runtime_command, blocker = install_from_authorization(grant.data, entitlement_receipt_id=entitlement.receiptId)
     if blocker or not runtime_command:
         actual = blocker or RuntimeSetupBlocker(code="distribution.unavailable", message="Managed runtime installation failed.")

@@ -68,9 +68,9 @@ def test_runtime_download_authorization_contract_and_api_unavailable_mapping(tmp
         assert entitlement is not None
         client = RuntimeDistributionClient(config)
 
-        grant = client.authorize_runtime_download("0.12.0", "darwin-arm64", entitlement)
+        grant = client.authorize_runtime_download("0.5.1", "darwin-arm64", entitlement)
         state.download_status = "unavailable"
-        unavailable = client.authorize_runtime_download("0.12.0", "darwin-arm64", entitlement)
+        unavailable = client.authorize_runtime_download("0.5.1", "darwin-arm64", entitlement)
 
     assert grant.blocker is None
     assert grant.data["schema"] == "proofsignal.runtime-download/v1"

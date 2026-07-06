@@ -26,6 +26,7 @@ class ManagedRuntimeEntitlementFailureTests(CliTestCase):
         self.patch_env("PROOFSIGNAL_CORE_CMD", None)
         self.patch_env("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(self.project / "user-cache"))
         self.patch_env("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", "ps_valid")
+        self.patch_env("PROOFSIGNAL_CORE_VERSION", "0.5.1")
         distribution = build_managed_runtime_distribution(self.project / "distribution", platform=normalize_platform() or "darwin-arm64")
         with serve_fake_entitlement_backend(distribution) as (api_base_url, state):
             state.download_status = "unauthorized"

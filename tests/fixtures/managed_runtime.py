@@ -617,10 +617,11 @@ def serve_fake_entitlement_backend(distribution: dict[str, Path | str] | None = 
 
 
 @contextlib.contextmanager
-def managed_runtime_test_env(monkeypatch, tmp_path: Path, *, api_base_url: str | None = None, token: str = "ps_valid"):
+def managed_runtime_test_env(monkeypatch, tmp_path: Path, *, api_base_url: str | None = None, token: str = "ps_valid", core_version: str = "0.5.1"):
     cache_dir = tmp_path / "user-cache"
     monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(cache_dir))
     monkeypatch.setenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", token)
+    monkeypatch.setenv("PROOFSIGNAL_CORE_VERSION", core_version)
     monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
     if api_base_url:
         monkeypatch.setenv("PROOFSIGNAL_API_BASE_URL", api_base_url)
@@ -633,5 +634,6 @@ def managed_runtime_test_env(monkeypatch, tmp_path: Path, *, api_base_url: str |
             "PROOFSIGNAL_API_BASE_URL",
             "PROOFSIGNAL_RUNTIME_MANIFEST_PATH",
             "PROOFSIGNAL_RUNTIME_MANIFEST_JSON",
+            "PROOFSIGNAL_CORE_VERSION",
         ]:
             os.environ.pop(key, None)

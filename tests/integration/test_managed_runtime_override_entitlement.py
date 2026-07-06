@@ -297,6 +297,7 @@ def test_managed_runtime_sources_prepare_verification_keys(tmp_path, monkeypatch
     platform = normalize_platform()
     assert platform is not None
     monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("PROOFSIGNAL_CORE_VERSION", "0.5.1")
     monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
     monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
     monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)

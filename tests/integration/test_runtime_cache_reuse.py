@@ -14,11 +14,13 @@ class RuntimeCacheReuseTests(CliTestCase):
         os.environ.pop("PROOFSIGNAL_CORE_CMD", None)
         os.environ["PROOFSIGNAL_RUNTIME_CACHE_DIR"] = str(self.project / "user-cache")
         os.environ["PROOFSIGNAL_EMAIL_UNLOCK_TOKEN"] = "ps_valid"
+        os.environ["PROOFSIGNAL_CORE_VERSION"] = "0.5.1"
 
     def tearDown(self) -> None:
         os.environ.pop("PROOFSIGNAL_RUNTIME_CACHE_DIR", None)
         os.environ.pop("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", None)
         os.environ.pop("PROOFSIGNAL_API_BASE_URL", None)
+        os.environ.pop("PROOFSIGNAL_CORE_VERSION", None)
         super().tearDown()
 
     def test_second_init_reuses_verified_cache_without_manifest_or_token(self) -> None:

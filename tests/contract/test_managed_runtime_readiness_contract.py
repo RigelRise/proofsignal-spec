@@ -17,14 +17,14 @@ def test_managed_runtime_readiness_shape_and_operations() -> None:
         status="ready",
         source="managed-cache",
         runtimeCommand="/tmp/proofsignal-core",
-        runtimeVersion="0.12.0",
+        runtimeVersion="0.5.1",
         contractVersion="proofsignal-public-cli-json/v1",
         attempts=[
             RuntimeSourceAttempt(
                 source="managed-cache",
                 status="compatible",
                 terminal=True,
-                runtimeVersion="0.12.0",
+                runtimeVersion="0.5.1",
                 message="Verified cached runtime is compatible.",
             )
         ],

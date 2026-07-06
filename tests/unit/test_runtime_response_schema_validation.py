@@ -11,7 +11,7 @@ def test_runtime_authorization_schema_validation_blocks_invalid_or_expired_grant
         {
             "schema": "proofsignal.runtime-download/v1",
             "schemaVersion": 1,
-            "coreVersion": "0.12.0",
+            "coreVersion": "0.5.1",
             "platform": "darwin-arm64",
             "package": {
                 "filename": "proofsignal-core.tar.gz",

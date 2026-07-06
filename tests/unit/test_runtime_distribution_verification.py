@@ -23,7 +23,7 @@ def test_manifest_selection_requires_platform_contract_and_signature() -> None:
     manifest = {
         "entries": [
             {
-                "coreVersion": "0.12.0",
+                "coreVersion": "0.5.1",
                 "contractVersion": "proofsignal-public-cli-json/v1",
                 "platform": "darwin-arm64",
                 "url": "file:///tmp/runtime.tar.gz",
@@ -36,7 +36,7 @@ def test_manifest_selection_requires_platform_contract_and_signature() -> None:
     entries = manifest_entries(manifest)
     selected = select_manifest_entry(entries, platform="darwin-arm64", contract_version="proofsignal-public-cli-json/v1")
 
-    assert selected["coreVersion"] == "0.12.0"
+    assert selected["coreVersion"] == "0.5.1"
     assert signature_contract_available(selected)
 
 

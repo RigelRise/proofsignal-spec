@@ -46,6 +46,7 @@ REQUIRED_RUNTIME_BLOCKER_CODES = {
     "distribution.unauthorized",
     "distribution.unavailable",
     "distribution.url-expired",
+    "distribution.version-unspecified",
 }
 
 BLOCKER_CATEGORY_BY_PREFIX = {

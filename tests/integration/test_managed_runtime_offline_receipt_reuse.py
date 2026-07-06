@@ -12,6 +12,7 @@ class ManagedRuntimeOfflineReceiptReuseTests(CliTestCase):
         self.patch_env("PROOFSIGNAL_CORE_CMD", None)
         self.patch_env("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(self.project / "user-cache"))
         self.patch_env("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", "ps_valid")
+        self.patch_env("PROOFSIGNAL_CORE_VERSION", "0.5.1")
         platform = normalize_platform() or "darwin-arm64"
         distribution = build_managed_runtime_distribution(self.project / "distribution", platform=platform)
         with serve_fake_entitlement_backend(distribution) as (api_base_url, _state):

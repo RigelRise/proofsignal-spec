@@ -8,7 +8,7 @@ def test_runtime_manifest_entry_contract_selects_platform_and_contract() -> None
     manifest = {
         "entries": [
             {
-                "coreVersion": "0.12.0",
+                "coreVersion": "0.5.1",
                 "contractVersion": "proofsignal-public-cli-json/v1",
                 "platform": "linux-x64",
                 "artifactName": "proofsignal-core-linux-x64.tar.gz",
@@ -21,7 +21,7 @@ def test_runtime_manifest_entry_contract_selects_platform_and_contract() -> None
 
     selected = select_manifest_entry(manifest_entries(manifest), platform="linux-x64")
 
-    assert selected["coreVersion"] == "0.12.0"
+    assert selected["coreVersion"] == "0.5.1"
 
 
 def test_distribution_failure_codes_are_public_contract() -> None:
