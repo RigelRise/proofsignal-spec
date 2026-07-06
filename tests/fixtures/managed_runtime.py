@@ -321,15 +321,32 @@ def write_fake_core_executable(path: Path, *, mode: str = "ok") -> Path:
     return path
 
 
-def build_managed_runtime_distribution(root: Path, *, platform: str, core_version: str = "0.12.0", mode: str = "ok") -> dict[str, Path | str]:
+def build_managed_runtime_distribution(root: Path, *, platform: str, core_version: str = "0.5.1", mode: str = "ok") -> dict[str, Path | str]:
     dist = root / "dist"
     staging = root / "staging"
     dist.mkdir(parents=True, exist_ok=True)
     staging.mkdir(parents=True, exist_ok=True)
-    core = write_fake_core_executable(staging / "proofsignal-core", mode=mode)
+    package_root = staging / "proofsignal-core"
+    write_fake_core_executable(package_root / "bin" / "proofsignal-core", mode=mode)
+    (package_root / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema": "proofsignal.runtime-manifest/v1",
+                "schemaVersion": 1,
+                "coreVersion": core_version,
+                "platform": platform,
+                "executable": "bin/proofsignal-core",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (package_root / "package.json").write_text(
+        json.dumps({"name": "proofsignal-core-runtime", "private": True, "type": "module"}),
+        encoding="utf-8",
+    )
     artifact = dist / f"proofsignal-core-{platform}.tar.gz"
     with tarfile.open(artifact, "w:gz") as archive:
-        archive.add(core, arcname="proofsignal-core")
+        archive.add(package_root, arcname="proofsignal-core")
     sha256 = hashlib.sha256(artifact.read_bytes()).hexdigest()
     manifest = {
         "entries": [

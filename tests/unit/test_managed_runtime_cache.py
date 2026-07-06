@@ -12,9 +12,11 @@ def test_cache_metadata_lives_outside_target_project(tmp_path: Path, monkeypatch
     monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(user_cache))
 
     entry = save_cache_entry(
-        core_version="0.12.0",
+        core_version="0.5.1",
         platform="darwin-arm64",
-        runtime_command=str(user_cache / "0.12.0" / "darwin-arm64" / "proofsignal-core"),
+        runtime_command=str(
+            user_cache / "0.5.1" / "darwin-arm64" / "proofsignal-core" / "bin" / "proofsignal-core"
+        ),
         contract_version="proofsignal-public-cli-json/v1",
         sha256="a" * 64,
         entitlement_receipt_id="rcpt_123",
@@ -25,5 +27,4 @@ def test_cache_metadata_lives_outside_target_project(tmp_path: Path, monkeypatch
     assert not (project / ".proofsignal").exists()
     loaded = load_cache_entry(platform="darwin-arm64")
     assert loaded is not None
-    assert loaded.coreVersion == "0.12.0"
-
+    assert loaded.coreVersion == "0.5.1"

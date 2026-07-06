@@ -102,6 +102,34 @@ def verify_signature_metadata(entry: dict[str, Any]) -> bool:
     return algorithm in {"test", "ed25519"}
 
 
+def _resolve_packaged_executable(package_root: Path) -> Path | None:
+    """Resolve the runtime executable inside an extracted package.
+
+    Real Core packages are a ``proofsignal-core/`` directory whose
+    ``manifest.json`` declares ``executable`` (``bin/proofsignal-core`` per the
+    Core runtime-package contract); legacy flat archives shipped the executable
+    as a top-level ``proofsignal-core`` file.
+    """
+    if package_root.is_file():
+        return package_root
+    if not package_root.is_dir():
+        return None
+    executable_rel = "bin/proofsignal-core"
+    manifest_path = package_root / "manifest.json"
+    if manifest_path.is_file():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            manifest = {}
+        declared = manifest.get("executable")
+        if isinstance(declared, str) and declared:
+            executable_rel = declared
+    candidate = (package_root / executable_rel).resolve()
+    if package_root.resolve() not in candidate.parents:
+        return None
+    return candidate if candidate.is_file() else None
+
+
 def install_from_manifest(entry: dict[str, Any], *, entitlement_receipt_id: str | None = None) -> tuple[str | None, RuntimeSetupBlocker | None]:
     temp_dir = Path(tempfile.mkdtemp(prefix="proofsignal-runtime-"))
     artifact_path = temp_dir / str(entry.get("artifactName") or "proofsignal-core.tar.gz")
@@ -120,10 +148,10 @@ def install_from_manifest(entry: dict[str, Any], *, entitlement_receipt_id: str 
         destination.mkdir(parents=True, exist_ok=True)
         with tarfile.open(artifact_path, "r:gz") as archive:
             archive.extractall(destination, filter="data")
-        runtime = destination / "proofsignal-core"
-        if not runtime.exists():
+        runtime = _resolve_packaged_executable(destination / "proofsignal-core")
+        if runtime is None:
             shutil.rmtree(destination, ignore_errors=True)
-            return None, RuntimeSetupBlocker(code="manifest.invalid", message="Managed runtime artifact does not contain proofsignal-core.")
+            return None, RuntimeSetupBlocker(code="manifest.invalid", message="Managed runtime artifact does not contain a proofsignal-core executable.")
         runtime.chmod(runtime.stat().st_mode | 0o100)
         save_cache_entry(
             core_version=core_version,
