@@ -14,7 +14,7 @@ ALIAS = "brands-search-authenticated"
 MAIN_SKILL_PATH = ".proofsignal/skills/validate-brands-search-authenticated-flow.browser.md"
 LOGIN_SKILL_PATH = ".proofsignal/skills/login-feats-credentials.browser.md"
 MAIN_SKILL_ID = "skill.validate-brands-search-authenticated-flow"
-LOGIN_SKILL_ID = "skill.login-feats-credentials"
+LOGIN_SKILL_ID = "skill.login-app-credentials"
 
 
 def main_browser(*, include_login: bool = False) -> dict[str, Any]:
@@ -52,9 +52,9 @@ def login_browser() -> dict[str, Any]:
         },
         "steps": [
             {"id": "open-signin", "action": "navigate", "value": "{{parameters.baseUrl}}/sign-in/email"},
-            {"id": "fill-email", "action": "fill", "target": "emailInput", "value": "{{credentials.feats.email}}"},
+            {"id": "fill-email", "action": "fill", "target": "emailInput", "value": "{{credentials.app.email}}"},
             {"id": "click-email", "action": "click", "target": "submit"},
-            {"id": "fill-password", "action": "fill", "target": "passwordInput", "value": "{{credentials.feats.password}}"},
+            {"id": "fill-password", "action": "fill", "target": "passwordInput", "value": "{{credentials.app.password}}"},
             {"id": "click-signin", "action": "click", "target": "submit"},
         ],
         "assertions": [
@@ -71,7 +71,7 @@ def implementation_payload(*, composed_main: bool = False) -> dict[str, Any]:
             "parameters": {"baseUrl": "https://app.example.test"},
         },
         "runtimeInputs": [{"name": "baseUrl", "required": True, "value": "https://app.example.test"}],
-        "credentialRefs": {"feats": {"source": "environment", "keys": {"email": "APP_TEST_EMAIL", "password": "APP_TEST_PASSWORD"}}},
+        "credentialRefs": {"app": {"source": "environment", "keys": {"email": "APP_TEST_EMAIL", "password": "APP_TEST_PASSWORD"}}},
         "skills": [
             {"path": MAIN_SKILL_PATH, "id": MAIN_SKILL_ID, "version": "1.0.0", "browser": main_browser(include_login=composed_main)},
             {"path": LOGIN_SKILL_PATH, "id": LOGIN_SKILL_ID, "version": "1.0.0", "browser": login_browser()},

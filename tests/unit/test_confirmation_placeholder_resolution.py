@@ -77,7 +77,7 @@ def test_unsupported_placeholder_namespace_blocks() -> None:
                 "id": "published-title-confirmed",
                 "type": "runtimeOutput",
                 "reference": "publishedProjectTitleText",
-                "expectedContains": "{{credentials.feats.password}}",
+                "expectedContains": "{{credentials.app.password}}",
             }
         ],
         {"projectTitle": "ProofSignal QA"},
@@ -86,5 +86,5 @@ def test_unsupported_placeholder_namespace_blocks() -> None:
     assert_placeholder_finding(
         findings[0],
         code="confirmation-placeholder-unsupported-namespace",
-        placeholder="{{credentials.feats.password}}",
+        placeholder="{{credentials.app.password}}",
     )

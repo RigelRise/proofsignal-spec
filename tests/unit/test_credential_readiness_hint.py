@@ -7,14 +7,14 @@ from proofsignal_spec.workspace.validation import validate_credential_readiness_
 
 def test_credential_readiness_hint_serializes_names_without_values(tmp_path) -> None:
     hint = CredentialReadinessHint(
-        credentialGroup="feats",
+        credentialGroup="app",
         expectedSource="environment",
         requiredRuntimeNames=["APP_TEST_EMAIL", "APP_TEST_PASSWORD"],
         preparationHint="Load credentials with your approved local wrapper before running ProofSignal.",
     )
 
     save_credential_readiness_hint(tmp_path, hint)
-    loaded = load_credential_readiness_hint(tmp_path, "feats")
+    loaded = load_credential_readiness_hint(tmp_path, "app")
 
     assert loaded
     assert loaded.valuesIncluded is False
@@ -24,7 +24,7 @@ def test_credential_readiness_hint_serializes_names_without_values(tmp_path) -> 
 
 def test_credential_readiness_hint_rejects_secret_like_values() -> None:
     hint = CredentialReadinessHint(
-        credentialGroup="feats",
+        credentialGroup="app",
         expectedSource="environment",
         requiredRuntimeNames=["APP_TEST_EMAIL"],
         preparationHint="APP_TEST_PASSWORD=super-secret-password-value",

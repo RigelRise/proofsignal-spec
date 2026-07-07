@@ -197,7 +197,6 @@ Recommended blocker codes:
 - Add receipt storage in user-scoped config/cache outside `.proofsignal/`.
 - Add raw token redaction and signed URL redaction fixtures.
 - Add runtime cache staging, safe extraction, verification, and atomic promote
-  behavior, using `readysignal-core` engine-fetcher as a reference pattern.
 - Add managed runtime readiness integration to `init`, `check`, `run`,
   `validate`, `repair`, and integration guidance where Core is required.
 - Pass the receipt path to Core protected operations.

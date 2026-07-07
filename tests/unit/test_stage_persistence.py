@@ -347,7 +347,7 @@ def test_implement_preserves_executable_intent_and_runtime_input_values(tmp_path
     run_request = load_document(project / ".proofsignal/run-requests/search-people.yaml")
     skill = (project / ".proofsignal/skills/validate-search-people-flow.browser.md").read_text()
     assert run_request["parameters"]["baseUrl"] == "https://app.example.test"
-    assert run_request["parameters"]["happyPathQuery"] == "Thiago"
+    assert run_request["parameters"]["happyPathQuery"] == "Jordan"
     assert "wait-query" in skill
     assert "Execution Intent" in skill
 

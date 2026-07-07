@@ -16,7 +16,7 @@ def test_runtime_readiness_surfaces_credential_hint_without_reading_secret_file(
     save_credential_readiness_hint(
         tmp_path,
         CredentialReadinessHint(
-            credentialGroup="feats",
+            credentialGroup="app",
             expectedSource="environment",
             requiredRuntimeNames=["APP_TEST_EMAIL", "APP_TEST_PASSWORD"],
             preparationHint="Use the team-approved secret wrapper before validation.",

@@ -235,6 +235,18 @@ backend development, and tests:
 proofsignal init --here --integration codex --api-base-url http://localhost:3000/api
 ```
 
+External users never need access to the private ProofSignal Core repository:
+the managed runtime flow above downloads a signed Core package after the email
+unlock. The runtime command is resolved in this order:
+
+1. Explicit `--core-cmd` flag.
+2. Workspace-persisted command (`proofsignal core setup`).
+3. `PROOFSIGNAL_CORE_CMD` environment variable.
+4. `proofsignal-core` on `PATH`.
+5. A sibling `proofsignal` repository checkout (maintainers only).
+6. Managed download from the entitlement API, pinned by
+   `PROOFSIGNAL_CORE_VERSION` or the workspace-persisted core version.
+
 For local development with the private ProofSignal Core repository, pass the
 repository directory directly. ProofSignal will run Core through
 `npm --silent --prefix <repo> run proofsignal:dev -- ...`.

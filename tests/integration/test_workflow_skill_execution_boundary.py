@@ -41,7 +41,7 @@ def test_compose_login_into_main(tmp_path, monkeypatch) -> None:
     assert "fill-email" in main_skill
     assert "open-brands" in main_skill
     assert main_skill.index("open-signin") < main_skill.index("open-brands")
-    assert "{{credentials.feats.password}}" in main_skill
+    assert "{{credentials.app.password}}" in main_skill
     assert "APP_TEST_PASSWORD" not in main_skill
 
 

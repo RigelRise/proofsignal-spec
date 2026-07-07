@@ -11,7 +11,7 @@ def test_missing_credential_blocker_includes_group_names_runtime_names_and_hint(
     save_credential_readiness_hint(
         tmp_path,
         CredentialReadinessHint(
-            credentialGroup="feats",
+            credentialGroup="app",
             expectedSource="environment",
             requiredRuntimeNames=["APP_TEST_EMAIL", "APP_TEST_PASSWORD"],
             preparationHint="Use your chosen secret manager wrapper before validation.",
@@ -23,8 +23,8 @@ def test_missing_credential_blocker_includes_group_names_runtime_names_and_hint(
     result = evaluate_runtime_readiness(tmp_path, "brands-search-authenticated").to_dict()
 
     assert result["status"] == "blocked"
-    assert "runtime.credential-missing.feats" in result["findingIds"]
-    assert result["credentialReadiness"][0]["credentialGroup"] == "feats"
+    assert "runtime.credential-missing.app" in result["findingIds"]
+    assert result["credentialReadiness"][0]["credentialGroup"] == "app"
     assert result["credentialReadiness"][0]["requiredRuntimeNames"] == ["APP_TEST_EMAIL", "APP_TEST_PASSWORD"]
     assert result["credentialReadiness"][0]["valuesIncluded"] is False
     assert "secret manager wrapper" in result["credentialReadiness"][0]["preparationHint"]

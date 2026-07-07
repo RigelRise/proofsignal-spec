@@ -148,7 +148,7 @@ def test_validation_readiness_uses_managed_runtime_discovery_not_spec_cli_on_pat
     from tests.helpers import FAKE_CORE
 
     workspace_root = tmp_path / "workspace"
-    project = workspace_root / "Feats" / "fe-feats"
+    project = workspace_root / "Demo" / "web-app"
     project.mkdir(parents=True)
     create_main_skill_coverage_workspace(project)
     shutil.copy2(FAKE_CORE, workspace_root / "proofsignal")

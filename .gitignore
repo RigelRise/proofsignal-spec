@@ -22,3 +22,15 @@ Thumbs.db
 .env
 .env.*
 *.log
+
+# internal spec-kit feature specs stay local; golden-path features are the
+# deliberate public exception
+specs/*
+!specs/009-golden-path-productization/
+!specs/010-golden-path-onboarding/
+!specs/023-auto-loop/
+
+# local run evidence and workspaces must never be committed
+runs/
+.proofsignal/
+uv.lock

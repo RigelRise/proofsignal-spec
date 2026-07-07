@@ -152,7 +152,7 @@ def test_validate_cli_with_override_core_uses_cached_entitlement_receipt(tmp_pat
 
 
 def test_validate_cli_with_ancestor_sibling_core_reports_cached_entitlement(tmp_path, monkeypatch) -> None:
-    project = tmp_path / "Feats" / "fe-feats"
+    project = tmp_path / "Demo" / "web-app"
     project.mkdir(parents=True)
     write_fake_core_executable(project.parent / "proofsignal", mode="requires-entitlement")
     monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))

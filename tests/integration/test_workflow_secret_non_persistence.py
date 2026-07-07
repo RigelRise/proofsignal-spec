@@ -40,7 +40,7 @@ def test_credential_readiness_hint_rejects_env_assignment_secret_text(tmp_path) 
             "questions": [],
             "credentialReadinessHints": [
                 {
-                    "credentialGroup": "feats",
+                    "credentialGroup": "app",
                     "expectedSource": "environment",
                     "requiredRuntimeNames": ["APP_TEST_EMAIL", "APP_TEST_PASSWORD"],
                     "preparationHint": "APP_TEST_PASSWORD=super-secret-password-value",
