@@ -1,307 +1,220 @@
-# ProofSignal Spec
+# ProofSignal
 
-ProofSignal Spec is the public/open interface layer for writing, validating,
-running, and repairing ProofSignal browser use cases. The user-facing command is
-`proofsignal`; `proofsignal-spec` remains a backward-compatible alias.
+**AI writes the validation. A deterministic runtime proves it.**
 
-The CLI creates a `.proofsignal/` workspace in a target repository, installs
-Codex or Claude Code agent skills, stores use case records, resolves aliases to
-explicit ProofSignal run requests and reusable skills, and delegates validation,
-run execution, and report inspection to the private ProofSignal runtime through
-the public `proofsignal-public-cli-json/v1` CLI JSON contract.
+ProofSignal turns product flows — login, checkout, onboarding — into approved,
+repeatable browser validations with evidence, starting from your repository.
+Your coding agent (Claude Code or Codex) authors and repairs the validation;
+the ProofSignal runtime executes it deterministically and leaves an auditable
+evidence trail. There is no AI at execution time: pass/fail comes only from
+validated, explicit instructions.
 
-## Installation
+This repository is the open-source half of ProofSignal (Apache-2.0): the
+`proofsignal` CLI, the project-local `.proofsignal/` workspace, and the agent
+skills. The execution engine (ProofSignal Core) is a signed package the CLI
+downloads and caches automatically on first run — a free email unlock, no
+account and no separate install.
 
-Install directly from the official Git repository, pinned to a release tag:
+## Why ProofSignal
+
+AI-assisted development ships changes faster than anyone can manually recheck
+the flows they touch. The existing answers trade away either speed or trust:
+hand-written browser suites become a maintenance backlog, and an AI agent
+clicking around your app gives you speed without stable, reviewable proof.
+
+ProofSignal splits the work by what each side is good at:
+
+- **Agents author, humans approve.** Your coding agent drafts use cases,
+  grounds selectors against the live DOM, and proposes repairs — through
+  contract-driven, staged commands with explicit escalation stops.
+- **Execution is deterministic.** Runs execute a fixed, validated action set
+  with no inference, so a green result means the same thing every time.
+- **Evidence over green checkmarks.** Every run produces a structured report,
+  screenshots, and a network log — proof you can review, share, and audit.
+- **Side-effect safety.** Write flows require declared side-effect policies,
+  are observed at runtime, and gate reruns on previous outcomes, so a
+  validation never silently mutates data it should not.
+
+ProofSignal does not replace your test suite or CI. It turns manual product
+validation into repeatable proof.
+
+## Quickstart
+
+You will need:
+
+- [uv](https://docs.astral.sh/uv/) (or pipx) and Python 3.11+
+- Node.js 24+ (runs the downloaded runtime)
+- Playwright Chromium for browser execution
+  (`npx playwright install chromium` if you do not already have it)
+- A valid email address for the free runtime unlock — no account required
+
+Install the CLI:
 
 ```sh
-uv tool install proofsignal --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
-```
-
-Or install the latest commit from the default branch:
-
-```sh
-uv tool install proofsignal --from git+https://github.com/<ORG>/proofsignal-spec.git
-```
-
-Then verify the tool:
-
-```sh
+uv tool install proofsignal-spec --from git+https://github.com/RigelRise/proofsignal-spec.git
 proofsignal --version
 ```
 
-Upgrade by reinstalling from the desired tag:
+(With pipx: `pipx install 'proofsignal-spec @ git+https://github.com/RigelRise/proofsignal-spec.git'`.)
+
+Initialize a workspace in your project. `init` asks for your email, sends a
+free unlock code, then downloads the runtime once and caches it under
+`~/.cache/proofsignal/` — outside your project:
 
 ```sh
-uv tool install proofsignal --force --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
-```
-
-Run once without a persistent install:
-
-```sh
-uvx --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z proofsignal init --here --integration codex
-```
-
-If this repository has not been published yet, install from a local checkout:
-
-```sh
-uv tool install proofsignal --from /path/to/proofsignal-spec
-```
-
-For development:
-
-```sh
-python -m pip install -e ".[dev]"
-```
-
-## Common Commands
-
-```sh
-proofsignal init --here --integration codex
+cd your-project
+proofsignal init --here --integration claude   # or: --integration codex
 proofsignal check
-proofsignal workflow info proofsignal-use-case --json
-proofsignal workflow check specify --json
-proofsignal workflow run proofsignal-use-case --goal "Validate that a QA user can sign in." --alias login
-proofsignal workflow status
-proofsignal author login "Validate that a QA user can sign in."
-proofsignal list
-proofsignal validate login --json
-proofsignal run login --profile normal --json
-proofsignal repair login --json
-proofsignal integration install claude
-proofsignal core version --json
 ```
 
-## Guided Workflow Commands
+`init` also installs ProofSignal skills into your coding agent. In the agent,
+run the whole flow with one command:
 
-After initialization, Codex and Claude Code integrations install the staged
-`/proofsignal-*` workflow commands:
+```text
+/proofsignal "Validate that a user can sign in against https://staging.example.com"
+```
+
+The agent drafts the use case from your source, grounds its selectors against
+the live app, validates, runs, and repairs — stopping only for real unknowns,
+missing credentials, or write side-effects. If the flow needs credentials,
+export them as environment variables before the run (for example `QA_USER` /
+`QA_PASSWORD`); ProofSignal reads them at run time and never writes them to
+disk. You can also drive the stages yourself:
 
 ```text
 /proofsignal-understand
-/proofsignal-specify login Validate that a QA user can sign in.
-/proofsignal-clarify login
+/proofsignal-specify login "Validate that a QA user can sign in."
 /proofsignal-plan login
-/proofsignal-tasks login
 /proofsignal-implement login
 /proofsignal-validate login
 /proofsignal-run login
 /proofsignal-repair login
 ```
 
-The canonical command identity uses dot notation, such as
-`proofsignal.plan`, while skill-based integrations render the invocable command
-as `/proofsignal-plan`. Legacy `proofsignal-spec-*` skills may remain installed
-for compatibility, but the preferred workflow commands are `/proofsignal-*`.
-
-The workflow stores reusable repository understanding globally and use-case
-snapshots under `.proofsignal/workflows/use-cases/<alias>/`. Structured state,
-not Markdown body text, drives status and resume behavior.
-
-Every staged `/proofsignal-*` command starts from the deterministic prerequisite
-check instead of guessing local state:
-
-```sh
-proofsignal workflow check specify --json
-proofsignal workflow check plan --alias login --json
-proofsignal workflow check run --alias login --json
-```
-
-`/proofsignal-specify` requires `.proofsignal/workflows/understanding.md` and
-`.proofsignal/product-context.yaml` before collecting use-case details. On a new
-workspace, the check returns Golden Path onboarding metadata so the integration
-can prepare safe repository understanding and resume first-run recommendation
-without asking the user to manually restart. If the understanding is stale by
-age or Git commit distance, the check recommends refreshing through
-`/proofsignal-understand`; declined refresh decisions are recorded without
-persisting credential values.
-
-Browser validation use cases must resolve the target application environment
-before executable planning. A staging URL, local start target, or equivalent
-browser target is treated as a prerequisite, so downstream planning and
-implementation should not emit empty `baseUrl`-style parameters after the target
-has been supplied.
-
-Validation supports a bounded runtime readiness check:
-
-```sh
-proofsignal validate login --runtime-readiness --json
-```
-
-Runtime readiness checks target resolution, syntactic target reachability,
-required runtime prerequisites, runtime authoring readiness, and public contract
-compatibility without running the full browser flow. If no override is
-configured, ProofSignal attempts to use a verified managed runtime from the user
-cache or acquire one through the official `https://proofsignal.io/api`
-entitlement and runtime-download contract after email-token unlock.
-
-`proofsignal list` is intentionally metadata-only. It separates historical
-`lastRun` from current readiness snapshots and never performs Core, network,
-credential, entitlement, target reachability, or browser checks in the normal
-list view. Use `proofsignal validate <alias> --runtime-readiness --json` or
-`proofsignal workflow check run --alias <alias> --json` for volatile readiness.
-
-Write use cases use canonical side-effect policy fields:
-`sideEffectPolicy.allowed[]` and `sideEffectPolicy.forbidden[]`. Legacy
-`sideEffectPolicy.rules[].effect/match` is compatibility input only and must be
-migrated or blocked with owner choices before run. Reviewed false-positive write
-outcomes are recorded through `proofsignal workflow supersede-write-outcome`,
-normal owner-approved reruns after committed writes are recorded through
-`proofsignal workflow approve-rerun`, and generated write identity bindings are
-tracked as `prepared/committed/discarded`.
-
-Credentialed use cases may store non-secret readiness hints such as credential
-group names, required runtime variable names, or user-managed preparation
-guidance. Hints are not executed automatically and must not contain credential
-values or env-file contents.
-
-Write and external-notification use cases declare side-effect lifecycle
-expectations, including cleanup policy and manual/external cleanup instructions
-when needed. Legacy side-effecting artifacts missing lifecycle or safety
-capability metadata require structured owner confirmation before run. When Core
-does not emit a structured side-effect envelope for a write run, Spec reports
-write activity conservatively as unknown or inferred rather than treating the
-absence as proof that no side effect occurred.
-
-Write reruns also declare a Spec-owned `resourceIdentity`. The identity records
-the use-case-owned resource type, identity strategy, identity input or
-post-commit binding, collision policy, and target scope. Generated runtime
-inputs are materialized once per prepared run and reused by every same-run
-reference. For reruns that require fresh inputs, Spec preserves the readable
-seed plus a run-attempt token derived from the prepared run id, then checks the
-generated identity value against locally recorded committed bindings for the
-same use case and target before delegating to Core. A collision blocks before
-browser execution with repair guidance instead of requiring manual edits to run
-state.
-
-Confirmation expected values may reference safe runtime parameters with
-`{{parameters.<name>}}`. Spec resolves those placeholders into concrete values
-in the prepared Core-facing run request. Missing parameters, credential
-namespaces, unsupported namespaces, or secret-looking resolved values block
-before browser execution. Literal expected values such as `/project/` are
-preserved unchanged.
-
-Generated values remain run-scoped unless a use case explicitly publishes a
-non-secret named output, such as a created resource URL. Later use cases may
-resolve only those published named outputs; ordinary generated inputs are not
-global workspace state.
-
-## Golden Path
-
-The Golden Path applies to the first run only. It recommends the simplest stable
-real-target validation first, keeps branch-relevant or setup-heavy candidates as
-secondary choices, and strongly recommends accepting the first run before
-choosing deeper validations. Accepting starts a guided flow through authoring,
-validation, run, safe repair when needed, and final outcome. Direct strict pass
-and repaired strict pass both count as first-run success; skip returns the user
-to ordinary manual use-case selection. Integration install also prints next
-steps and writes local onboarding guidance.
-
-See [docs/golden-path.md](docs/golden-path.md) for Golden Path semantics,
-[docs/golden-path-troubleshooting.md](docs/golden-path-troubleshooting.md) for
-recovery guidance, and [docs/release-readiness.md](docs/release-readiness.md)
-for demo and release criteria.
-
-## Managed Runtime And Development Overrides
-
-The happy path does not require a separate Core install:
-
-```sh
-proofsignal init --here --integration codex
-proofsignal check
-```
-
-During onboarding, ProofSignal may ask for an email address, request token
-delivery through the official backend, then ask for the email unlock token. The
-backend owns token generation, email delivery, expiry, exchange limits,
-throttling, receipt signing, and runtime download authorization. The current
-public/free policy allows up to 3 token exchanges, at most 3 exchanges per hour,
-with a 30-day default token TTL. The raw email and token are process-local only;
-the token is exchanged for a signed entitlement receipt in the user cache and is
-not written to `.proofsignal/`, generated guides, blockers, logs, or cache
-metadata. Managed runtime packages are cached outside the target project, by
-default under `~/.cache/proofsignal/core/<version>/<platform>/`.
-
-The production API base URL defaults to:
+On a fresh workspace, ProofSignal first walks a *Golden Path*: it suggests the
+simplest stable flow in your repository and gets it to a green run before you
+add deeper coverage ([details](docs/golden-path.md)). When a run goes green,
+evidence lands in `.proofsignal/runs/<alias>/<run-id>/`:
 
 ```text
-https://proofsignal.io/api
+.proofsignal/runs/login/request_login_1780303629096/
+├── report.md            # human-readable result, step by step
+├── report.json          # machine-readable result (qa-report/v1)
+├── browser/screenshots/ # captured evidence per step
+└── browser/network.ndjson
 ```
 
-Use `--api-base-url` or `PROOFSIGNAL_API_BASE_URL` only for staging, local
-backend development, and tests:
+`report.md` explains what passed, what failed and why, which gates were
+covered, and links each claim to its evidence — a result you can review and
+share, not just a green checkmark.
+
+## How it works
+
+```
+your repository
+└── .proofsignal/            project-local workspace (use cases, skills, state)
+      │
+      ▼
+proofsignal CLI (this repo, Apache-2.0)
+  authoring · validation gates · workflow state · side-effect policy · repair
+      │  versioned public JSON contract
+      ▼
+ProofSignal Core runtime (signed managed download)
+  deterministic browser execution · evidence capture · redaction
+      │
+      ▼
+.proofsignal/runs/<alias>/<run-id>/   report.md · report.json · screenshots · network log
+```
+
+- **This repo** owns authoring, guided workflows, use-case records, readiness
+  checks, side-effect and credential guardrails, and repair orchestration. It
+  talks to the runtime only through the versioned
+  `proofsignal-public-cli-json/v1` contract — never private internals.
+- **The Core runtime** owns execution: it validates artifacts, drives the
+  browser through a fixed action set, enforces declared side-effect policies
+  at runtime, and writes redacted evidence.
+- Every subcommand supports `--json`. Exit codes are stable: `0` success,
+  `2` validation failed, `3` core failed, `4` approval required,
+  `5` input missing.
+
+## Safety guarantees
+
+- **Secret safety.** Credential values are resolved from your environment at
+  run time and are never persisted — not in `.proofsignal/`, reports, logs,
+  guides, or cache metadata. Tokens, receipts, and signed URLs are redacted
+  from all output.
+- **Write-flow guardrails.** Write and external-notification use cases declare
+  `sideEffectPolicy.allowed[]`/`forbidden[]`, a resource identity, and cleanup
+  expectations. Violations block or fail the run; reruns after a committed
+  write require explicit approval.
+- **The runtime wins.** When the deterministic runtime and the agent disagree,
+  grounded selectors and run results override anything the agent believes it
+  saw in the browser. Agents are instructed to stop and ask rather than invent
+  selectors or skip failed coverage.
+
+## CLI overview
+
+| Command | Purpose |
+| --- | --- |
+| `proofsignal init --here --integration claude\|codex` | Create `.proofsignal/` and install agent skills |
+| `proofsignal check` | Workspace, runtime, and entitlement readiness |
+| `proofsignal author <alias> "<description>"` | Register a use case |
+| `proofsignal list` | List use cases (metadata only, no network) |
+| `proofsignal validate <alias> [--runtime-readiness]` | Authoring gates; optional runtime readiness |
+| `proofsignal run <alias> [--profile <name>]` | Execute and capture evidence (default profiles: `normal`, `debug`, `browser`) |
+| `proofsignal repair <alias> [--from-report ...]` | Classify findings and propose repairs |
+| `proofsignal discover --url <url> --skill <path>` | Ground drafted selectors against the live DOM |
+| `proofsignal workflow ...` | Staged workflow engine (check/run/persist/status/...) |
+| `proofsignal core version\|setup` | Inspect or configure the Core runtime |
+| `proofsignal integration ...` | Manage installed agent integrations |
+
+## The managed runtime
+
+The happy path needs no separate Core install: the CLI downloads a signed
+runtime package after the email unlock and caches it per version and platform
+under `~/.cache/proofsignal/core/`. Unlock tokens are single-use and
+rate-limited; the raw email and token stay process-local and are never written
+into your project.
+
+The runtime can be overridden for development and CI (`--core-cmd`,
+`proofsignal core setup`, `PROOFSIGNAL_CORE_CMD`) — see the
+[installation reference](docs/installation.md) for the full resolution order.
+Custom runtimes still go through the same entitlement check; the CLI reuses
+your cached receipt automatically.
+
+Everything ProofSignal manages lives under `.proofsignal/`: use cases,
+generated run requests, reusable skills, guided workflow state, and run
+evidence. Linked external artifacts are marked `generated: false` and never
+overwritten, and agents write staged workflow artifacts only through
+`proofsignal workflow persist` — never by hand-editing managed files.
+
+## Documentation
+
+- [Golden Path](docs/golden-path.md) — first-run semantics and guarantees
+- [Golden Path troubleshooting](docs/golden-path-troubleshooting.md)
+- [Installation reference](docs/installation.md) — installs, upgrades, runtime overrides
+- [Managed runtime and entitlement architecture](docs/managed-runtime-entitlement-handoff.md)
+- [Release readiness criteria](docs/release-readiness.md)
+
+## Getting help
+
+- Bugs and feature requests: [GitHub Issues](https://github.com/RigelRise/proofsignal-spec/issues)
+- First-run problems: start with [Golden Path troubleshooting](docs/golden-path-troubleshooting.md)
+- Security reports: please use
+  [GitHub private vulnerability reporting](https://github.com/RigelRise/proofsignal-spec/security/advisories/new)
+  instead of a public issue
+
+## Development
 
 ```sh
-proofsignal init --here --integration codex --api-base-url http://localhost:3000/api
+python -m pip install -e ".[dev]"
+python -m pytest
 ```
 
-External users never need access to the private ProofSignal Core repository:
-the managed runtime flow above downloads a signed Core package after the email
-unlock. The runtime command is resolved in this order:
+The test suite includes a full fake Core implementing the public contract, so
+this repo develops and tests against the contract without the private runtime.
+An optional integration test exercises a real Core package when one is present.
 
-1. Explicit `--core-cmd` flag.
-2. Workspace-persisted command (`proofsignal core setup`).
-3. `PROOFSIGNAL_CORE_CMD` environment variable.
-4. `proofsignal-core` on `PATH`.
-5. A sibling `proofsignal` repository checkout (maintainers only).
-6. Managed download from the entitlement API, pinned by
-   `PROOFSIGNAL_CORE_VERSION` or the workspace-persisted core version.
+## License
 
-For local development with the private ProofSignal Core repository, pass the
-repository directory directly. ProofSignal will run Core through
-`npm --silent --prefix <repo> run proofsignal:dev -- ...`.
-
-```sh
-proofsignal init --here --integration codex \
-  --core-cmd /path/to/proofsignal
-
-proofsignal core version --json
-proofsignal check
-```
-
-Do not run `proofsignal version --json` in this setup unless you have installed
-a separate internal runtime executable intentionally named that way. Use
-`proofsignal core version --json` to verify the configured runtime.
-
-You can also use an explicit command string:
-
-```sh
-export PROOFSIGNAL_CORE_CMD="npm --silent --prefix /path/to/proofsignal run proofsignal:dev --"
-proofsignal check
-```
-
-`PROOFSIGNAL_CORE_CMD` is read by `proofsignal`; it does not create a shell
-command named `proofsignal-core`.
-
-Core overrides are execution/discovery conveniences for development,
-diagnostics, CI, and restricted-network environments. They do not count as
-managed entitlement success. If an override-selected runtime enforces
-entitlement for a protected operation, ProofSignal passes the cached receipt
-reference when available or reports Core's public entitlement rejection as a
-non-repairable runtime blocker.
-
-## Workspace Rules
-
-- The canonical workspace is `.proofsignal/`.
-- Each use case record lives under `.proofsignal/use-cases/`.
-- Generated run requests live under `.proofsignal/run-requests/`.
-- Generated reusable skills live under `.proofsignal/skills/` and can be shared
-  by multiple run requests.
-- Guided workflow state lives under `.proofsignal/workflows/`.
-- Each use case references exactly one run request.
-- Linked external artifacts are marked `generated: false` and are not copied or
-  overwritten by default.
-- Credential values are never persisted.
-
-## Core Boundary
-
-ProofSignal Spec does not import private ProofSignal Core packages or inspect
-undocumented report internals. Runtime-dependent workflows check the selected
-runtime with `proofsignal-core version --json` through the adapter and require
-the `proofsignal-public-cli-json/v1` operations:
-`version`, `authoring-check`, `run`, and `report.inspect`.
-
-Repair classifies validation and runtime feedback before proposing edits.
-Deterministic contract or metadata repairs can be auto-applied with approval;
-selector, flow, data, and coverage changes require explicit confirmation and
-must not be used as random rewrites around unclear product state.
+[Apache License 2.0](LICENSE)

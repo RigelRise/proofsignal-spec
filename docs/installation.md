@@ -9,13 +9,13 @@ generated guidance.
 Install a tagged release:
 
 ```sh
-uv tool install proofsignal --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
+uv tool install proofsignal-spec --from git+https://github.com/RigelRise/proofsignal-spec.git@vX.Y.Z
 ```
 
 Install the latest commit from the default branch:
 
 ```sh
-uv tool install proofsignal --from git+https://github.com/<ORG>/proofsignal-spec.git
+uv tool install proofsignal-spec --from git+https://github.com/RigelRise/proofsignal-spec.git
 ```
 
 Verify:
@@ -28,7 +28,7 @@ proofsignal --help
 Upgrade:
 
 ```sh
-uv tool install proofsignal --force --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z
+uv tool install proofsignal-spec --force --from git+https://github.com/RigelRise/proofsignal-spec.git@vX.Y.Z
 ```
 
 Uninstall:
@@ -42,7 +42,7 @@ uv tool uninstall proofsignal
 Run without installing permanently:
 
 ```sh
-uvx --from git+https://github.com/<ORG>/proofsignal-spec.git@vX.Y.Z proofsignal init --here --integration codex
+uvx --from git+https://github.com/RigelRise/proofsignal-spec.git@vX.Y.Z proofsignal init --here --integration codex
 ```
 
 ## Initialize A Real Project
@@ -191,7 +191,7 @@ runtime's public entitlement rejection as a non-repairable blocker.
 If the repository has not been published yet:
 
 ```sh
-uv tool install proofsignal --from /path/to/proofsignal-spec
+uv tool install proofsignal-spec --from /path/to/proofsignal-spec
 ```
 
 For development inside this repository:
@@ -201,3 +201,24 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
 ```
+
+## Core Runtime Resolution Order
+
+The runtime command is resolved in this order:
+
+1. Explicit `--core-cmd` flag.
+2. Workspace-persisted command (`proofsignal core setup`).
+3. `PROOFSIGNAL_CORE_CMD` environment variable.
+4. `proofsignal-core` on `PATH`.
+5. A local Core development checkout (maintainers only).
+6. Managed download from the entitlement API, pinned by
+   `PROOFSIGNAL_CORE_VERSION` or the workspace-persisted core version.
+
+Overrides are development and CI conveniences; they do not count as managed
+entitlement success. If an override-selected runtime enforces entitlement for a
+protected operation, the CLI passes the cached receipt when available or
+surfaces the runtime's public entitlement blocker.
+
+The CLI requires the public contract operations `version`, `contracts`,
+`authoring-check`, `run`, and `report.inspect`; `discover` is used when the
+runtime advertises it.

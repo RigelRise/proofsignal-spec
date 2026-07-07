@@ -8,8 +8,8 @@ version = "0.18.0"
 description = "Project-local CLI and coding-agent interface for ProofSignal use cases."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
-authors = [{ name = "ProofSignal Spec maintainers" }]
+license = { text = "Apache-2.0" }
+authors = [{ name = "Thiago Valentim" }]
 dependencies = [
   "typer>=0.12",
   "rich>=13",
