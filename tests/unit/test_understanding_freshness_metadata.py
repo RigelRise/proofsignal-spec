@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import UnderstandingFreshnessState
+from verifysignal_spec.workspace.models import UnderstandingFreshnessState
 
 
 def test_stale_inventory_context_blocks_for_refresh() -> None:

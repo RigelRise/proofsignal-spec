@@ -5,13 +5,13 @@
 
 ## Summary
 
-Productize the first ProofSignal Spec experience so a new user is strongly guided
+Productize the first VerifySignal Spec experience so a new user is strongly guided
 to run the simplest stable validation candidate on a real target they care about,
 sees each stage in a polished agent-chat-first format, and reaches a strict
 validated pass directly or after a transparent safe repair cycle.
 
-The technical approach keeps ProofSignal Core behind the public CLI JSON
-contract. ProofSignal Spec owns first-run candidate ranking, first-run state,
+The technical approach keeps VerifySignal Core behind the public CLI JSON
+contract. VerifySignal Spec owns first-run candidate ranking, first-run state,
 stage-card presentation data, strict-pass classification, safe mechanical repair
 autonomy, and generated agent guidance. Core continues to execute browser runs,
 perform authoring checks, and inspect reports through documented operations only.
@@ -23,7 +23,7 @@ artifacts; generated Codex and Claude agent instructions.
 **Primary Dependencies**: Existing argparse CLI, pydantic-style dataclasses,
 PyYAML, packaging, pathspec, pytest, Rich dependency already declared; no new
 runtime dependency planned.
-**Storage**: Project-local `.proofsignal/` workspace records, product context,
+**Storage**: Project-local `.verifysignal/` workspace records, product context,
 use-case records, run requests, skills, run history, repair sessions, and
 generated `specs/009-golden-path-productization/` design artifacts.
 **Testing**: pytest contract, unit, and integration tests with temporary target
@@ -45,15 +45,15 @@ undocumented report internals; real-target-first user journey; no fake/demo
 target as user fallback; no ad hoc run-time `--baseUrl` override; no persisted
 credential values; raw logs cannot be the primary UX; required gates cannot be
 weakened by repair without explicit recorded intent change.
-**Scale/Scope**: Multiple target projects, each with one `.proofsignal/`
+**Scale/Scope**: Multiple target projects, each with one `.verifysignal/`
 workspace, many candidate use cases, one recommended first-run candidate at a
 time, and reusable skills shared across run requests.
 
-**ProofSignal Core Public Contract**: This feature depends on
-`proofsignal-public-cli-json/v1`. Required Core operations are `version`,
+**VerifySignal Core Public Contract**: This feature depends on
+`verifysignal-public-cli-json/v1`. Required Core operations are `version`,
 `authoring-check`, `run`, and `report.inspect`. Required schemas are
-`proofsignal.version/v1`, `proofsignal.authoring-check/v1`,
-`proofsignal.run/v1`, and `proofsignal.report-inspection/v1`. Missing or
+`verifysignal.version/v1`, `verifysignal.authoring-check/v1`,
+`verifysignal.run/v1`, and `verifysignal.report-inspection/v1`. Missing or
 incompatible operations/schemas must produce classified blockers and must not
 fall back to private Core packages, installed package source inspection, or
 undocumented report internals.
@@ -67,7 +67,7 @@ undocumented report internals.
   workflow/Core JSON outputs only.
 - **Project-local workspace portability**: PASS. First-run recommendation,
   acceptance/skipped state, run status, repair feedback, and stage-card evidence
-  are derived from or recorded in `.proofsignal/` workspace records.
+  are derived from or recorded in `.verifysignal/` workspace records.
 - **Secret safety**: PASS. Target URLs are treated as locators and scanned for
   secret-looking values. Credential values remain references or runtime-only
   inputs and are never persisted in recommendations, repair feedback, logs, or
@@ -105,7 +105,7 @@ specs/009-golden-path-productization/
 ### Source Code (repository root)
 
 ```text
-src/proofsignal_spec/
+src/verifysignal_spec/
 |-- commands/
 |   |-- workflow.py
 |   |-- run.py

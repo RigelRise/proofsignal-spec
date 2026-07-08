@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from proofsignal_spec.workflows.models import AgentChatStageCard
-from proofsignal_spec.workflows.stage_cards import build_stage_card
+from verifysignal_spec.workflows.models import AgentChatStageCard
+from verifysignal_spec.workflows.stage_cards import build_stage_card
 
 
 def test_stage_card_requires_known_status_marker_and_required_fields() -> None:
@@ -12,7 +12,7 @@ def test_stage_card_requires_known_status_marker_and_required_fields() -> None:
         title="Recommended First Run",
         statusMarker="[RECOMMENDED]",
         summary="home-page-unauth is the safest first validation.",
-        whyItMatters="It proves ProofSignal on a stable real user-facing page.",
+        whyItMatters="It proves VerifySignal on a stable real user-facing page.",
         primaryEvidence="Ranked #1 because it needs no credentials and has simple rendered evidence.",
         nextAction="Ask the user to accept or skip.",
     )

@@ -23,4 +23,4 @@
 - Added fail-closed blockers for missing or malformed Core executable contract
   sections and legacy executable artifact schemas.
 - Kept Core contract projections ephemeral per command; no Core contract
-  snapshots are persisted into target `.proofsignal/` workspaces.
+  snapshots are persisted into target `.verifysignal/` workspaces.

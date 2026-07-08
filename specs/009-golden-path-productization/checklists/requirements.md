@@ -31,4 +31,4 @@
 
 ## Notes
 
-- Validation passed on initial review. The specification intentionally names ProofSignal workflow concepts because they are user-facing product concepts.
+- Validation passed on initial review. The specification intentionally names VerifySignal workflow concepts because they are user-facing product concepts.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.first_run import evaluate_first_run_ideal_criteria, score_first_run_candidates
-from proofsignal_spec.workflows.models import CandidateValidationUseCase, FirstRunCandidate
+from verifysignal_spec.workflows.first_run import evaluate_first_run_ideal_criteria, score_first_run_candidates
+from verifysignal_spec.workflows.models import CandidateValidationUseCase, FirstRunCandidate
 
 
 def test_public_read_only_rendered_candidate_beats_credential_write_candidate() -> None:

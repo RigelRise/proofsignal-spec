@@ -2,22 +2,22 @@
 
 ## Purpose
 
-Define how ProofSignal Spec chooses the first Golden Path run. This contract
+Define how VerifySignal Spec chooses the first Golden Path run. This contract
 separates "best first run" from branch relevance, product priority, or recent
 git activity.
 
 ## CLI surface
 
 ```text
-proofsignal-spec workflow recommend-first-run --project <path> --json
+verifysignal-spec workflow recommend-first-run --project <path> --json
 ```
 
-This command is read-only. It may inspect project-local `.proofsignal/`
+This command is read-only. It may inspect project-local `.verifysignal/`
 understanding state and safe product context. It must not execute browser runs.
 
 ## JSON shape
 
-`schemaVersion`: `proofsignal-spec-first-run-recommendation/v1`
+`schemaVersion`: `verifysignal-spec-first-run-recommendation/v1`
 
 Required fields:
 

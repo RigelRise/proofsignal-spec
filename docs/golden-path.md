@@ -1,6 +1,6 @@
 # Golden Path
 
-The Golden Path is the first ProofSignal Spec experience for a new project. It
+The Golden Path is the first VerifySignal Spec experience for a new project. It
 guides the user toward the simplest stable validation candidate on a real target
 they care about, asks them to accept or skip that recommendation, and presents
 each step with clear agent-chat stage cards.
@@ -50,10 +50,10 @@ Expected guided stages:
 
 ## Missing Understanding
 
-When `/proofsignal-specify` starts in a clean repository, the prerequisite check
+When `/verifysignal-specify` starts in a clean repository, the prerequisite check
 returns auto-prepare metadata. The integration should inspect safe public
 project structure, persist repository understanding, and resume first-run
-recommendation without requiring the user to invoke `/proofsignal-specify`
+recommendation without requiring the user to invoke `/verifysignal-specify`
 again. Sensitive files and credential-bearing configuration remain out of scope
 unless the user explicitly approves access.
 

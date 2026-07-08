@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
-from proofsignal_spec.commands import policy as policy_command
-from proofsignal_spec.workspace.repository import load_use_case
+from verifysignal_spec.commands import policy as policy_command
+from verifysignal_spec.workspace.repository import load_use_case
 from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace
 
 
@@ -20,7 +20,7 @@ def test_policy_set_class_none_updates_record_and_run_request_without_touching_p
     # runtimeInputs preserved (no skill round-trip)
     assert [item.name for item in record.runtimeInputs] == ["baseUrl", "resourceName"]
     # run-request re-synced so a later `run` honors the new class, AND parameters preserved
-    run_request = json.loads((tmp_path / ".proofsignal/run-requests/add-collaboration-project.yaml").read_text())
+    run_request = json.loads((tmp_path / ".verifysignal/run-requests/add-collaboration-project.yaml").read_text())
     assert run_request["sideEffectPolicy"]["class"] == "none"
     assert run_request["parameters"]["baseUrl"] == "https://example.test"
 
@@ -45,7 +45,7 @@ def test_policy_set_class_write_without_resource_identity_blocks(tmp_path) -> No
 
 
 def test_policy_set_via_cli(tmp_path, capsys) -> None:
-    from proofsignal_spec.cli import main
+    from verifysignal_spec.cli import main
 
     create_live_write_readiness_workspace(tmp_path)
     code = main(["policy", "set", "add-collaboration-project", "--class", "none", "--project", str(tmp_path), "--json"])

@@ -16,7 +16,7 @@ class FirstRunRecommendationContractTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         data = json.loads(out)
-        self.assertEqual(data["schemaVersion"], "proofsignal-spec-first-run-recommendation/v1")
+        self.assertEqual(data["schemaVersion"], "verifysignal-spec-first-run-recommendation/v1")
         self.assertEqual(data["status"], "ready")
         self.assertEqual(data["targetStatus"], "resolved")
         self.assertEqual(data["recommendedCandidate"]["alias"], PUBLIC_ALIAS)
@@ -31,7 +31,7 @@ class FirstRunRecommendationContractTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         data = json.loads(out)
-        self.assertEqual(data["schemaVersion"], "proofsignal-spec-guided-first-run/v1")
+        self.assertEqual(data["schemaVersion"], "verifysignal-spec-guided-first-run/v1")
         self.assertEqual(data["status"], "accepted")
         self.assertEqual(data["stage"], "accepted")
         self.assertEqual(data["selectedCandidate"], PUBLIC_ALIAS)
@@ -44,7 +44,7 @@ class FirstRunRecommendationContractTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         data = json.loads(out)
-        self.assertEqual(data["schemaVersion"], "proofsignal-spec-guided-first-run/v1")
+        self.assertEqual(data["schemaVersion"], "verifysignal-spec-guided-first-run/v1")
         self.assertEqual(data["status"], "skipped")
         self.assertEqual(data["stage"], "skipped")
         self.assertIn("not success", data["skipMeaning"])

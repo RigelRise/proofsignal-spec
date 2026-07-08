@@ -7,8 +7,8 @@
 
 ## Constitution Alignment *(mandatory)*
 
-- **Public Core boundary**: First-run onboarding must use only public ProofSignal
-  Spec and ProofSignal Core command results. It must not depend on private Core
+- **Public Core boundary**: First-run onboarding must use only public VerifySignal
+  Spec and VerifySignal Core command results. It must not depend on private Core
   packages, private report internals, or assistant-only heuristics.
 - **Project-local workspace portability**: First-run recommendation, acceptance,
   skip, and outcome state must remain project-local and portable across supported
@@ -38,7 +38,7 @@
 
 ### User Story 1 - Product-owned first-run recommendation (Priority: P1)
 
-A new user asks ProofSignal to start specifying validations in an existing
+A new user asks VerifySignal to start specifying validations in an existing
 repository. The product identifies the simplest reliable existing behavior as
 the recommended first run, explains why accepting it is highly recommended, and
 keeps more complex or branch-specific suggestions visible as secondary choices.
@@ -82,7 +82,7 @@ recommendation without repeated manual approvals.
 where the product needs to feel guided. Missing understanding is normal for a
 new workspace and should be handled as part of onboarding.
 
-**Independent Test**: Start from a clean target repository with no ProofSignal
+**Independent Test**: Start from a clean target repository with no VerifySignal
 understanding artifacts and run the specify flow. The user should reach the
 first-run recommendation with at most one explicit approval for safe inspection.
 
@@ -198,7 +198,7 @@ inspected sources.
   candidates separately from the first-run recommendation.
 - **FR-006**: The system MUST present the recommended first run with an
   assertive explanation that accepting it is highly recommended for the first
-  ProofSignal experience, while making it clear that the user can choose other
+  VerifySignal experience, while making it clear that the user can choose other
   use cases afterward.
 - **FR-007**: The system MUST allow the user to accept or skip the golden path
   and MUST record that choice in project-local state.
@@ -305,12 +305,12 @@ inspected sources.
 
 ## Assumptions
 
-- The primary first-run user is new to ProofSignal and is evaluating whether the
+- The primary first-run user is new to VerifySignal and is evaluating whether the
   product can produce a trustworthy browser validation from their existing app.
 - A useful first run should favor confidence and demonstration value over
   maximum business importance.
 - Safe local repository inspection may read ordinary source, project metadata,
-  and generated ProofSignal workspace files, but not local secret files without
+  and generated VerifySignal workspace files, but not local secret files without
   explicit user approval.
 - Existing workflow stages, manual use-case selection, and repair semantics
   remain available; this feature improves the onboarding path rather than

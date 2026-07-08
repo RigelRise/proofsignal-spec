@@ -53,7 +53,7 @@ The product-owned recommendation shown before the first run.
 
 **Fields**
 
-- `schemaVersion`: `proofsignal-spec-first-run-recommendation/v1`.
+- `schemaVersion`: `verifysignal-spec-first-run-recommendation/v1`.
 - `status`: `ready`, `blocked`, `skipped`, or `unavailable`.
 - `recommendedCandidate`: Top candidate when ready.
 - `rankedCandidates`: Ordered `FirstRunCandidateScore` entries.
@@ -165,7 +165,7 @@ inspection/reset boundary for that state.
 
 **Fields**
 
-- `schemaVersion`: `proofsignal-spec-golden-path-workspace-state/v1`.
+- `schemaVersion`: `verifysignal-spec-golden-path-workspace-state/v1`.
 - `status`: `ready`, `blocked`, `empty`, or `reset`.
 - `projectRoot`: Target project root path, shown in redacted or normalized form
   when necessary.
@@ -173,7 +173,7 @@ inspection/reset boundary for that state.
 - `ownedArtifacts`: Project-local artifacts created or updated by the golden
   path, including use-case records, run request, skills, run history,
   repair sessions, stage-card summaries, and generated guidance references.
-- `preservedArtifacts`: Existing or unrelated `.proofsignal/` artifacts that
+- `preservedArtifacts`: Existing or unrelated `.verifysignal/` artifacts that
   must not be modified by a golden-path reset.
 - `resetPreview`: Ordered list of changes a reset would apply.
 - `resumeHint`: Next safe command when the user stopped midway through the

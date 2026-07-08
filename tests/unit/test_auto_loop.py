@@ -3,11 +3,11 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from proofsignal_spec.core.adapter import CoreAdapter
-from proofsignal_spec.core.contracts import core_supports_discover
-from proofsignal_spec.integrations.base import WORKFLOW_COMMANDS, render_workflow_skill_files
-from proofsignal_spec.workflows.models import WORKFLOW_STAGES
-from proofsignal_spec.workflows.stage_persistence import PERSISTABLE_STAGES
+from verifysignal_spec.core.adapter import CoreAdapter
+from verifysignal_spec.core.contracts import core_supports_discover
+from verifysignal_spec.integrations.base import WORKFLOW_COMMANDS, render_workflow_skill_files
+from verifysignal_spec.workflows.models import WORKFLOW_STAGES
+from verifysignal_spec.workflows.stage_persistence import PERSISTABLE_STAGES
 
 
 class _CapturingAdapter(CoreAdapter):
@@ -47,18 +47,18 @@ class CoreSupportsDiscoverTests(unittest.TestCase):
     def test_true_when_discover_advertised(self) -> None:
         response = _version_response(
             [
-                {"name": "run", "schema": "proofsignal.run/v1"},
-                {"name": "discover", "schema": "proofsignal.discover/v1", "status": "experimental"},
+                {"name": "run", "schema": "verifysignal.run/v1"},
+                {"name": "discover", "schema": "verifysignal.discover/v1", "status": "experimental"},
             ]
         )
         self.assertTrue(core_supports_discover(response))
 
     def test_false_when_absent(self) -> None:
-        response = _version_response([{"name": "run", "schema": "proofsignal.run/v1"}])
+        response = _version_response([{"name": "run", "schema": "verifysignal.run/v1"}])
         self.assertFalse(core_supports_discover(response))
 
     def test_false_on_wrong_schema(self) -> None:
-        response = _version_response([{"name": "discover", "schema": "proofsignal.discover/v2"}])
+        response = _version_response([{"name": "discover", "schema": "verifysignal.discover/v2"}])
         self.assertFalse(core_supports_discover(response))
 
     def test_false_on_malformed(self) -> None:
@@ -67,11 +67,11 @@ class CoreSupportsDiscoverTests(unittest.TestCase):
 
 
 class AutoCommandRegistrationTests(unittest.TestCase):
-    def test_auto_installed_for_both_agents_as_bare_proofsignal(self) -> None:
+    def test_auto_installed_for_both_agents_as_bare_verifysignal(self) -> None:
         for agent, root in (("Claude", ".claude/skills"), ("Codex", ".agents/skills")):
             paths = [rendered.path for rendered in render_workflow_skill_files(root, agent)]
-            self.assertIn(f"{root}/proofsignal/SKILL.md", paths)
-            self.assertNotIn(f"{root}/proofsignal-auto/SKILL.md", paths)
+            self.assertIn(f"{root}/verifysignal/SKILL.md", paths)
+            self.assertNotIn(f"{root}/verifysignal-auto/SKILL.md", paths)
 
     def test_auto_is_a_command_not_a_persistable_stage(self) -> None:
         command_stages = [spec.stage for spec in WORKFLOW_COMMANDS]

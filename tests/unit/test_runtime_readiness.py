@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
-from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, save_document, save_use_case
+from verifysignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
+from verifysignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, save_document, save_use_case
 
 
 def _workspace_with_run_request(tmp_path, parameters: dict[str, str], *, workflow=None) -> None:
     init_workspace(tmp_path)
-    run_request = ".proofsignal/run-requests/profile.yaml"
-    skill = ".proofsignal/skills/profile.browser.md"
-    (tmp_path / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
-    (tmp_path / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
+    run_request = ".verifysignal/run-requests/profile.yaml"
+    skill = ".verifysignal/skills/profile.browser.md"
+    (tmp_path / ".verifysignal/run-requests").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".verifysignal/skills").mkdir(parents=True, exist_ok=True)
     save_document(
         tmp_path / run_request,
         {

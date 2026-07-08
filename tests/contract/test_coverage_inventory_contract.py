@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.coverage_inventory import inventory_needs_more_coverage, normalize_inventory
+from verifysignal_spec.workflows.coverage_inventory import inventory_needs_more_coverage, normalize_inventory
 
 
 def test_partial_inventory_more_scenarios_requires_follow_up_pass() -> None:

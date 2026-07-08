@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.repository import init_workspace
-from proofsignal_spec.workspace.repository import load_use_case
-from proofsignal_spec.workflows.engine import create_workflow_run, generate_tasks, plan_artifacts, specify
-from proofsignal_spec.workflows.prerequisites import check_prerequisites
-from proofsignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workspace.repository import init_workspace
+from verifysignal_spec.workspace.repository import load_use_case
+from verifysignal_spec.workflows.engine import create_workflow_run, generate_tasks, plan_artifacts, specify
+from verifysignal_spec.workflows.prerequisites import check_prerequisites
+from verifysignal_spec.workflows.stage_persistence import persist_stage
 from tests.fixtures.workflows.prerequisites import create_current_understanding_workspace
 
 
@@ -13,7 +13,7 @@ def test_clarify_missing_spec_points_to_specify(tmp_path) -> None:
     create_workflow_run(tmp_path, "Validate login.", alias="login", integration="codex")
     result = check_prerequisites(tmp_path, "clarify", alias="login")
     assert result["status"] == "missing"
-    assert result["nextCommand"] == "/proofsignal-specify login"
+    assert result["nextCommand"] == "/verifysignal-specify login"
 
 
 def test_plan_missing_spec_points_to_specify(tmp_path) -> None:
@@ -21,7 +21,7 @@ def test_plan_missing_spec_points_to_specify(tmp_path) -> None:
     create_workflow_run(tmp_path, "Validate login.", alias="login", integration="codex")
     result = check_prerequisites(tmp_path, "plan", alias="login")
     assert result["status"] == "missing"
-    assert result["nextCommand"] == "/proofsignal-specify login"
+    assert result["nextCommand"] == "/verifysignal-specify login"
 
 
 def test_tasks_missing_plan_points_to_plan(tmp_path) -> None:
@@ -30,7 +30,7 @@ def test_tasks_missing_plan_points_to_plan(tmp_path) -> None:
     specify(tmp_path, "login", "Validate login.")
     result = check_prerequisites(tmp_path, "tasks", alias="login")
     assert result["status"] == "missing"
-    assert result["nextCommand"] == "/proofsignal-plan login"
+    assert result["nextCommand"] == "/verifysignal-plan login"
 
 
 def test_implement_missing_tasks_points_to_tasks(tmp_path) -> None:
@@ -40,7 +40,7 @@ def test_implement_missing_tasks_points_to_tasks(tmp_path) -> None:
     plan_artifacts(tmp_path, "login")
     result = check_prerequisites(tmp_path, "implement", alias="login")
     assert result["status"] == "missing"
-    assert result["nextCommand"] == "/proofsignal-tasks login"
+    assert result["nextCommand"] == "/verifysignal-tasks login"
 
 
 def test_validate_missing_generated_artifacts_points_to_implement(tmp_path) -> None:
@@ -51,7 +51,7 @@ def test_validate_missing_generated_artifacts_points_to_implement(tmp_path) -> N
     generate_tasks(tmp_path, "login")
     result = check_prerequisites(tmp_path, "validate", alias="login")
     assert result["status"] == "missing"
-    assert result["nextCommand"] == "/proofsignal-implement login"
+    assert result["nextCommand"] == "/verifysignal-implement login"
 
 
 def test_browser_target_question_blocks_planning_before_executable_artifacts(tmp_path) -> None:
@@ -75,4 +75,4 @@ def test_browser_target_question_blocks_planning_before_executable_artifacts(tmp
 
     blocked = check_prerequisites(tmp_path, "plan", alias="profile-view-unauth")
     assert blocked["status"] == "missing"
-    assert blocked["nextCommand"] == "/proofsignal-clarify profile-view-unauth"
+    assert blocked["nextCommand"] == "/verifysignal-clarify profile-view-unauth"

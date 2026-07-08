@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.stage_persistence import persist_stage
-from proofsignal_spec.workspace.repository import load_document, load_use_case
+from verifysignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workspace.repository import load_document, load_use_case
 from tests.fixtures.workflows.skill_execution_boundary import (
     ALIAS,
     LOGIN_SKILL_PATH,
@@ -14,13 +14,13 @@ from tests.fixtures.workflows.skill_execution_boundary import (
 def test_source_only_not_in_run_request(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     create_planned_workspace(tmp_path)
 
     result = persist_stage(tmp_path, "implement", alias=ALIAS, payload=implementation_payload(composed_main=True))
 
     assert result["status"] == "persisted"
-    run_request = load_document(tmp_path / f".proofsignal/run-requests/{ALIAS}.yaml")
+    run_request = load_document(tmp_path / f".verifysignal/run-requests/{ALIAS}.yaml")
     assert run_request["skills"] == [{"id": "skill.validate-brands-search-authenticated-flow", "version": "1.0.0"}]
     record = load_use_case(tmp_path, ALIAS)
     assert [skill.path for skill in record.sourceOnlySkills] == [LOGIN_SKILL_PATH]
@@ -30,7 +30,7 @@ def test_source_only_not_in_run_request(tmp_path, monkeypatch) -> None:
 def test_compose_login_into_main(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     create_planned_workspace(tmp_path)
 
     result = persist_stage(tmp_path, "implement", alias=ALIAS, payload=implementation_payload(composed_main=False))
@@ -48,7 +48,7 @@ def test_compose_login_into_main(tmp_path, monkeypatch) -> None:
 def test_source_skill_gate_evidence_does_not_satisfy_required_gate_without_main_mapping(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     create_planned_workspace(tmp_path)
     payload = implementation_payload(composed_main=False)
     payload["skills"][0]["browser"]["assertions"] = [

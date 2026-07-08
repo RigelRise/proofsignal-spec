@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "verifysignal-spec-product-context/v1",
+  "productName": "",
+  "repositorySummary": "",
+  "localStartInstructions": "",
+  "safeInspectionPaths": ["README.md", "src/", "app/", "tests/"],
+  "sensitivePathPatterns": [".env", ".env.*", "**/.env", "**/.env.*", "*secret*", "*credentials*", "*.pem", "*.key"],
+  "validationGoals": [],
+  "knownRuntimeRequirements": []
+}

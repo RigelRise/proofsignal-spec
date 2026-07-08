@@ -7,19 +7,19 @@
 
 Refine the Golden Path first-run product experience from a useful capability
 into a smooth onboarding path. The feature closes the dogfood gaps observed when
-a new target repository had no `.proofsignal/` understanding yet, the first-run
+a new target repository had no `.verifysignal/` understanding yet, the first-run
 candidate ranking over-weighted active branch relevance, integration install
 produced no clear user guide, normal commit identifiers were treated as
 secret-looking, and agent authoring had to discover payload shape by trial and
 error.
 
 The technical approach extends the `009-golden-path-productization` foundation
-instead of replacing it. ProofSignal Spec will own a deterministic onboarding
+instead of replacing it. VerifySignal Spec will own a deterministic onboarding
 orchestrator around existing workflow stages, a stronger first-run suitability
 score that favors trivial stable rendered behavior over branch relevance,
 visually rich install and stage guidance, safer understanding persistence and
 inventory completion semantics, and a guided end-to-end accepted-first-run state
-machine. ProofSignal Core remains behind the documented public CLI JSON
+machine. VerifySignal Core remains behind the documented public CLI JSON
 contract.
 
 ## Technical Context
@@ -29,7 +29,7 @@ artifacts; generated Codex and Claude agent instructions.
 **Primary Dependencies**: Existing argparse CLI, dataclasses, PyYAML,
 packaging, pathspec, Rich, pytest, and the current fake Core fixture; no new
 runtime dependency planned.  
-**Storage**: Project-local `.proofsignal/` workspace records, product context,
+**Storage**: Project-local `.verifysignal/` workspace records, product context,
 coverage inventory, golden-path state, integration manifests, generated agent
 guidance, and `specs/010-golden-path-onboarding/` design artifacts.  
 **Testing**: pytest contract, unit, and integration tests with temporary target
@@ -49,12 +49,12 @@ undocumented report internals; no fake/demo target as user-facing fallback; no
 credential persistence; respect existing understanding freshness rules; first
 run only, normal workflow behavior resumes after the Golden Path is accepted,
 skipped, blocked, or completed.  
-**Scale/Scope**: Multiple target projects; each project has one `.proofsignal/`
+**Scale/Scope**: Multiple target projects; each project has one `.verifysignal/`
 workspace, many inventory candidates, one accepted or skipped Golden Path
 choice, and reusable skills/run requests shared with ordinary workflows.
 
-**ProofSignal Core Public Contract**: This feature continues to depend on
-`proofsignal-public-cli-json/v1`. Required Core operations remain `version`,
+**VerifySignal Core Public Contract**: This feature continues to depend on
+`verifysignal-public-cli-json/v1`. Required Core operations remain `version`,
 `authoring-check`, `run`, and `report.inspect` through existing Spec adapters.
 New onboarding behavior must classify missing/incompatible Core as a blocker and
 must not inspect Core internals.
@@ -69,7 +69,7 @@ must not inspect Core internals.
   operations.
 - **Project-local workspace portability**: PASS. Golden-path choice, guided-flow
   stage, inventory freshness, install guidance references, and outcome state
-  stay in `.proofsignal/` or generated project-local integration files.
+  stay in `.verifysignal/` or generated project-local integration files.
 - **Secret safety**: PASS. The plan explicitly repairs false positives for
   ordinary public identifiers while keeping credential fields, URLs with secret
   query parameters, local env files, cookies, browser storage, and raw sensitive
@@ -105,7 +105,7 @@ specs/010-golden-path-onboarding/
 ### Source Code (repository root)
 
 ```text
-src/proofsignal_spec/
+src/verifysignal_spec/
 |-- cli.py
 |-- commands/
 |   |-- workflow.py

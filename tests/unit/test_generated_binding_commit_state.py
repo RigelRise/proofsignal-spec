@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import ResolvedRuntimeBinding
+from verifysignal_spec.workspace.models import ResolvedRuntimeBinding
 
 
 def test_resolved_binding_supports_prepared_committed_and_discarded_status() -> None:
-    prepared = ResolvedRuntimeBinding(name="projectTitle", value="ProofSignal A", status="prepared")
-    committed = ResolvedRuntimeBinding.from_dict({"name": "projectTitle", "value": "ProofSignal B", "committed": True})
-    discarded = ResolvedRuntimeBinding.from_dict({"name": "projectTitle", "value": "ProofSignal C", "status": "discarded"})
+    prepared = ResolvedRuntimeBinding(name="projectTitle", value="VerifySignal A", status="prepared")
+    committed = ResolvedRuntimeBinding.from_dict({"name": "projectTitle", "value": "VerifySignal B", "committed": True})
+    discarded = ResolvedRuntimeBinding.from_dict({"name": "projectTitle", "value": "VerifySignal C", "status": "discarded"})
 
     assert prepared.to_dict()["status"] == "prepared"
     assert committed.status == "committed"

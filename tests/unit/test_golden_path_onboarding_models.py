@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from proofsignal_spec.workflows.models import (
+from verifysignal_spec.workflows.models import (
     FirstRunIdealCriteria,
     FirstRunSuitabilityScore,
     GuidedFirstRunState,
@@ -59,7 +59,7 @@ def test_guided_first_run_state_validates_stage_and_round_trips() -> None:
         stage="repairing",
         firstRunStatus="repairing",
         strictPass=False,
-        resumeCommand="proofsignal repair home-page-unauth --json",
+        resumeCommand="verifysignal repair home-page-unauth --json",
         stageCards=[
             {
                 "stageId": "repairing",
@@ -72,11 +72,11 @@ def test_guided_first_run_state_validates_stage_and_round_trips() -> None:
                 "repairDetails": "Increase the wait for rendered slider evidence.",
             }
         ],
-        ownedArtifacts=[".proofsignal/run-requests/home-page-unauth.yaml"],
+        ownedArtifacts=[".verifysignal/run-requests/home-page-unauth.yaml"],
     )
 
     data = state.to_dict()
-    assert data["schemaVersion"] == "proofsignal-spec-guided-first-run/v1"
+    assert data["schemaVersion"] == "verifysignal-spec-guided-first-run/v1"
     assert data["stageCards"][0]["statusMarker"] == "[REPAIR]"
     assert GuidedFirstRunState.from_dict(data).stage == "repairing"
 
@@ -87,13 +87,13 @@ def test_guided_first_run_state_validates_stage_and_round_trips() -> None:
 def test_onboarding_guidance_round_trips_without_secret_values() -> None:
     guide = OnboardingGuidance(
         integrationKey="codex",
-        terminalTitle="ProofSignal Golden Path",
-        terminalSummary="Run /proofsignal-specify to start the recommended first validation.",
-        generatedGuidePath=".agents/PROOFSIGNAL_ONBOARDING.md",
+        terminalTitle="VerifySignal Golden Path",
+        terminalSummary="Run /verifysignal-specify to start the recommended first validation.",
+        generatedGuidePath=".agents/VERIFYSIGNAL_ONBOARDING.md",
         stageMarkers=["[RECOMMENDED]", "[ACCEPTED]", "[PASS]", "[REPAIR]", "[BLOCKED]"],
         usesColor=True,
-        plainTextFallback="ProofSignal Golden Path\nNext: /proofsignal-specify",
-        nextCommand="/proofsignal-specify",
+        plainTextFallback="VerifySignal Golden Path\nNext: /verifysignal-specify",
+        nextCommand="/verifysignal-specify",
         safetyBoundaries=["Sensitive files and credential values are not inspected or persisted by default."],
         successSemantics=["Direct strict pass succeeds.", "Repaired strict pass also succeeds."],
     )
@@ -101,7 +101,7 @@ def test_onboarding_guidance_round_trips_without_secret_values() -> None:
     data = guide.to_dict()
     assert data["usesColor"] is True
     assert "credential values" in data["safetyBoundaries"][0]
-    assert OnboardingGuidance.from_dict(data).generatedGuidePath == ".agents/PROOFSIGNAL_ONBOARDING.md"
+    assert OnboardingGuidance.from_dict(data).generatedGuidePath == ".agents/VERIFYSIGNAL_ONBOARDING.md"
 
 
 def test_understanding_onboarding_result_round_trips_partial_inventory() -> None:

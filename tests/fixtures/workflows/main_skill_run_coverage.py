@@ -3,17 +3,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from proofsignal_spec.workspace.models import ArtifactReference, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, save_use_case
-from proofsignal_spec.workflows.models import ArtifactPlan
-from proofsignal_spec.workflows.repository import save_artifact_plan
+from verifysignal_spec.workspace.models import ArtifactReference, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, save_use_case
+from verifysignal_spec.workflows.models import ArtifactPlan
+from verifysignal_spec.workflows.repository import save_artifact_plan
 
 
 ALIAS = "profile-view-unauth"
 MAIN_SKILL_ID = "skill.validate-profile-view-unauth-flow"
 HELPER_SKILL_ID = "skill.discover-profile"
-MAIN_SKILL_PATH = ".proofsignal/skills/validate-profile-view-unauth-flow.browser.md"
-HELPER_SKILL_PATH = ".proofsignal/skills/discover-profile.browser.md"
+MAIN_SKILL_PATH = ".verifysignal/skills/validate-profile-view-unauth-flow.browser.md"
+HELPER_SKILL_PATH = ".verifysignal/skills/discover-profile.browser.md"
 
 
 def create_main_skill_coverage_workspace(
@@ -24,9 +24,9 @@ def create_main_skill_coverage_workspace(
     legacy_multi_skill_run_request: bool = False,
 ) -> Path:
     init_workspace(project)
-    (project / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
-    (project / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
-    (project / f".proofsignal/run-requests/{alias}.yaml").write_text(
+    (project / ".verifysignal/run-requests").mkdir(parents=True, exist_ok=True)
+    (project / ".verifysignal/skills").mkdir(parents=True, exist_ok=True)
+    (project / f".verifysignal/run-requests/{alias}.yaml").write_text(
         json.dumps(run_request(alias, helper_first=helper_first, include_helper=legacy_multi_skill_run_request)),
         encoding="utf-8",
     )
@@ -47,7 +47,7 @@ def create_main_skill_coverage_workspace(
             alias=alias,
             title="Profile View Unauth",
             description="Validate a public profile page.",
-            runRequest=ArtifactReference(path=f".proofsignal/run-requests/{alias}.yaml", kind="run-request", id=f"request.{alias}", version="1.0.0"),
+            runRequest=ArtifactReference(path=f".verifysignal/run-requests/{alias}.yaml", kind="run-request", id=f"request.{alias}", version="1.0.0"),
             mainSkill=ArtifactReference(path=MAIN_SKILL_PATH, kind="skill", id=MAIN_SKILL_ID, version="2.1.0"),
             skills=skills,
             sourceOnlySkills=[ArtifactReference(path=HELPER_SKILL_PATH, kind="skill", id=HELPER_SKILL_ID, version="1.0.0")],
@@ -57,7 +57,7 @@ def create_main_skill_coverage_workspace(
         project,
         ArtifactPlan(
             useCaseAlias=alias,
-            runRequest=f".proofsignal/run-requests/{alias}.yaml",
+            runRequest=f".verifysignal/run-requests/{alias}.yaml",
             mainSkill=MAIN_SKILL_PATH,
             supportingSkills=[HELPER_SKILL_PATH],
             runtimeInputs=[{"name": "baseUrl", "required": True, "default": "https://app.example.test"}],

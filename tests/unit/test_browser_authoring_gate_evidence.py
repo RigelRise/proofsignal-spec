@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.browser_authoring import validate_browser_payload
-from proofsignal_spec.workflows.evidence import extract_browser_evidence
+from verifysignal_spec.workflows.browser_authoring import validate_browser_payload
+from verifysignal_spec.workflows.evidence import extract_browser_evidence
 
 
 def test_browser_authoring_allows_gate_id_and_operation_name_metadata() -> None:

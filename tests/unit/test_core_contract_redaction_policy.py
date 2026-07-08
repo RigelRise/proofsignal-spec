@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.engine import _apply_public_redaction_policy
+from verifysignal_spec.workflows.engine import _apply_public_redaction_policy
 
 
 def test_public_redaction_policy_uses_current_core_forbidden_field_shapes() -> None:
     core_contract = {
         "source": "core-public-contract",
-        "runtimeIdentity": "/Users/example/private/proofsignal/apps/proofsignal-cli/dist/main.js",
-        "runtimeCommand": "node /Users/example/private/proofsignal/apps/proofsignal-cli/dist/main.js",
+        "runtimeIdentity": "/Users/example/private/verifysignal/apps/verifysignal-cli/dist/main.js",
+        "runtimeCommand": "node /Users/example/private/verifysignal/apps/verifysignal-cli/dist/main.js",
         "sections": {
             "publicRedactionPolicy": {
                 "publicErrorShape": {

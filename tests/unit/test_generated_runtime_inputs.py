@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
-from proofsignal_spec.workspace.models import RuntimeInputRequirement
+from verifysignal_spec.commands.runtime_inputs import resolve_runtime_inputs
+from verifysignal_spec.workspace.models import RuntimeInputRequirement
 
 
 def test_refresh_generates_new_value_not_seed_literal() -> None:
     requirement = RuntimeInputRequirement(
         name="projectTitle",
         source="generated",
-        value="ProofSignal collab seed",
+        value="VerifySignal collab seed",
         refreshOnRerunAfterCommit=True,
     )
 
@@ -19,8 +19,8 @@ def test_refresh_generates_new_value_not_seed_literal() -> None:
         refresh_names=["projectTitle"],
     )
 
-    assert values["projectTitle"] != "ProofSignal collab seed"
-    assert values["projectTitle"].startswith("ProofSignal collab seed ")
+    assert values["projectTitle"] != "VerifySignal collab seed"
+    assert values["projectTitle"].startswith("VerifySignal collab seed ")
 
 
 def test_generated_binding_resolves_once_for_same_run() -> None:
@@ -28,7 +28,7 @@ def test_generated_binding_resolves_once_for_same_run() -> None:
         name="projectTitle",
         source="generated",
         template="{{seed}} {{run.shortId}}",
-        value="ProofSignal collab seed",
+        value="VerifySignal collab seed",
     )
 
     first = resolve_runtime_inputs([requirement], interactive=False, run_id="run-one")
@@ -42,7 +42,7 @@ def test_generated_short_id_uses_fresh_attempt_component_not_alias_prefix() -> N
         name="projectTitle",
         source="generated",
         template="{{seed}} {{run.shortId}}",
-        value="ProofSignal collab seed",
+        value="VerifySignal collab seed",
         refreshOnRerunAfterCommit=True,
     )
 
@@ -59,7 +59,7 @@ def test_generated_short_id_uses_fresh_attempt_component_not_alias_prefix() -> N
         refresh_names=["projectTitle"],
     )
 
-    assert first["projectTitle"].startswith("ProofSignal collab seed ")
-    assert second["projectTitle"].startswith("ProofSignal collab seed ")
+    assert first["projectTitle"].startswith("VerifySignal collab seed ")
+    assert second["projectTitle"].startswith("VerifySignal collab seed ")
     assert first["projectTitle"] != second["projectTitle"]
     assert "addcollabora" not in first["projectTitle"]

@@ -12,7 +12,7 @@ def _template(path: str) -> str:
 
 def test_agent_command_guidance_uses_canonical_side_effect_policy_and_supersede_flow() -> None:
     combined = "\n".join(
-        _template(f"src/proofsignal_spec/templates/agent-commands/proofsignal.{stage}.md")
+        _template(f"src/verifysignal_spec/templates/agent-commands/verifysignal.{stage}.md")
         for stage in ["specify", "clarify", "plan", "implement", "validate", "run", "repair"]
     )
 
@@ -28,7 +28,7 @@ def test_agent_command_guidance_uses_canonical_side_effect_policy_and_supersede_
 
 
 def test_workflow_template_documents_canonical_policy_without_legacy_examples() -> None:
-    content = _template("src/proofsignal_spec/templates/workflows/proofsignal-use-case.yaml")
+    content = _template("src/verifysignal_spec/templates/workflows/verifysignal-use-case.yaml")
 
     assert "sideEffectPolicy.allowed[]" in content
     assert "sideEffectPolicy.forbidden[]" in content

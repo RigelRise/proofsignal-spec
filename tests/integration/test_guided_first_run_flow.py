@@ -4,7 +4,7 @@ import json
 
 from helpers import CliTestCase
 from tests.fixtures.workflows.golden_path_onboarding import PUBLIC_ALIAS, create_onboarding_repository
-from proofsignal_spec.workspace.repository import load_document
+from verifysignal_spec.workspace.repository import load_document
 
 
 class GuidedFirstRunFlowIntegrationTests(CliTestCase):
@@ -17,9 +17,9 @@ class GuidedFirstRunFlowIntegrationTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         data = json.loads(out)
-        state = load_document(self.project / ".proofsignal/workflows/golden-path-state.yaml", default={})
+        state = load_document(self.project / ".verifysignal/workflows/golden-path-state.yaml", default={})
 
-        self.assertEqual(state["schemaVersion"], "proofsignal-spec-guided-first-run/v1")
+        self.assertEqual(state["schemaVersion"], "verifysignal-spec-guided-first-run/v1")
         self.assertEqual(state["selectedCandidate"], PUBLIC_ALIAS)
         self.assertEqual(state["stage"], "accepted")
         self.assertEqual(state["resumeCommand"], data["resumeCommand"])
@@ -41,18 +41,18 @@ class GuidedFirstRunFlowIntegrationTests(CliTestCase):
         self.cli(["workflow", "accept-first-run", PUBLIC_ALIAS, "--project", str(self.project), "--json"])
         import os
 
-        old_mode = os.environ.get("FAKE_PROOFSIGNAL_MODE")
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "full-coverage"
+        old_mode = os.environ.get("FAKE_VERIFYSIGNAL_MODE")
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "full-coverage"
         try:
             code, out, err = self.cli(["run", PUBLIC_ALIAS, "--project", str(self.project), "--profile", "normal", "--json"])
         finally:
             if old_mode is None:
-                os.environ.pop("FAKE_PROOFSIGNAL_MODE", None)
+                os.environ.pop("FAKE_VERIFYSIGNAL_MODE", None)
             else:
-                os.environ["FAKE_PROOFSIGNAL_MODE"] = old_mode
+                os.environ["FAKE_VERIFYSIGNAL_MODE"] = old_mode
 
         self.assertEqual(code, 0, err)
-        state = load_document(self.project / ".proofsignal/workflows/golden-path-state.yaml", default={})
+        state = load_document(self.project / ".verifysignal/workflows/golden-path-state.yaml", default={})
         self.assertIn(state["stage"], {"passed", "repaired-passed"})
         self.assertTrue(state["strictPass"])
         self.assertIn("stageCards", state)

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import json
 
-from proofsignal_spec.runtime.models import ManagedRuntimeReadinessResult, RuntimeSetupBlocker, redact_runtime_payload
+from verifysignal_spec.runtime.models import ManagedRuntimeReadinessResult, RuntimeSetupBlocker, redact_runtime_payload
 
 
 def test_runtime_result_redacts_secret_like_commands_and_messages() -> None:
     result = ManagedRuntimeReadinessResult(
         status="blocked",
-        runtimeCommand="/tmp/proofsignal-core --token raw-email-token-123",
+        runtimeCommand="/tmp/verifysignal-core --token raw-email-token-123",
         blockers=[
             RuntimeSetupBlocker(
                 code="entitlement.invalid-token",

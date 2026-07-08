@@ -5,14 +5,14 @@ from pathlib import Path
 import json
 import time
 
-from proofsignal_spec.runtime.distribution import prepare_verification_keys, save_verification_keys
-from proofsignal_spec.runtime.entitlement import exchange_email_token, load_receipt, receipt_status, resolve_entitlement_config, save_receipt
-from proofsignal_spec.runtime.models import RuntimeEntitlementStatus
+from verifysignal_spec.runtime.distribution import prepare_verification_keys, save_verification_keys
+from verifysignal_spec.runtime.entitlement import exchange_email_token, load_receipt, receipt_status, resolve_entitlement_config, save_receipt
+from verifysignal_spec.runtime.models import RuntimeEntitlementStatus
 from tests.fixtures.managed_runtime import serve_fake_entitlement_backend
 
 
 def test_email_token_exchange_stores_receipt_without_raw_token(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
     token = "email-token-secret-123"
 
     with serve_fake_entitlement_backend() as (api_base_url, _state):
@@ -37,11 +37,11 @@ def test_manual_public_key_override_precedence_requires_matching_receipt_key(mon
     entitlement = RuntimeEntitlementStatus(
         status="valid",
         receiptId="rcpt_test",
-        issuer="https://proofsignal.io",
+        issuer="https://verifysignal.io",
         keyId="ps-entitlement-2026-06",
     )
     monkeypatch.setenv(
-        "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
+        "VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
         json.dumps([{"keyId": "ps-entitlement-2026-06", "algorithm": "ed25519", "publicKeyPem": "public", "status": "active"}]),
     )
 
@@ -53,7 +53,7 @@ def test_manual_public_key_override_precedence_requires_matching_receipt_key(mon
     assert ready.matchedKeyId == "ps-entitlement-2026-06"
 
     monkeypatch.setenv(
-        "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
+        "VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
         json.dumps([{"keyId": "other-key", "algorithm": "ed25519", "publicKeyPem": "public", "status": "active"}]),
     )
 
@@ -67,18 +67,18 @@ def test_manual_public_key_override_precedence_requires_matching_receipt_key(mon
 
 
 def test_matching_cached_public_keys_resolve_without_network_under_50ms(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
     config = resolve_entitlement_config(api_base_url="http://localhost:3000/api")
     entitlement = RuntimeEntitlementStatus(
         status="valid",
         receiptId="rcpt_test",
-        issuer="https://proofsignal.io",
+        issuer="https://verifysignal.io",
         keyId="ps-entitlement-2026-06",
     )
     save_verification_keys(
         {
-            "schema": "proofsignal.entitlement-keys/v1",
+            "schema": "verifysignal.entitlement-keys/v1",
             "schemaVersion": 1,
             "keys": [{"keyId": "ps-entitlement-2026-06", "algorithm": "ed25519", "publicKeyPem": "public", "status": "active"}],
         },

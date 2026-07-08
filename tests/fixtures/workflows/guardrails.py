@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec.workspace import layout
-from proofsignal_spec.workspace.models import ArtifactReference, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, load_registry, save_document, save_registry, save_use_case
+from verifysignal_spec.workspace import layout
+from verifysignal_spec.workspace.models import ArtifactReference, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, load_registry, save_document, save_registry, save_use_case
 
 
 def create_ready_use_case_workspace(project: Path, alias: str = "login") -> Path:

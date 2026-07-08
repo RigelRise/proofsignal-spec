@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.stage_persistence import persist_stage
-from proofsignal_spec.workspace.repository import init_workspace, load_document
+from verifysignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workspace.repository import init_workspace, load_document
 
 
 def test_persistence_rejects_secret_looking_payload_values(tmp_path) -> None:
@@ -47,7 +47,7 @@ def test_missing_stage_payload_field_reports_public_contract_recovery(tmp_path) 
     blocker = result["blockers"][0]
     assert blocker["code"] == "payload.missing-required-field"
     assert "stagePayloadContracts.specify.requiredFields" in blocker["documentationRef"]
-    assert "workflow info proofsignal-use-case --json" in blocker["recoveryCommand"]
+    assert "workflow info verifysignal-use-case --json" in blocker["recoveryCommand"]
     assert any("expectedOucome" in warning for warning in result["warnings"])
 
 
@@ -76,7 +76,7 @@ def test_specify_accepts_real_agent_payload_synonyms(tmp_path) -> None:
         },
     )
     assert result["status"] == "persisted"
-    record = load_document(project / ".proofsignal/use-cases/search-people.yaml")
+    record = load_document(project / ".verifysignal/use-cases/search-people.yaml")
     assert record["targetSurface"] == "/search/people"
 
 
@@ -101,7 +101,7 @@ def test_plan_accepts_skills_alias_for_reusable_skills(tmp_path) -> None:
         "plan",
         alias="search-people",
         payload={
-            "runRequest": {"path": ".proofsignal/run-requests/search-people.yaml"},
+            "runRequest": {"path": ".verifysignal/run-requests/search-people.yaml"},
             "skills": [{"name": "navigate-to-search"}],
             "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
             "unresolvedBlockingClarifications": [],
@@ -131,20 +131,20 @@ def test_plan_accepts_supporting_skills_alias_from_real_agent_payload(tmp_path) 
         "plan",
         alias="search-people",
         payload={
-            "runRequest": ".proofsignal/run-requests/search-people.yaml",
-            "mainSkill": ".proofsignal/skills/validate-search-people-flow.browser.md",
+            "runRequest": ".verifysignal/run-requests/search-people.yaml",
+            "mainSkill": ".verifysignal/skills/validate-search-people-flow.browser.md",
             "supportingSkills": [
-                ".proofsignal/skills/navigate-to-search.browser.md",
-                ".proofsignal/skills/search-and-verify-results.browser.md",
+                ".verifysignal/skills/navigate-to-search.browser.md",
+                ".verifysignal/skills/search-and-verify-results.browser.md",
             ],
             "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
             "unresolvedBlockingClarifications": [],
         },
     )
     assert result["status"] == "persisted"
-    plan = load_document(project / ".proofsignal/workflows/use-cases/search-people/plan.yaml")
-    assert plan["mainSkill"] == ".proofsignal/skills/validate-search-people-flow.browser.md"
-    assert ".proofsignal/skills/navigate-to-search.browser.md" in plan["supportingSkills"]
+    plan = load_document(project / ".verifysignal/workflows/use-cases/search-people/plan.yaml")
+    assert plan["mainSkill"] == ".verifysignal/skills/validate-search-people-flow.browser.md"
+    assert ".verifysignal/skills/navigate-to-search.browser.md" in plan["supportingSkills"]
 
 
 def test_plan_required_gate_intent_change_requires_recorded_reason(tmp_path) -> None:
@@ -164,8 +164,8 @@ def test_plan_required_gate_intent_change_requires_recorded_reason(tmp_path) -> 
         },
     )
     base_plan = {
-        "runRequest": ".proofsignal/run-requests/search-people.yaml",
-        "reusableSkills": [".proofsignal/skills/validate-search-people.browser.md"],
+        "runRequest": ".verifysignal/run-requests/search-people.yaml",
+        "reusableSkills": [".verifysignal/skills/validate-search-people.browser.md"],
         "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
         "validationGates": [{"id": "people-results", "description": "People results render.", "required": True}],
         "unresolvedBlockingClarifications": [],
@@ -211,8 +211,8 @@ def test_implement_accepts_artifacts_list_and_writes_core_envelopes(tmp_path) ->
         "plan",
         alias="search-people",
         payload={
-            "runRequest": ".proofsignal/run-requests/search-people.yaml",
-            "reusableSkills": [".proofsignal/skills/navigate-to-search.browser.md"],
+            "runRequest": ".verifysignal/run-requests/search-people.yaml",
+            "reusableSkills": [".verifysignal/skills/navigate-to-search.browser.md"],
             "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
             "unresolvedBlockingClarifications": [],
         },
@@ -224,12 +224,12 @@ def test_implement_accepts_artifacts_list_and_writes_core_envelopes(tmp_path) ->
         payload={
             "artifacts": [
                 {
-                    "path": ".proofsignal/run-requests/search-people.yaml",
+                    "path": ".verifysignal/run-requests/search-people.yaml",
                     "kind": "run-request",
                     "content": "alias: search-people\n",
                 },
                 {
-                    "path": ".proofsignal/skills/navigate-to-search.browser.md",
+                    "path": ".verifysignal/skills/navigate-to-search.browser.md",
                     "kind": "skill",
                     "content": "# navigate-to-search\n\nNavigate to search.",
                 },
@@ -237,8 +237,8 @@ def test_implement_accepts_artifacts_list_and_writes_core_envelopes(tmp_path) ->
         },
     )
     assert result["status"] == "persisted"
-    run_request = (project / ".proofsignal/run-requests/search-people.yaml").read_text()
-    skill = (project / ".proofsignal/skills/navigate-to-search.browser.md").read_text()
+    run_request = (project / ".verifysignal/run-requests/search-people.yaml").read_text()
+    skill = (project / ".verifysignal/skills/navigate-to-search.browser.md").read_text()
     assert '"schemaVersion": "qa-run-request/v1"' in run_request
     assert "schemaVersion: qa-skill/v1" in skill
     assert "browser:" in skill
@@ -265,10 +265,10 @@ def test_implement_rejects_detailed_skill_intent_without_executable_browser_step
         "implement",
         alias="search-people",
         payload={
-            "runRequest": {"path": ".proofsignal/run-requests/search-people.yaml"},
+            "runRequest": {"path": ".verifysignal/run-requests/search-people.yaml"},
             "skills": [
                 {
-                    "path": ".proofsignal/skills/validate-search-people-flow.browser.md",
+                    "path": ".verifysignal/skills/validate-search-people-flow.browser.md",
                     "kind": "skill",
                     "intent": {
                         "description": "Validate the full search people flow.",
@@ -309,7 +309,7 @@ def test_implement_preserves_executable_intent_and_runtime_input_values(tmp_path
         alias="search-people",
         payload={
             "runRequest": {
-                "path": ".proofsignal/run-requests/search-people.yaml",
+                "path": ".verifysignal/run-requests/search-people.yaml",
                 "intent": {
                     "runtimeInputs": [
                         {"name": "baseUrl", "value": "https://app.example.test"},
@@ -319,7 +319,7 @@ def test_implement_preserves_executable_intent_and_runtime_input_values(tmp_path
             },
             "skills": [
                 {
-                    "path": ".proofsignal/skills/validate-search-people-flow.browser.md",
+                    "path": ".verifysignal/skills/validate-search-people-flow.browser.md",
                     "kind": "skill",
                     "intent": {
                         "description": "Validate the full search people flow.",
@@ -344,8 +344,8 @@ def test_implement_preserves_executable_intent_and_runtime_input_values(tmp_path
         },
     )
     assert result["status"] == "persisted"
-    run_request = load_document(project / ".proofsignal/run-requests/search-people.yaml")
-    skill = (project / ".proofsignal/skills/validate-search-people-flow.browser.md").read_text()
+    run_request = load_document(project / ".verifysignal/run-requests/search-people.yaml")
+    skill = (project / ".verifysignal/skills/validate-search-people-flow.browser.md").read_text()
     assert run_request["parameters"]["baseUrl"] == "https://app.example.test"
     assert run_request["parameters"]["happyPathQuery"] == "Jordan"
     assert "wait-query" in skill
@@ -373,7 +373,7 @@ def test_implement_persists_credential_refs_without_runtime_credential_parameter
         "implement",
         alias="add-project",
         payload={
-            "runRequest": {"path": ".proofsignal/run-requests/add-project.yaml"},
+            "runRequest": {"path": ".verifysignal/run-requests/add-project.yaml"},
             "credentialRefs": {
                 "e2eUser": {
                     "source": "environment",
@@ -387,7 +387,7 @@ def test_implement_persists_credential_refs_without_runtime_credential_parameter
             ],
             "skills": [
                 {
-                    "path": ".proofsignal/skills/validate-add-project-flow.browser.md",
+                    "path": ".verifysignal/skills/validate-add-project-flow.browser.md",
                     "kind": "skill",
                     "browser": {
                         "targets": {"emailInput": {"testId": "email-input"}},
@@ -401,8 +401,8 @@ def test_implement_persists_credential_refs_without_runtime_credential_parameter
     )
 
     assert result["status"] == "persisted"
-    use_case = load_document(project / ".proofsignal/use-cases/add-project.yaml")
-    run_request = load_document(project / ".proofsignal/run-requests/add-project.yaml")
+    use_case = load_document(project / ".verifysignal/use-cases/add-project.yaml")
+    run_request = load_document(project / ".verifysignal/run-requests/add-project.yaml")
     assert use_case["credentialRefs"]["e2eUser"]["keys"]["password"] == "E2E_USER_PASSWORD"
     assert {item["name"] for item in use_case["runtimeInputs"]} == {"baseUrl"}
     assert set(run_request["parameters"]) == {"baseUrl"}
@@ -450,7 +450,7 @@ def test_clarify_accepts_answer_only_payload_for_existing_questions(tmp_path) ->
     )
 
     assert result["status"] == "persisted"
-    record = load_document(project / ".proofsignal/use-cases/search-people.yaml")
+    record = load_document(project / ".verifysignal/use-cases/search-people.yaml")
     assert record["authoringQuestions"][0]["status"] == "answered"
     assert record["authoringQuestions"][0]["answerSummary"] == "Production: https://app.example.test"
 
@@ -550,10 +550,10 @@ def _persist_browser_skill(tmp_path, browser: dict) -> dict:
         "implement",
         alias="search-people",
         payload={
-            "runRequest": {"path": ".proofsignal/run-requests/search-people.yaml"},
+            "runRequest": {"path": ".verifysignal/run-requests/search-people.yaml"},
             "skills": [
                 {
-                    "path": ".proofsignal/skills/validate-search-people-flow.browser.md",
+                    "path": ".verifysignal/skills/validate-search-people-flow.browser.md",
                     "kind": "skill",
                     "intent": {
                         "description": "Validate the search people flow.",

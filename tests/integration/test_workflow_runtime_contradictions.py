@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings
-from proofsignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
-from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, save_document, save_use_case
+from verifysignal_spec.workflows.repair_recommendations import classify_repair_findings
+from verifysignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
+from verifysignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, save_document, save_use_case
 
 
 def test_dynamic_discovery_to_fixed_profile_repair_requires_clarification() -> None:
@@ -24,10 +24,10 @@ def test_dynamic_discovery_to_fixed_profile_repair_requires_clarification() -> N
 
 def test_empty_target_after_resolution_is_stage_handoff_defect(tmp_path) -> None:
     init_workspace(tmp_path)
-    run_request = ".proofsignal/run-requests/profile.yaml"
-    skill = ".proofsignal/skills/profile.browser.md"
-    (tmp_path / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
-    (tmp_path / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
+    run_request = ".verifysignal/run-requests/profile.yaml"
+    skill = ".verifysignal/skills/profile.browser.md"
+    (tmp_path / ".verifysignal/run-requests").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".verifysignal/skills").mkdir(parents=True, exist_ok=True)
     save_document(
         tmp_path / run_request,
         {

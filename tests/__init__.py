@@ -1,1 +1,1 @@
-"""ProofSignal Spec tests."""
+"""VerifySignal Spec tests."""

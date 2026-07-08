@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from helpers import CliTestCase
-from proofsignal_spec.workspace.repository import load_use_case, save_use_case
+from verifysignal_spec.workspace.repository import load_use_case, save_use_case
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 
 
@@ -16,7 +16,7 @@ class RepairConfirmationFlowTests(CliTestCase):
                 {
                     "code": "strict-mode-violation",
                     "message": "Profile card locator resolved to multiple elements.",
-                    "artifact": ".proofsignal/skills/profile.browser.md",
+                    "artifact": ".verifysignal/skills/profile.browser.md",
                     "path": "targets.profileCard",
                 }
             ]
@@ -36,7 +36,7 @@ class RepairConfirmationFlowTests(CliTestCase):
     def test_auto_repair_feedback_is_recorded_after_root_cause_and_scope(self) -> None:
         import os
 
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "aborted-activity-wait"
         self.cli(["init", str(self.project), "--integration", "codex"])
         self.cli(["author", "home-page-unauth", "Validate home page.", "--project", str(self.project)])
         report = self.project / "report.json"

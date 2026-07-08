@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from tests.fixtures.workflows.side_effect_contract_alignment import conflicting_policy, legacy_rules_policy
 
-from proofsignal_spec.workflows.write_safety import normalize_side_effect_policy
+from verifysignal_spec.workflows.write_safety import normalize_side_effect_policy
 
 
 def test_unambiguous_legacy_rules_migrate_to_allowed_and_forbidden_without_mode_change() -> None:

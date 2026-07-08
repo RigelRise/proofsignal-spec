@@ -7,13 +7,13 @@ from helpers import CliTestCase, agent_template, assert_public_workflow_contract
 
 class WorkflowStageContractGuidanceTests(CliTestCase):
     def test_workflow_info_exposes_public_stage_payload_contracts(self) -> None:
-        code, out, err = self.cli(["workflow", "info", "proofsignal-use-case", "--project", str(self.project), "--json"])
+        code, out, err = self.cli(["workflow", "info", "verifysignal-use-case", "--project", str(self.project), "--json"])
 
         self.assertEqual(code, 0, err)
         payload = json.loads(out)
         contracts = payload["stagePayloadContracts"]
 
-        self.assertEqual(contracts["schemaVersion"], "proofsignal-spec-stage-payload-contracts/v1")
+        self.assertEqual(contracts["schemaVersion"], "verifysignal-spec-stage-payload-contracts/v1")
         self.assertEqual(set(contracts["stages"]), {"specify", "clarify", "plan", "tasks", "implement"})
         self.assertIn("expectedOutcome", contracts["byStage"]["specify"]["requiredFields"])
         self.assertIn("validationGates", contracts["byStage"]["plan"]["optionalFields"])
@@ -25,7 +25,7 @@ class WorkflowStageContractGuidanceTests(CliTestCase):
             assert_public_workflow_contract_guidance(agent_template(stage))
 
     def test_skill_boundary_agent_parity_guidance_is_public_and_structured(self) -> None:
-        code, out, err = self.cli(["workflow", "info", "proofsignal-use-case", "--project", str(self.project), "--json"])
+        code, out, err = self.cli(["workflow", "info", "verifysignal-use-case", "--project", str(self.project), "--json"])
 
         self.assertEqual(code, 0, err)
         payload = json.loads(out)

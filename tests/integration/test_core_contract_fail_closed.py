@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import json
 
-from proofsignal_spec.commands import run as run_command
-from proofsignal_spec.commands.validate import run as validate_run
+from verifysignal_spec.commands import run as run_command
+from verifysignal_spec.commands.validate import run as validate_run
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 
 
 def test_validate_blocks_when_core_contract_required_section_missing(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "contracts-missing-browser")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "contracts-missing-browser")
     create_main_skill_coverage_workspace(tmp_path)
 
     result = validate_run(tmp_path, "profile-view-unauth", runtime_readiness=True, core_cmd=str(FAKE_CORE))
@@ -24,8 +24,8 @@ def test_validate_blocks_when_core_contract_required_section_missing(tmp_path, m
 def test_run_blocks_when_core_contract_required_section_malformed(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "contracts-malformed-browser")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "contracts-malformed-browser")
     create_main_skill_coverage_workspace(tmp_path)
 
     result = run_command.run(tmp_path, "profile-view-unauth", interactive=False, core_cmd=str(FAKE_CORE))
@@ -38,8 +38,8 @@ def test_run_blocks_when_core_contract_required_section_malformed(tmp_path, monk
 def test_missing_contracts_operation_blocks_executable_validation(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "missing-contracts-operation")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "missing-contracts-operation")
     create_main_skill_coverage_workspace(tmp_path)
 
     result = validate_run(tmp_path, "profile-view-unauth", runtime_readiness=True, core_cmd=str(FAKE_CORE))
@@ -51,9 +51,9 @@ def test_missing_contracts_operation_blocks_executable_validation(tmp_path, monk
 def test_legacy_executable_artifacts_block_without_rewrite(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     create_main_skill_coverage_workspace(tmp_path)
-    run_request_path = tmp_path / ".proofsignal/run-requests/profile-view-unauth.yaml"
+    run_request_path = tmp_path / ".verifysignal/run-requests/profile-view-unauth.yaml"
     legacy_content = json.dumps(
         {
             "schemaVersion": "legacy-run-request/v0",

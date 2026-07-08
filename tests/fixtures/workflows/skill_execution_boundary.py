@@ -4,15 +4,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec.workspace.models import ArtifactReference, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, save_use_case
-from proofsignal_spec.workflows.models import ArtifactPlan
-from proofsignal_spec.workflows.repository import save_artifact_plan
+from verifysignal_spec.workspace.models import ArtifactReference, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, save_use_case
+from verifysignal_spec.workflows.models import ArtifactPlan
+from verifysignal_spec.workflows.repository import save_artifact_plan
 
 
 ALIAS = "brands-search-authenticated"
-MAIN_SKILL_PATH = ".proofsignal/skills/validate-brands-search-authenticated-flow.browser.md"
-LOGIN_SKILL_PATH = ".proofsignal/skills/login-feats-credentials.browser.md"
+MAIN_SKILL_PATH = ".verifysignal/skills/validate-brands-search-authenticated-flow.browser.md"
+LOGIN_SKILL_PATH = ".verifysignal/skills/login-feats-credentials.browser.md"
 MAIN_SKILL_ID = "skill.validate-brands-search-authenticated-flow"
 LOGIN_SKILL_ID = "skill.login-app-credentials"
 
@@ -67,7 +67,7 @@ def implementation_payload(*, composed_main: bool = False) -> dict[str, Any]:
     return {
         "alias": ALIAS,
         "runRequest": {
-            "path": f".proofsignal/run-requests/{ALIAS}.yaml",
+            "path": f".verifysignal/run-requests/{ALIAS}.yaml",
             "parameters": {"baseUrl": "https://app.example.test"},
         },
         "runtimeInputs": [{"name": "baseUrl", "required": True, "value": "https://app.example.test"}],
@@ -95,7 +95,7 @@ def create_planned_workspace(project: Path) -> None:
             title="Brands Search Authenticated",
             description="Validate authenticated brands search.",
             targetSurface="/search/brands",
-            runRequest=ArtifactReference(path=f".proofsignal/run-requests/{ALIAS}.yaml", kind="run-request", id=f"request.{ALIAS}"),
+            runRequest=ArtifactReference(path=f".verifysignal/run-requests/{ALIAS}.yaml", kind="run-request", id=f"request.{ALIAS}"),
             mainSkill=ArtifactReference(path=MAIN_SKILL_PATH, kind="skill", id=MAIN_SKILL_ID, version="1.0.0"),
             skills=[ArtifactReference(path=MAIN_SKILL_PATH, kind="skill", id=MAIN_SKILL_ID, version="1.0.0")],
         ),
@@ -104,7 +104,7 @@ def create_planned_workspace(project: Path) -> None:
         project,
         ArtifactPlan(
             useCaseAlias=ALIAS,
-            runRequest=f".proofsignal/run-requests/{ALIAS}.yaml",
+            runRequest=f".verifysignal/run-requests/{ALIAS}.yaml",
             mainSkill=MAIN_SKILL_PATH,
             supportingSkills=[LOGIN_SKILL_PATH],
             sourceOnlySkills=[LOGIN_SKILL_PATH],

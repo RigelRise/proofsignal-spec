@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.stage_persistence import persist_stage, unresolved_blocking_questions
-from proofsignal_spec.workspace.repository import init_workspace
+from verifysignal_spec.workflows.stage_persistence import persist_stage, unresolved_blocking_questions
+from verifysignal_spec.workspace.repository import init_workspace
 
 
 def test_environment_dependent_clarification_remains_blocking_until_answered(tmp_path) -> None:

@@ -3,39 +3,39 @@ from __future__ import annotations
 import os
 
 from helpers import FAKE_CORE
-from proofsignal_spec.core.adapter import CoreAdapter
-from proofsignal_spec.core.executable_contract import project_core_contract
-from proofsignal_spec.workspace.models import ArtifactReference, UseCaseRecord
-from proofsignal_spec.workflows.authoring_coherence import evaluate_implementation_coherence
-from proofsignal_spec.workflows.models import ArtifactPlan
-from proofsignal_spec.workflows.repository import save_artifact_plan
-from proofsignal_spec.workflows.skill_execution_boundary import multi_skill_capability, resolve_execution_boundary
+from verifysignal_spec.core.adapter import CoreAdapter
+from verifysignal_spec.core.executable_contract import project_core_contract
+from verifysignal_spec.workspace.models import ArtifactReference, UseCaseRecord
+from verifysignal_spec.workflows.authoring_coherence import evaluate_implementation_coherence
+from verifysignal_spec.workflows.models import ArtifactPlan
+from verifysignal_spec.workflows.repository import save_artifact_plan
+from verifysignal_spec.workflows.skill_execution_boundary import multi_skill_capability, resolve_execution_boundary
 from tests.fixtures.workflows.skill_execution_boundary import ALIAS, LOGIN_SKILL_PATH, MAIN_SKILL_PATH, login_browser, main_browser
 
 
 def _projected_contract(mode: str | None = None) -> dict[str, object]:
-    old_mode = os.environ.get("FAKE_PROOFSIGNAL_MODE")
+    old_mode = os.environ.get("FAKE_VERIFYSIGNAL_MODE")
     if mode:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = mode
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = mode
     else:
-        os.environ.pop("FAKE_PROOFSIGNAL_MODE", None)
+        os.environ.pop("FAKE_VERIFYSIGNAL_MODE", None)
     try:
         return project_core_contract(CoreAdapter(executable=str(FAKE_CORE)).contracts())
     finally:
         if old_mode is None:
-            os.environ.pop("FAKE_PROOFSIGNAL_MODE", None)
+            os.environ.pop("FAKE_VERIFYSIGNAL_MODE", None)
         else:
-            os.environ["FAKE_PROOFSIGNAL_MODE"] = old_mode
+            os.environ["FAKE_VERIFYSIGNAL_MODE"] = old_mode
 
 
 def _record() -> UseCaseRecord:
-    main = ArtifactReference(path=".proofsignal/skills/main.browser.md", kind="skill", id="skill.main")
-    helper = ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login")
+    main = ArtifactReference(path=".verifysignal/skills/main.browser.md", kind="skill", id="skill.main")
+    helper = ArtifactReference(path=".verifysignal/skills/login.browser.md", kind="skill", id="skill.login")
     return UseCaseRecord(
         alias="auth-brands",
         title="Auth Brands",
         description="Validate authenticated brands.",
-        runRequest=ArtifactReference(path=".proofsignal/run-requests/auth-brands.yaml", kind="run-request"),
+        runRequest=ArtifactReference(path=".verifysignal/run-requests/auth-brands.yaml", kind="run-request"),
         mainSkill=main,
         skills=[main, helper],
         sourceOnlySkills=[helper],
@@ -114,7 +114,7 @@ def test_gate_evidence_requires_mapping_for_source_only_skill(tmp_path) -> None:
         tmp_path,
         ArtifactPlan(
             useCaseAlias=ALIAS,
-            runRequest=f".proofsignal/run-requests/{ALIAS}.yaml",
+            runRequest=f".verifysignal/run-requests/{ALIAS}.yaml",
             mainSkill=MAIN_SKILL_PATH,
             supportingSkills=[LOGIN_SKILL_PATH],
             sourceOnlySkills=[LOGIN_SKILL_PATH],

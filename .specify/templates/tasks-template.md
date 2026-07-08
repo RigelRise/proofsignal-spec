@@ -8,7 +8,7 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are REQUIRED for public CLI contracts, workspace schema behavior, ProofSignal Core compatibility, secret-safety behavior, cross-agent portability, and any stated performance or usability criteria. Other tests are included when requested by the feature specification.
+**Tests**: The examples below include test tasks. Tests are REQUIRED for public CLI contracts, workspace schema behavior, VerifySignal Core compatibility, secret-safety behavior, cross-agent portability, and any stated performance or usability criteria. Other tests are included when requested by the feature specification.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 

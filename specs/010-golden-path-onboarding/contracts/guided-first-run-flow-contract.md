@@ -8,9 +8,9 @@ run. Acceptance starts a guided flow, not just a recorded alias.
 ## CLI surface
 
 ```text
-proofsignal-spec workflow accept-first-run <alias> --project <path> --json
-proofsignal-spec workflow skip-first-run --project <path> --json
-proofsignal-spec workflow inspect-golden-path-state --project <path> --json
+verifysignal-spec workflow accept-first-run <alias> --project <path> --json
+verifysignal-spec workflow skip-first-run --project <path> --json
+verifysignal-spec workflow inspect-golden-path-state --project <path> --json
 ```
 
 Existing workflow, validate, run, and repair commands continue to execute the
@@ -23,7 +23,7 @@ advances the accepted first run.
 
 ## JSON shape
 
-`schemaVersion`: `proofsignal-spec-guided-first-run/v1`
+`schemaVersion`: `verifysignal-spec-guided-first-run/v1`
 
 Required fields:
 

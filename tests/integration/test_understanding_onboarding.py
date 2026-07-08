@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.repository import load_document
-from proofsignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workspace.repository import load_document
+from verifysignal_spec.workflows.stage_persistence import persist_stage
 
 
 def representative_understanding_payload() -> dict:
@@ -57,7 +57,7 @@ def test_understand_persist_accepts_public_git_hash_and_normalizes_traceability(
     result = persist_stage(tmp_path, "understand", scope="all", payload=representative_understanding_payload())
 
     assert result["status"] == "persisted"
-    context = load_document(tmp_path / ".proofsignal/product-context.yaml", default={})
+    context = load_document(tmp_path / ".verifysignal/product-context.yaml", default={})
     assert context["understanding"]["generatedGitHash"].startswith("eb58ef8")
     assert context["understanding"]["sourceTraceabilityStatus"] == "normalized"
     assert context["understanding"]["partialInventoryReasons"] == ["Admin routes not inspected."]

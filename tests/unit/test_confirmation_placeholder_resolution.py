@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.write_safety import resolve_confirmation_signal_placeholders
+from verifysignal_spec.workflows.write_safety import resolve_confirmation_signal_placeholders
 
 from tests.helpers import assert_placeholder_finding
 
@@ -23,11 +23,11 @@ def test_resolves_parameter_placeholder_and_preserves_literal_signal() -> None:
 
     resolved, findings = resolve_confirmation_signal_placeholders(
         signals,
-        {"projectTitle": "ProofSignal QA 20260619"},
+        {"projectTitle": "VerifySignal QA 20260619"},
     )
 
     assert findings == []
-    assert resolved[0]["expectedContains"] == "ProofSignal QA 20260619"
+    assert resolved[0]["expectedContains"] == "VerifySignal QA 20260619"
     assert resolved[1]["expectedContains"] == "/project/"
     assert signals[0]["expectedContains"] == "{{parameters.projectTitle}}"
 
@@ -42,11 +42,11 @@ def test_resolves_multiple_parameter_placeholders_in_one_expected_value() -> Non
                 "expectedContains": "{{ parameters.projectTitle }} by {{parameters.brandQuery}}",
             }
         ],
-        {"projectTitle": "ProofSignal QA", "brandQuery": "Nike"},
+        {"projectTitle": "VerifySignal QA", "brandQuery": "Nike"},
     )
 
     assert findings == []
-    assert resolved[0]["expectedContains"] == "ProofSignal QA by Nike"
+    assert resolved[0]["expectedContains"] == "VerifySignal QA by Nike"
 
 
 def test_missing_parameter_placeholder_blocks_without_partial_resolution() -> None:
@@ -80,7 +80,7 @@ def test_unsupported_placeholder_namespace_blocks() -> None:
                 "expectedContains": "{{credentials.app.password}}",
             }
         ],
-        {"projectTitle": "ProofSignal QA"},
+        {"projectTitle": "VerifySignal QA"},
     )
 
     assert_placeholder_finding(

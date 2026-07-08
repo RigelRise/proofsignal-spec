@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
-from proofsignal_spec.core.contracts import REQUIRED_OPERATION_METADATA
-from proofsignal_spec.runtime.models import (
+from verifysignal_spec.core.contracts import REQUIRED_OPERATION_METADATA
+from verifysignal_spec.runtime.models import (
     MANAGED_RUNTIME_READINESS_SCHEMA,
     REQUIRED_RUNTIME_BLOCKER_CODES,
     ManagedRuntimeReadinessResult,
@@ -16,9 +16,9 @@ def test_managed_runtime_readiness_shape_and_operations() -> None:
     result = ManagedRuntimeReadinessResult(
         status="ready",
         source="managed-cache",
-        runtimeCommand="/tmp/proofsignal-core",
+        runtimeCommand="/tmp/verifysignal-core",
         runtimeVersion="0.5.1",
-        contractVersion="proofsignal-public-cli-json/v1",
+        contractVersion="verifysignal-public-cli-json/v1",
         attempts=[
             RuntimeSourceAttempt(
                 source="managed-cache",
@@ -36,7 +36,7 @@ def test_managed_runtime_readiness_shape_and_operations() -> None:
     assert payload["status"] == "ready"
     assert payload["source"] == "managed-cache"
     assert payload["requiredOperations"] == REQUIRED_OPERATION_METADATA
-    assert payload["requiredOperationsByName"]["report.inspect"]["schemaName"] == "proofsignal.report-inspection/v1"
+    assert payload["requiredOperationsByName"]["report.inspect"]["schemaName"] == "verifysignal.report-inspection/v1"
     assert payload["attempts"][0]["source"] == "managed-cache"
     assert payload["blockers"] == []
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.validation import validate_side_effect_declaration
+from verifysignal_spec.workspace.validation import validate_side_effect_declaration
 
 from tests.fixtures.workflows.side_effect_contract_alignment import templated_confirmation_policy
 
@@ -10,7 +10,7 @@ def test_confirmation_parameter_placeholder_is_valid_when_runtime_input_declares
         templated_confirmation_policy(),
         rerun_policy={"afterNoCommit": "allowed", "afterCommit": "allowed-with-new-inputs", "refreshRuntimeInputs": ["projectTitle"]},
         runtime_outputs=[{"name": "publishedProjectTitleText", "source": "dom", "target": "publishedProjectTitle", "extract": "textContent"}],
-        runtime_inputs=[{"name": "projectTitle", "source": "generated", "value": "ProofSignal QA", "refreshOnRerunAfterCommit": True}],
+        runtime_inputs=[{"name": "projectTitle", "source": "generated", "value": "VerifySignal QA", "refreshOnRerunAfterCommit": True}],
     )
 
     assert "confirmation-placeholder-unresolved" not in {item["code"] for item in findings}

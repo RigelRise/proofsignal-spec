@@ -21,8 +21,8 @@ branch-relevant flows afterward.
 
 ## Decision: Auto-prepare safe understanding from specify when missing
 
-When `/proofsignal-specify` starts in a workspace with no understanding,
-ProofSignal Spec should run or orchestrate safe repository understanding and
+When `/verifysignal-specify` starts in a workspace with no understanding,
+VerifySignal Spec should run or orchestrate safe repository understanding and
 then resume first-run recommendation. It pauses only for host permissions or
 sensitive boundaries.
 

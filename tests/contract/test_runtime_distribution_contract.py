@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.runtime.distribution import manifest_entries, select_manifest_entry
-from proofsignal_spec.runtime.models import REQUIRED_RUNTIME_BLOCKER_CODES
+from verifysignal_spec.runtime.distribution import manifest_entries, select_manifest_entry
+from verifysignal_spec.runtime.models import REQUIRED_RUNTIME_BLOCKER_CODES
 
 
 def test_runtime_manifest_entry_contract_selects_platform_and_contract() -> None:
@@ -9,10 +9,10 @@ def test_runtime_manifest_entry_contract_selects_platform_and_contract() -> None
         "entries": [
             {
                 "coreVersion": "0.5.1",
-                "contractVersion": "proofsignal-public-cli-json/v1",
+                "contractVersion": "verifysignal-public-cli-json/v1",
                 "platform": "linux-x64",
-                "artifactName": "proofsignal-core-linux-x64.tar.gz",
-                "url": "file:///tmp/proofsignal-core-linux-x64.tar.gz",
+                "artifactName": "verifysignal-core-linux-x64.tar.gz",
+                "url": "file:///tmp/verifysignal-core-linux-x64.tar.gz",
                 "sha256": "a" * 64,
                 "signature": {"algorithm": "test", "keyId": "test", "value": "valid"},
             }

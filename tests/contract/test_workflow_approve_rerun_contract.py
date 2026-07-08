@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
-from proofsignal_spec.workspace import layout
-from proofsignal_spec.workspace.repository import save_use_case
+from verifysignal_spec.workspace import layout
+from verifysignal_spec.workspace.repository import save_use_case
 
 from tests.fixtures.workflows.prerequisites import create_current_understanding_workspace
 from tests.fixtures.workflows.side_effect_contract_alignment import confirmable_write_last_run, create_write_policy_workspace

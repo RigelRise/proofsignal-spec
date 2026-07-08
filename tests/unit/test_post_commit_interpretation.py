@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import PostCommitInterpretation
+from verifysignal_spec.workspace.models import PostCommitInterpretation
 
 
 def test_post_commit_interpretation_warns_when_commit_reached_and_verification_failed() -> None:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.gates import gate_is_approved
-from proofsignal_spec.workflows.models import WorkflowGateDecision, WorkflowRun
+from verifysignal_spec.workflows.gates import gate_is_approved
+from verifysignal_spec.workflows.models import WorkflowGateDecision, WorkflowRun
 
 
 def test_gate_approval_uses_latest_decision() -> None:

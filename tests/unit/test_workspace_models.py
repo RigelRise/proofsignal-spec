@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from helpers import CliTestCase
 
-from proofsignal_spec.workspace import artifacts
-from proofsignal_spec.workspace.models import ArtifactReference, UseCaseRecord
-from proofsignal_spec.workspace.models import RuntimeInputRequirement
-from proofsignal_spec.workspace.repository import init_workspace, save_use_case
-from proofsignal_spec.workspace.validation import validate_workspace
+from verifysignal_spec.workspace import artifacts
+from verifysignal_spec.workspace.models import ArtifactReference, UseCaseRecord
+from verifysignal_spec.workspace.models import RuntimeInputRequirement
+from verifysignal_spec.workspace.repository import init_workspace, save_use_case
+from verifysignal_spec.workspace.validation import validate_workspace
 
 
 class WorkspaceModelTests(CliTestCase):
@@ -34,9 +34,9 @@ class WorkspaceModelTests(CliTestCase):
             alias="login",
             title="Login",
             description="Login",
-            runRequest=ArtifactReference(path=".proofsignal/run-requests/login.yaml", kind="run-request"),
-            mainSkill=ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill"),
-            skills=[ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill")],
+            runRequest=ArtifactReference(path=".verifysignal/run-requests/login.yaml", kind="run-request"),
+            mainSkill=ArtifactReference(path=".verifysignal/skills/login.browser.md", kind="skill"),
+            skills=[ArtifactReference(path=".verifysignal/skills/login.browser.md", kind="skill")],
             validation={"token": "fake-credential-value-abcdefghijklmnop"},
         )
         artifacts.write_generated_artifacts(self.project, record)
@@ -51,14 +51,14 @@ class WorkspaceModelTests(CliTestCase):
             alias="login",
             title="Login",
             description="Validate login.",
-            runRequest=ArtifactReference(path=".proofsignal/run-requests/login.yaml", kind="run-request", id="request.login"),
-            mainSkill=ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login"),
-            skills=[ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login")],
+            runRequest=ArtifactReference(path=".verifysignal/run-requests/login.yaml", kind="run-request", id="request.login"),
+            mainSkill=ArtifactReference(path=".verifysignal/skills/login.browser.md", kind="skill", id="skill.login"),
+            skills=[ArtifactReference(path=".verifysignal/skills/login.browser.md", kind="skill", id="skill.login")],
             runtimeInputs=[RuntimeInputRequirement(name="baseUrl")],
         )
         artifacts.write_generated_artifacts(self.project, record, overwrite=True)
-        run_request = (self.project / ".proofsignal/run-requests/login.yaml").read_text()
-        skill = (self.project / ".proofsignal/skills/login.browser.md").read_text()
+        run_request = (self.project / ".verifysignal/run-requests/login.yaml").read_text()
+        skill = (self.project / ".verifysignal/skills/login.browser.md").read_text()
         self.assertIn('"schemaVersion": "qa-run-request/v1"', run_request)
         self.assertIn('"parameters"', run_request)
         self.assertIn("schemaVersion: qa-skill/v1", skill)
@@ -70,24 +70,24 @@ class WorkspaceModelTests(CliTestCase):
             alias="brands-search-authenticated",
             title="Brands Search Authenticated",
             description="Validate authenticated brands search.",
-            runRequest=ArtifactReference(path=".proofsignal/run-requests/brands.yaml", kind="run-request"),
-            mainSkill=ArtifactReference(path=".proofsignal/skills/brands-main.browser.md", kind="skill", id="skill.brands-main"),
+            runRequest=ArtifactReference(path=".verifysignal/run-requests/brands.yaml", kind="run-request"),
+            mainSkill=ArtifactReference(path=".verifysignal/skills/brands-main.browser.md", kind="skill", id="skill.brands-main"),
             skills=[
-                ArtifactReference(path=".proofsignal/skills/brands-main.browser.md", kind="skill", id="skill.brands-main"),
-                ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login"),
+                ArtifactReference(path=".verifysignal/skills/brands-main.browser.md", kind="skill", id="skill.brands-main"),
+                ArtifactReference(path=".verifysignal/skills/login.browser.md", kind="skill", id="skill.login"),
             ],
             sourceOnlySkills=[
-                ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login"),
+                ArtifactReference(path=".verifysignal/skills/login.browser.md", kind="skill", id="skill.login"),
             ],
             skillComposition={
                 "mode": "inline-into-main",
-                "sourceSkillPaths": [".proofsignal/skills/login.browser.md"],
-                "mainSkillPath": ".proofsignal/skills/brands-main.browser.md",
+                "sourceSkillPaths": [".verifysignal/skills/login.browser.md"],
+                "mainSkillPath": ".verifysignal/skills/brands-main.browser.md",
                 "credentialReferencePolicy": "preserve-placeholders",
             },
         )
 
         restored = UseCaseRecord.from_dict(record.to_dict())
 
-        self.assertEqual(restored.sourceOnlySkills[0].path, ".proofsignal/skills/login.browser.md")
+        self.assertEqual(restored.sourceOnlySkills[0].path, ".verifysignal/skills/login.browser.md")
         self.assertEqual(restored.skillComposition["mode"], "inline-into-main")

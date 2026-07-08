@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from helpers import CliTestCase
 
-from proofsignal_spec.workflows.prerequisites import check_prerequisites
-from proofsignal_spec.workflows.stage_persistence import persist_stage
-from proofsignal_spec.workspace.repository import load_use_case
+from verifysignal_spec.workflows.prerequisites import check_prerequisites
+from verifysignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workspace.repository import load_use_case
 
 from tests.fixtures.workflows.prerequisites import (
     create_current_understanding_workspace,
@@ -18,8 +18,8 @@ class WorkflowSpecifyPrerequisitesTests(CliTestCase):
     def test_missing_understanding_guidance_is_installed_for_codex(self) -> None:
         code, _, err = self.cli(["init", str(self.project), "--integration", "codex", "--json"])
         self.assertEqual(code, 0, err)
-        content = (self.project / ".agents" / "skills" / "proofsignal-specify" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("proofsignal workflow check specify --json", content)
+        content = (self.project / ".agents" / "skills" / "verifysignal-specify" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("verifysignal workflow check specify --json", content)
         self.assertIn("repository understanding is required", content)
         self.assertIn("candidate validation use cases", content)
 
@@ -27,7 +27,7 @@ class WorkflowSpecifyPrerequisitesTests(CliTestCase):
         create_missing_understanding_workspace(self.project)
         result = check_prerequisites(self.project, "specify")
         assert result["status"] == "missing"
-        assert result["nextCommand"] == "/proofsignal-understand"
+        assert result["nextCommand"] == "/verifysignal-understand"
 
     def test_specify_current_understanding_surfaces_candidates(self) -> None:
         create_current_understanding_workspace(self.project, candidates=[sample_candidate("profile")])
@@ -35,7 +35,7 @@ class WorkflowSpecifyPrerequisitesTests(CliTestCase):
         assert result["status"] == "ready"
         assert result["recommendedCandidate"]["candidateAlias"] == "profile"
         assert result["candidateSelectionSource"] == "workflow.recommend-first-run"
-        assert result["firstRunRecommendationCommand"] == "proofsignal workflow recommend-first-run --json"
+        assert result["firstRunRecommendationCommand"] == "verifysignal workflow recommend-first-run --json"
         assert result["candidateUseCases"][0]["candidateAlias"] == "profile"
 
     def test_specify_stale_refresh_accept_and_decline_paths(self) -> None:
@@ -46,7 +46,7 @@ class WorkflowSpecifyPrerequisitesTests(CliTestCase):
 
         accepted = check_prerequisites(self.project, "specify", refresh_decision="accepted")
         assert accepted["canProceed"] is False
-        assert accepted["nextCommand"] == "/proofsignal-understand"
+        assert accepted["nextCommand"] == "/verifysignal-understand"
         assert accepted["recordedDecision"]["decision"] == "accepted"
 
         declined = check_prerequisites(self.project, "specify", refresh_decision="declined")
@@ -74,4 +74,4 @@ class WorkflowSpecifyPrerequisitesTests(CliTestCase):
         record = load_use_case(self.project, "profile")
         assert any(question.id == "browser-target-environment" for question in record.authoringQuestions)
         plan_check = check_prerequisites(self.project, "plan", alias="profile")
-        assert plan_check["nextCommand"] == "/proofsignal-clarify profile"
+        assert plan_check["nextCommand"] == "/verifysignal-clarify profile"

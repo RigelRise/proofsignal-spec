@@ -8,7 +8,7 @@ from helpers import CliTestCase
 
 class RepairAutonomyContractTests(CliTestCase):
     def test_wait_strategy_report_auto_applies_as_safe_mechanical_repair(self) -> None:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "aborted-activity-wait"
         self.cli(["init", str(self.project), "--integration", "codex"])
         self.cli(["author", "home-page-unauth", "Validate home page.", "--project", str(self.project)])
         report = self.project / "report.json"
@@ -28,14 +28,14 @@ class RepairAutonomyContractTests(CliTestCase):
     def test_gate_mapping_repair_still_requires_confirmation(self) -> None:
         self.cli(["init", str(self.project), "--integration", "codex"])
         self.cli(["author", "home-page-unauth", "Validate home page.", "--project", str(self.project)])
-        record_path = self.project / ".proofsignal/use-cases/home-page-unauth.yaml"
+        record_path = self.project / ".verifysignal/use-cases/home-page-unauth.yaml"
         data = json.loads(record_path.read_text(encoding="utf-8"))
         data["validation"] = {
             "findings": [
                 {
                     "code": "missing-gateid",
                     "message": "assertion lacks gateId",
-                    "artifact": ".proofsignal/skills/home-page-unauth.browser.md",
+                    "artifact": ".verifysignal/skills/home-page-unauth.browser.md",
                     "path": "assertions[0]",
                 }
             ]

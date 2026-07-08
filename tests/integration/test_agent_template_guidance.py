@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.integrations.claude import ClaudeIntegration
-from proofsignal_spec.integrations.codex import CodexIntegration
+from verifysignal_spec.integrations.claude import ClaudeIntegration
+from verifysignal_spec.integrations.codex import CodexIntegration
 
 
 def test_installed_codex_and_claude_templates_include_write_safety_contract_guidance(tmp_path) -> None:
@@ -19,4 +19,4 @@ def test_installed_codex_and_claude_templates_include_write_safety_contract_guid
         "Resolve `{{parameters.*}}` confirmation expected values before Core execution",
     ]:
         assert phrase in combined
-    assert "hand-edit `.proofsignal/` `lastRun`" not in combined
+    assert "hand-edit `.verifysignal/` `lastRun`" not in combined

@@ -8,16 +8,16 @@ from helpers import CliTestCase
 from tests.fixtures.workflows.guardrails import create_ready_use_case_workspace, create_registry_missing_record_path
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 from tests.fixtures.workflows.skill_execution_boundary import ALIAS, LOGIN_SKILL_ID, MAIN_SKILL_ID, create_planned_workspace, implementation_payload
-from proofsignal_spec.workflows.stage_persistence import persist_stage
-from proofsignal_spec.workspace.repository import load_document, save_document
+from verifysignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workspace.repository import load_document, save_document
 
 
 class ValidationReadinessContractTests(CliTestCase):
     def test_structural_validation_runs_when_core_is_missing(self) -> None:
         create_ready_use_case_workspace(self.project, "login")
-        workspace_path = self.project / ".proofsignal/workspace.yaml"
+        workspace_path = self.project / ".verifysignal/workspace.yaml"
         workspace = load_document(workspace_path)
-        workspace["coreCommand"] = "missing-proofsignal-core-for-test"
+        workspace["coreCommand"] = "missing-verifysignal-core-for-test"
         save_document(workspace_path, workspace)
         code, out, err = self.cli([
             "workflow",
@@ -31,15 +31,15 @@ class ValidationReadinessContractTests(CliTestCase):
         ])
         self.assertEqual(code, 2, err)
         result = json.loads(out)
-        self.assertEqual(result["schemaVersion"], "proofsignal-spec-validation-readiness/v1")
+        self.assertEqual(result["schemaVersion"], "verifysignal-spec-validation-readiness/v1")
         self.assertEqual(result["structuralValidation"]["status"], "pass")
         self.assertEqual(result["coreReadiness"]["status"], "missing")
-        self.assertEqual(result["coreReadiness"]["contractVersion"], "proofsignal-public-cli-json/v1")
+        self.assertEqual(result["coreReadiness"]["contractVersion"], "verifysignal-public-cli-json/v1")
         self.assertIn("report.inspect", result["coreReadiness"]["requiredOperationsByName"])
-        self.assertIn("complete ProofSignal validation and browser execution experience", result["coreReadiness"]["message"])
+        self.assertIn("complete VerifySignal validation and browser execution experience", result["coreReadiness"]["message"])
         blocker = next(item for item in result["blockers"] if item["code"] == "core.missing")
         self.assertEqual(blocker["category"], "environment")
-        self.assertEqual(blocker["recoveryCommand"], "proofsignal core setup --json")
+        self.assertEqual(blocker["recoveryCommand"], "verifysignal core setup --json")
         self.assertFalse(blocker["repairable"])
 
     def test_core_compatibility_fields_are_reported_when_core_is_available(self) -> None:
@@ -57,13 +57,13 @@ class ValidationReadinessContractTests(CliTestCase):
         self.assertEqual(code, 0, err)
         result = json.loads(out)
         self.assertEqual(result["coreReadiness"]["status"], "available")
-        self.assertEqual(result["coreReadiness"]["contractVersion"], "proofsignal-public-cli-json/v1")
+        self.assertEqual(result["coreReadiness"]["contractVersion"], "verifysignal-public-cli-json/v1")
         self.assertEqual(result["coreReadiness"]["missingOperations"], [])
-        self.assertEqual(result["coreReadiness"]["requiredOperationsByName"]["authoring-check"]["schemaName"], "proofsignal.authoring-check/v1")
+        self.assertEqual(result["coreReadiness"]["requiredOperationsByName"]["authoring-check"]["schemaName"], "verifysignal.authoring-check/v1")
 
     def test_core_incompatible_schema_reports_public_operation_details(self) -> None:
         create_ready_use_case_workspace(self.project, "login")
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "incompatible-run-schema"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "incompatible-run-schema"
 
         code, out, err = self.cli([
             "workflow",
@@ -80,8 +80,8 @@ class ValidationReadinessContractTests(CliTestCase):
         result = json.loads(out)
         self.assertEqual(result["coreReadiness"]["status"], "incompatible")
         self.assertEqual(result["coreReadiness"]["incompatibleOperations"][0]["operationName"], "run")
-        self.assertEqual(result["coreReadiness"]["incompatibleOperations"][0]["actualSchema"], "proofsignal.run/v2")
-        self.assertIn("Upgrade ProofSignal Core", result["coreReadiness"]["recoveryAction"])
+        self.assertEqual(result["coreReadiness"]["incompatibleOperations"][0]["actualSchema"], "verifysignal.run/v2")
+        self.assertIn("Upgrade VerifySignal Core", result["coreReadiness"]["recoveryAction"])
 
     def test_malformed_registry_returns_migration_plan(self) -> None:
         create_registry_missing_record_path(self.project, "login")
@@ -114,7 +114,7 @@ class ValidationReadinessContractTests(CliTestCase):
         ])
         self.assertEqual(code, 0, err)
         result = json.loads(out)
-        self.assertEqual(result["schemaVersion"], "proofsignal-spec-workflow-migration-result/v1")
+        self.assertEqual(result["schemaVersion"], "verifysignal-spec-workflow-migration-result/v1")
         self.assertEqual(result["status"], "applied")
 
         code, out, err = self.cli([
@@ -153,7 +153,7 @@ class ValidationReadinessContractTests(CliTestCase):
         create_planned_workspace(self.project)
         result = persist_stage(self.project, "implement", alias=ALIAS, payload=implementation_payload(composed_main=True))
         self.assertEqual(result["status"], "persisted")
-        run_request_path = self.project / f".proofsignal/run-requests/{ALIAS}.yaml"
+        run_request_path = self.project / f".verifysignal/run-requests/{ALIAS}.yaml"
         run_request = load_document(run_request_path)
         run_request["skills"] = [
             {"id": MAIN_SKILL_ID, "version": "1.0.0"},

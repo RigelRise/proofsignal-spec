@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import time
 
-from proofsignal_spec.workflows.first_run import score_first_run_candidates
-from proofsignal_spec.workflows.models import CandidateValidationUseCase
-from proofsignal_spec.workflows.stage_cards import build_stage_card
+from verifysignal_spec.workflows.first_run import score_first_run_candidates
+from verifysignal_spec.workflows.models import CandidateValidationUseCase
+from verifysignal_spec.workflows.stage_cards import build_stage_card
 
 
 def test_first_run_candidate_ranking_completes_under_one_second() -> None:

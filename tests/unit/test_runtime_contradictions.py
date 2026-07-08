@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.evidence import normalize_planned_gates
-from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage
-from proofsignal_spec.workflows.models import EvidenceInventory
-from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings, proposals_from_contradictions, recommend_repairs_for_gate_coverage
+from verifysignal_spec.workflows.evidence import normalize_planned_gates
+from verifysignal_spec.workflows.gate_coverage import calculate_gate_coverage
+from verifysignal_spec.workflows.models import EvidenceInventory
+from verifysignal_spec.workflows.repair_recommendations import classify_repair_findings, proposals_from_contradictions, recommend_repairs_for_gate_coverage
 
 
 def test_runtime_contradiction_proposes_replan_options_without_mutating_artifacts() -> None:

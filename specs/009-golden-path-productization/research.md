@@ -6,7 +6,7 @@
 stable first run. If the agent invents or loosely argues for a candidate, the
 experience is not repeatable and cannot be tested. The recommendation should be
 derived from coverage inventory, candidate metadata, runtime requirements, and
-target readiness signals already available through public ProofSignal Spec
+target readiness signals already available through public VerifySignal Spec
 workspace records.
 
 **Alternatives considered**:
@@ -50,7 +50,7 @@ matters, primary evidence, repair/change details when present, and next action.
 
 ## Decision: First-run success states are strict and explicit
 
-**Rationale**: The first run should convince the user that ProofSignal worked on
+**Rationale**: The first run should convince the user that VerifySignal worked on
 something real. Success is only `passed` or `repaired-passed`, both requiring
 Core/browser success, complete Spec coverage, mapped rendered-result evidence
 for all required gates, persisted artifacts, and a clear next action.

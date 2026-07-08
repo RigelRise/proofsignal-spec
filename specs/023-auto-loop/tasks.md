@@ -2,7 +2,7 @@
 description: "Task list for Autonomous Grounded Authoring Loop (023)"
 ---
 
-# Tasks: Autonomous Grounded Authoring Loop (`/proofsignal-auto`)
+# Tasks: Autonomous Grounded Authoring Loop (`/verifysignal-auto`)
 
 **Input**: `/specs/023-auto-loop/` (spec.md, plan.md)
 
@@ -10,21 +10,21 @@ description: "Task list for Autonomous Grounded Authoring Loop (023)"
 
 ## Phase 1: Setup / Foundational
 
-- [ ] T001 Confirm Core 016 `discover` is available (`proofsignal core version --json` operations include `discover`); confirm `core/contracts.py:REQUIRED_OPERATIONS` is the existing 5 and must NOT gain `discover`.
+- [ ] T001 Confirm Core 016 `discover` is available (`verifysignal core version --json` operations include `discover`); confirm `core/contracts.py:REQUIRED_OPERATIONS` is the existing 5 and must NOT gain `discover`.
 
 ## Phase 2: User Story 1 - One-pass grounded loop (P1) 🎯 MVP
 
 ### Tests (write first, must fail) ⚠️
 
 - [ ] T002 [P] [US1] `tests/.../test_core_adapter_discover.py`: `CoreAdapter.discover(url=..., skill=...)` builds argv `["discover","--url",url,"--skill",skill,"--json"]` and calls `require_compatible()` then `_run`.
-- [ ] T003 [P] [US1] `tests/.../test_auto_template_install.py`: `render_workflow_skill_files` for Claude and Codex includes `proofsignal-auto/SKILL.md`; `auto` is NOT in `WORKFLOW_STAGES`/`PERSISTABLE_STAGES`.
+- [ ] T003 [P] [US1] `tests/.../test_auto_template_install.py`: `render_workflow_skill_files` for Claude and Codex includes `verifysignal-auto/SKILL.md`; `auto` is NOT in `WORKFLOW_STAGES`/`PERSISTABLE_STAGES`.
 
 ### Implementation
 
 - [ ] T004 [US1] `core/adapter.py`: add `discover(*, url, skill, headed=False, env=None, entitlement_receipt=None)` mirroring `run` (110-133). (FR-001)
-- [ ] T005 [US1] `cli.py` (optional): add a `proofsignal discover --url --skill --json` passthrough calling `CoreAdapter.discover`. (FR-001)
+- [ ] T005 [US1] `cli.py` (optional): add a `verifysignal discover --url --skill --json` passthrough calling `CoreAdapter.discover`. (FR-001)
 - [ ] T006 [US1] `integrations/base.py`: add `WorkflowCommandSpec("auto", "Drive discover → author → run → repair in one pass", "<goal or alias>")` to `WORKFLOW_COMMANDS`. Do NOT touch `WORKFLOW_STAGES`. (FR-003, FR-006)
-- [ ] T007 [US1] New `templates/agent-commands/proofsignal.auto.md`: the tight loop prompt (capability check → draft → discover/correct → persist implement → validate → run → bounded safe repair) with the five escalation STOP rules and verbatim secret-safety guardrails. (FR-003, FR-004, FR-005)
+- [ ] T007 [US1] New `templates/agent-commands/verifysignal.auto.md`: the tight loop prompt (capability check → draft → discover/correct → persist implement → validate → run → bounded safe repair) with the five escalation STOP rules and verbatim secret-safety guardrails. (FR-003, FR-004, FR-005)
 
 ## Phase 3: User Story 2 - Graceful degrade (P2)
 

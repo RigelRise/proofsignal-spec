@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from proofsignal_spec.workflows.coverage_inventory import merge_inventory, normalize_inventory
+from verifysignal_spec.workflows.coverage_inventory import merge_inventory, normalize_inventory
 
 
 def test_inventory_complete_requires_covered_or_excluded_user_facing_items() -> None:

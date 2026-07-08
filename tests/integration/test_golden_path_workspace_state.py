@@ -31,18 +31,18 @@ class GoldenPathWorkspaceStateIntegrationTests(CliTestCase):
 
     def test_inspect_reports_untracked_run_history_without_implicit_acceptance(self) -> None:
         create_onboarding_repository(self.project)
-        old_mode = os.environ.get("FAKE_PROOFSIGNAL_MODE")
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "full-coverage"
+        old_mode = os.environ.get("FAKE_VERIFYSIGNAL_MODE")
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "full-coverage"
         try:
             run_code, _run_out, run_err = self.cli(["run", ONBOARDING_PUBLIC_ALIAS, "--project", str(self.project), "--profile", "normal", "--json"])
         finally:
             if old_mode is None:
-                os.environ.pop("FAKE_PROOFSIGNAL_MODE", None)
+                os.environ.pop("FAKE_VERIFYSIGNAL_MODE", None)
             else:
-                os.environ["FAKE_PROOFSIGNAL_MODE"] = old_mode
+                os.environ["FAKE_VERIFYSIGNAL_MODE"] = old_mode
 
         self.assertEqual(run_code, 0, run_err)
-        state_path = self.project / ".proofsignal/workflows/golden-path-state.yaml"
+        state_path = self.project / ".verifysignal/workflows/golden-path-state.yaml"
         self.assertFalse(state_path.exists())
 
         inspect_code, inspect_out, inspect_err = self.cli(["workflow", "inspect-golden-path-state", "--project", str(self.project), "--json"])

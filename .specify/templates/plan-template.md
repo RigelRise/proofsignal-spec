@@ -32,10 +32,10 @@
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 - **Public Core boundary**: Does the feature use only documented public CLI JSON
-  contracts for ProofSignal Core interactions, with operation names, schema
+  contracts for VerifySignal Core interactions, with operation names, schema
   names, schema versions, and incompatibility behavior defined?
-- **Project-local workspace portability**: Does the feature keep ProofSignal
-  Spec state project-local, preserve `.proofsignal/` workspace semantics, and
+- **Project-local workspace portability**: Does the feature keep VerifySignal
+  Spec state project-local, preserve `.verifysignal/` workspace semantics, and
   avoid agent-specific state as the source of truth?
 - **Secret safety**: Does the feature avoid persisted credential values, require
   approval for sensitive file access, and include redaction/non-persistence

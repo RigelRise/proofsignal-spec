@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from helpers import SRC  # noqa: F401
-from proofsignal_spec.workspace.sensitive_files import filter_safe_paths, is_sensitive_path
+from verifysignal_spec.workspace.sensitive_files import filter_safe_paths, is_sensitive_path
 
 
 class SensitiveFileTests(unittest.TestCase):

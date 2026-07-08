@@ -37,4 +37,4 @@ class NonAiFlowTests(CliTestCase):
             "--json",
         ])
         self.assertEqual(code, 0, err)
-        self.assertTrue((self.project / ".proofsignal/use-cases/login.yaml").exists())
+        self.assertTrue((self.project / ".verifysignal/use-cases/login.yaml").exists())

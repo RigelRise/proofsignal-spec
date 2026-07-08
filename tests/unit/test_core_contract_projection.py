@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from tests.fixtures.managed_runtime import core_contract_fixture_payload, current_core_contract_fixture_payload
-from proofsignal_spec.workflows.browser_authoring import browser_authoring_contract
-from proofsignal_spec.core.executable_contract import CommandContractReuse, project_core_contract, validate_core_contract
+from verifysignal_spec.workflows.browser_authoring import browser_authoring_contract
+from verifysignal_spec.core.executable_contract import CommandContractReuse, project_core_contract, validate_core_contract
 
 
 def _finding_codes(projection: dict) -> set[str]:
@@ -23,19 +23,19 @@ def test_command_contract_reuse_is_in_memory_and_keyed_per_command() -> None:
     first = first_command.get_or_discover(
         runtime_identity="core-a",
         core_version="0.1.0",
-        public_contract_version="proofsignal-public-cli-json/v1",
+        public_contract_version="verifysignal-public-cli-json/v1",
         discover=discover,
     )
     second = first_command.get_or_discover(
         runtime_identity="core-a",
         core_version="0.1.0",
-        public_contract_version="proofsignal-public-cli-json/v1",
+        public_contract_version="verifysignal-public-cli-json/v1",
         discover=discover,
     )
     third = second_command.get_or_discover(
         runtime_identity="core-a",
         core_version="0.1.0",
-        public_contract_version="proofsignal-public-cli-json/v1",
+        public_contract_version="verifysignal-public-cli-json/v1",
         discover=discover,
     )
 
@@ -63,7 +63,7 @@ def test_projection_filters_to_stable_browser_authoring_items() -> None:
     assert "dragAndDrop" not in authoring["validActions"]
     assert authoring["experimentalItems"]["actions"][0]["name"] == "dragAndDrop"
     assert projection["sections"]["runRequest"]["schemaVersion"] == "qa-run-request/v1"
-    assert projection["sections"]["skill"]["schemaVersion"] == "proofsignal-browser-skill/v1"
+    assert projection["sections"]["skill"]["schemaVersion"] == "verifysignal-browser-skill/v1"
 
 
 def test_projection_preserves_required_contract_sections() -> None:

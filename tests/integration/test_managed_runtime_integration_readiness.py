@@ -16,9 +16,9 @@ class ManagedRuntimeIntegrationReadinessTests(CliTestCase):
         assert payload["managedRuntimeReadiness"]["source"] == "env"
 
     def test_check_has_sub_second_structured_blocker_without_runtime(self) -> None:
-        os.environ.pop("PROOFSIGNAL_CORE_CMD", None)
-        os.environ["PROOFSIGNAL_RUNTIME_CACHE_DIR"] = str(self.project / "empty-cache")
-        self.addCleanup(lambda: os.environ.pop("PROOFSIGNAL_RUNTIME_CACHE_DIR", None))
+        os.environ.pop("VERIFYSIGNAL_CORE_CMD", None)
+        os.environ["VERIFYSIGNAL_RUNTIME_CACHE_DIR"] = str(self.project / "empty-cache")
+        self.addCleanup(lambda: os.environ.pop("VERIFYSIGNAL_RUNTIME_CACHE_DIR", None))
 
         code, out, _err = self.cli(["check", "--project", str(self.project), "--json"])
 

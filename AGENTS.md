@@ -9,11 +9,11 @@ runtime guidance, run requests, and skills in English.
 
 Use pt-BR for chat with the project owner unless they ask otherwise.
 
-ProofSignal Spec is the open interface layer over ProofSignal Core. Keep Core
+VerifySignal Spec is the open interface layer over VerifySignal Core. Keep Core
 interaction behind the documented public CLI JSON contract; do not import
-private ProofSignal Core packages or read undocumented report internals.
+private VerifySignal Core packages or read undocumented report internals.
 
-Keep target-project state under `.proofsignal/`. Use cases reference exactly one
+Keep target-project state under `.verifysignal/`. Use cases reference exactly one
 run request, while skills are decoupled reusable artifacts that may be shared by
 multiple run requests.
 <!-- SPECKIT END -->
@@ -46,7 +46,7 @@ Preserve existing features by default:
 Evaluate version impact after changes:
 - Before finishing code, behavior, CLI, schema, template, or packaging changes,
   check the current package version from `pyproject.toml` and
-  `src/proofsignal_spec/__init__.py`.
+  `src/verifysignal_spec/__init__.py`.
 - Decide whether the completed change requires a version bump. Use patch for
   fixes and internal-compatible refinements, minor for new backwards-compatible
   capabilities, and major for intentional breaking changes.

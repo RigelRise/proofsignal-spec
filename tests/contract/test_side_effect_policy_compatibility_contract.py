@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from proofsignal_spec.workspace.artifacts import render_run_request
+from verifysignal_spec.workspace.artifacts import render_run_request
 
 from tests.fixtures.workflows.side_effect_contract_alignment import create_write_policy_workspace, legacy_rules_policy
 

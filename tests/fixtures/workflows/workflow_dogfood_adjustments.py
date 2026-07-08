@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec.workspace.models import ArtifactReference, RunProfile, RuntimeInputRequirement, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, save_document, save_use_case
+from verifysignal_spec.workspace.models import ArtifactReference, RunProfile, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, save_document, save_use_case
 
 
 ALIAS = "home-page-unauth"
@@ -30,9 +30,9 @@ def malformed_specify_payload(alias: str = ALIAS) -> dict[str, Any]:
 
 def browser_artifact_plan() -> dict[str, Any]:
     return {
-        "runRequest": f".proofsignal/run-requests/{ALIAS}.yaml",
-        "mainSkill": f".proofsignal/skills/validate-{ALIAS}-flow.browser.md",
-        "reusableSkills": [f".proofsignal/skills/validate-{ALIAS}-flow.browser.md"],
+        "runRequest": f".verifysignal/run-requests/{ALIAS}.yaml",
+        "mainSkill": f".verifysignal/skills/validate-{ALIAS}-flow.browser.md",
+        "reusableSkills": [f".verifysignal/skills/validate-{ALIAS}-flow.browser.md"],
         "runtimeInputs": [{"name": "baseUrl", "kind": "parameter", "value": BASE_URL}],
         "validationGates": [
             {"id": "home-hero-visible", "description": "Hero headline renders.", "required": True},
@@ -44,7 +44,7 @@ def browser_artifact_plan() -> dict[str, Any]:
 
 def browser_skill_payload(*, activity_timeout_ms: int = 25000) -> dict[str, Any]:
     return {
-        "path": f".proofsignal/skills/validate-{ALIAS}-flow.browser.md",
+        "path": f".verifysignal/skills/validate-{ALIAS}-flow.browser.md",
         "kind": "skill",
         "intent": {
             "id": f"skill.validate-{ALIAS}-flow",
@@ -77,7 +77,7 @@ def browser_skill_payload(*, activity_timeout_ms: int = 25000) -> dict[str, Any]
 
 def implement_payload() -> dict[str, Any]:
     return {
-        "runRequest": {"path": f".proofsignal/run-requests/{ALIAS}.yaml"},
+        "runRequest": {"path": f".verifysignal/run-requests/{ALIAS}.yaml"},
         "runtimeInputs": [{"name": "baseUrl", "kind": "parameter", "value": BASE_URL}],
         "skills": [browser_skill_payload()],
     }
@@ -90,9 +90,9 @@ def create_dogfood_ready_workspace(project: Path) -> None:
         title="Home Page Unauth",
         description="Validate the public home page for an unauthenticated visitor.",
         targetSurface="/",
-        runRequest=ArtifactReference(path=f".proofsignal/run-requests/{ALIAS}.yaml", kind="run-request", id=f"request.{ALIAS}"),
+        runRequest=ArtifactReference(path=f".verifysignal/run-requests/{ALIAS}.yaml", kind="run-request", id=f"request.{ALIAS}"),
         mainSkill=ArtifactReference(
-            path=f".proofsignal/skills/validate-{ALIAS}-flow.browser.md",
+            path=f".verifysignal/skills/validate-{ALIAS}-flow.browser.md",
             kind="skill",
             id=f"skill.validate-{ALIAS}-flow",
         ),
@@ -112,19 +112,19 @@ def create_dogfood_ready_workspace(project: Path) -> None:
     )
     record.skills = [record.mainSkill]
     save_use_case(project, record)
-    save_document(project / ".proofsignal" / "workflows" / "use-cases" / ALIAS / "plan.yaml", {
-        "schemaVersion": "proofsignal-spec-workflow-artifact-plan/v1",
+    save_document(project / ".verifysignal" / "workflows" / "use-cases" / ALIAS / "plan.yaml", {
+        "schemaVersion": "verifysignal-spec-workflow-artifact-plan/v1",
         "useCaseAlias": ALIAS,
         **browser_artifact_plan(),
     })
-    save_document(project / ".proofsignal" / "run-requests" / f"{ALIAS}.yaml", {
+    save_document(project / ".verifysignal" / "run-requests" / f"{ALIAS}.yaml", {
         "schemaVersion": "qa-run-request/v1",
         "request": {"id": f"request.{ALIAS}", "name": "Home Page Unauth"},
         "target": "browser",
         "parameters": {"baseUrl": BASE_URL},
         "skills": [{"id": f"skill.validate-{ALIAS}-flow", "version": "1.0.0"}],
     })
-    save_document(project / ".proofsignal" / "skills" / f"validate-{ALIAS}-flow.browser.md", {
+    save_document(project / ".verifysignal" / "skills" / f"validate-{ALIAS}-flow.browser.md", {
         "schemaVersion": "qa-skill/v1",
         "id": f"skill.validate-{ALIAS}-flow",
         "version": "1.0.0",

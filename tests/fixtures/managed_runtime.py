@@ -111,11 +111,11 @@ def core_contract_fixture_payload(
 
     data: dict[str, Any] = {
         "operations": [
-            core_contract_operation("version", "proofsignal.version/v1"),
-            core_contract_operation("contracts", "proofsignal.contracts/v1"),
-            core_contract_operation("authoring-check", "proofsignal.authoring-check/v1"),
-            core_contract_operation("run", "proofsignal.run/v1"),
-            core_contract_operation("report.inspect", "proofsignal.report-inspection/v1"),
+            core_contract_operation("version", "verifysignal.version/v1"),
+            core_contract_operation("contracts", "verifysignal.contracts/v1"),
+            core_contract_operation("authoring-check", "verifysignal.authoring-check/v1"),
+            core_contract_operation("run", "verifysignal.run/v1"),
+            core_contract_operation("report.inspect", "verifysignal.report-inspection/v1"),
         ],
         "runRequest": {
             "schemaVersion": "qa-run-request/v1",
@@ -128,7 +128,7 @@ def core_contract_fixture_payload(
             ],
         },
         "skill": {
-            "schemaVersion": "proofsignal-browser-skill/v1",
+            "schemaVersion": "verifysignal-browser-skill/v1",
             "fields": [
                 {"name": "browser.targets", "status": "stable", "required": True},
                 {"name": "browser.steps", "status": "stable", "required": True},
@@ -148,8 +148,8 @@ def core_contract_fixture_payload(
             },
         },
         "runtimeTrustHandoff": {
-            "entitlementReceiptEnv": "PROOFSIGNAL_ENTITLEMENT_RECEIPT",
-            "verificationKeysEnv": "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
+            "entitlementReceiptEnv": "VERIFYSIGNAL_ENTITLEMENT_RECEIPT",
+            "verificationKeysEnv": "VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
         },
         "sideEffectGuardrails": side_effect_guardrails_section(),
     }
@@ -185,7 +185,7 @@ def core_contract_fixture_payload(
     if extra_sections:
         data.update(extra_sections)
     return {
-        "schema": "proofsignal.contracts/v1",
+        "schema": "verifysignal.contracts/v1",
         "schemaVersion": 1,
         "operation": "contracts",
         "status": "passed",
@@ -202,11 +202,11 @@ def current_core_contract_fixture_payload(
 
     data: dict[str, Any] = {
         "operations": [
-            core_contract_operation("version", "proofsignal.version/v1", status="supported"),
-            core_contract_operation("contracts", "proofsignal.contracts/v1", status="supported"),
-            core_contract_operation("authoring-check", "proofsignal.authoring-check/v1", status="supported"),
-            core_contract_operation("run", "proofsignal.run/v1", status="supported"),
-            core_contract_operation("report.inspect", "proofsignal.report-inspection/v1", status="supported"),
+            core_contract_operation("version", "verifysignal.version/v1", status="supported"),
+            core_contract_operation("contracts", "verifysignal.contracts/v1", status="supported"),
+            core_contract_operation("authoring-check", "verifysignal.authoring-check/v1", status="supported"),
+            core_contract_operation("run", "verifysignal.run/v1", status="supported"),
+            core_contract_operation("report.inspect", "verifysignal.report-inspection/v1", status="supported"),
         ],
         "runRequest": {
             "schemaVersion": 1,
@@ -286,15 +286,15 @@ def current_core_contract_fixture_payload(
             },
         },
         "runtimeTrustHandoff": {
-            "entitlementReceiptEnv": "PROOFSIGNAL_ENTITLEMENT_RECEIPT",
-            "verificationKeysEnv": "PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
+            "entitlementReceiptEnv": "VERIFYSIGNAL_ENTITLEMENT_RECEIPT",
+            "verificationKeysEnv": "VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
         },
         "sideEffectGuardrails": side_effect_guardrails_section(),
     }
     if extra_sections:
         data.update(extra_sections)
     return {
-        "schema": "proofsignal.contracts/v1",
+        "schema": "verifysignal.contracts/v1",
         "schemaVersion": 1,
         "operation": "contracts",
         "status": "passed",
@@ -309,7 +309,7 @@ def write_fake_core_executable(path: Path, *, mode: str = "ok") -> Path:
             [
                 f"#!{sys.executable}",
                 "import os, runpy, sys",
-                f"os.environ['FAKE_PROOFSIGNAL_MODE'] = {mode!r}",
+                f"os.environ['FAKE_VERIFYSIGNAL_MODE'] = {mode!r}",
                 f"sys.argv = [{str(FAKE_CORE)!r}, *sys.argv[1:]]",
                 f"runpy.run_path({str(FAKE_CORE)!r}, run_name='__main__')",
                 "",
@@ -326,33 +326,33 @@ def build_managed_runtime_distribution(root: Path, *, platform: str, core_versio
     staging = root / "staging"
     dist.mkdir(parents=True, exist_ok=True)
     staging.mkdir(parents=True, exist_ok=True)
-    package_root = staging / "proofsignal-core"
-    write_fake_core_executable(package_root / "bin" / "proofsignal-core", mode=mode)
+    package_root = staging / "verifysignal-core"
+    write_fake_core_executable(package_root / "bin" / "verifysignal-core", mode=mode)
     (package_root / "manifest.json").write_text(
         json.dumps(
             {
-                "schema": "proofsignal.runtime-manifest/v1",
+                "schema": "verifysignal.runtime-manifest/v1",
                 "schemaVersion": 1,
                 "coreVersion": core_version,
                 "platform": platform,
-                "executable": "bin/proofsignal-core",
+                "executable": "bin/verifysignal-core",
             }
         ),
         encoding="utf-8",
     )
     (package_root / "package.json").write_text(
-        json.dumps({"name": "proofsignal-core-runtime", "private": True, "type": "module"}),
+        json.dumps({"name": "verifysignal-core-runtime", "private": True, "type": "module"}),
         encoding="utf-8",
     )
-    artifact = dist / f"proofsignal-core-{platform}.tar.gz"
+    artifact = dist / f"verifysignal-core-{platform}.tar.gz"
     with tarfile.open(artifact, "w:gz") as archive:
-        archive.add(package_root, arcname="proofsignal-core")
+        archive.add(package_root, arcname="verifysignal-core")
     sha256 = hashlib.sha256(artifact.read_bytes()).hexdigest()
     manifest = {
         "entries": [
             {
                 "coreVersion": core_version,
-                "contractVersion": "proofsignal-public-cli-json/v1",
+                "contractVersion": "verifysignal-public-cli-json/v1",
                 "platform": platform,
                 "artifactName": artifact.name,
                 "url": artifact.as_uri(),
@@ -386,11 +386,11 @@ def public_free_token_policy() -> dict[str, Any]:
     }
 
 
-def public_free_receipt_summary(*, token: str = "ps_valid", exchange_count: int = 1) -> dict[str, Any]:
+def public_free_receipt_summary(*, token: str = "vs_valid", exchange_count: int = 1) -> dict[str, Any]:
     digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
     return {
         "receiptId": f"rcpt_{digest}",
-        "issuer": "https://proofsignal.io",
+        "issuer": "https://verifysignal.io",
         "issuedAt": "2026-06-01T00:00:00Z",
         "expiresAt": "2099-01-01T00:00:00Z",
         "scopes": ["runtime.download", "runtime.local-use"],
@@ -419,12 +419,12 @@ def public_verification_keys(
 ) -> dict[str, Any]:
     if malformed:
         return {
-            "schema": "proofsignal.entitlement-keys/v1",
+            "schema": "verifysignal.entitlement-keys/v1",
             "schemaVersion": 1,
             "keys": "not-a-list",
         }
     payload: dict[str, Any] = {
-        "schema": "proofsignal.entitlement-keys/v1",
+        "schema": "verifysignal.entitlement-keys/v1",
         "schemaVersion": 1,
         "keys": [
             {
@@ -442,7 +442,7 @@ def public_verification_keys(
 
 def token_delivery_response() -> dict[str, Any]:
     return {
-        "schema": "proofsignal.entitlement-token-delivery/v1",
+        "schema": "verifysignal.entitlement-token-delivery/v1",
         "schemaVersion": 1,
         "status": "accepted",
         "delivery": "email",
@@ -451,22 +451,22 @@ def token_delivery_response() -> dict[str, Any]:
     }
 
 
-def token_exchange_response(*, token: str = "ps_valid", exchange_count: int = 1) -> dict[str, Any]:
+def token_exchange_response(*, token: str = "vs_valid", exchange_count: int = 1) -> dict[str, Any]:
     digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
     summary = public_free_receipt_summary(token=token, exchange_count=exchange_count)
     receipt = {
-        "schema": "proofsignal.entitlement-receipt/v1",
+        "schema": "verifysignal.entitlement-receipt/v1",
         "schemaVersion": 1,
         "claims": {
             "receiptId": summary["receiptId"],
             "issuer": summary["issuer"],
-            "audience": "proofsignal-core",
+            "audience": "verifysignal-core",
             "subject": {"kind": "opaque-subject", "value": f"sub_{digest[:16]}"},
             "issuedAt": summary["issuedAt"],
             "expiresAt": summary["expiresAt"],
             "scopes": summary["scopes"],
             "usePolicy": summary["usePolicy"],
-            "publicContractVersion": "proofsignal-public-cli-json/v1",
+            "publicContractVersion": "verifysignal-public-cli-json/v1",
             "coreVersionConstraint": ">=0.1.0 <1.0.0",
         },
         "signature": {
@@ -477,7 +477,7 @@ def token_exchange_response(*, token: str = "ps_valid", exchange_count: int = 1)
         },
     }
     return {
-        "schema": "proofsignal.entitlement-exchange/v1",
+        "schema": "verifysignal.entitlement-exchange/v1",
         "schemaVersion": 1,
         "receipt": json.dumps(receipt, separators=(",", ":")),
         "receiptSummary": summary,
@@ -486,12 +486,12 @@ def token_exchange_response(*, token: str = "ps_valid", exchange_count: int = 1)
 
 def runtime_authorization_response(distribution: dict[str, Path | str]) -> dict[str, Any]:
     return {
-        "schema": "proofsignal.runtime-download/v1",
+        "schema": "verifysignal.runtime-download/v1",
         "schemaVersion": 1,
         "coreVersion": distribution["coreVersion"],
         "platform": distribution["platform"],
-        "releaseMetadata": {"schema": "proofsignal.runtime-release/v1"},
-        "releaseSignature": {"schema": "proofsignal.runtime-signature/v1", "algorithm": "test", "keyId": "test-release-key", "value": "valid"},
+        "releaseMetadata": {"schema": "verifysignal.runtime-release/v1"},
+        "releaseSignature": {"schema": "verifysignal.runtime-signature/v1", "algorithm": "test", "keyId": "test-release-key", "value": "valid"},
         "package": {
             "filename": Path(str(distribution["artifact"])).name,
             "byteSize": Path(str(distribution["artifact"])).stat().st_size,
@@ -507,11 +507,11 @@ class FakeBackendState:
         self.distribution = distribution
         self.delivery_status = "accepted"
         self.exchange_failures: dict[str, tuple[int, str]] = {
-            "ps_invalid": (401, "entitlement.invalid-token"),
-            "ps_expired": (403, "entitlement.expired-token"),
-            "ps_exchange_limit": (403, "entitlement.exchange-limit"),
-            "ps_exchange_throttled": (429, "entitlement.exchange-throttled"),
-            "ps_rejected": (403, "entitlement.rejected"),
+            "vs_invalid": (401, "entitlement.invalid-token"),
+            "vs_expired": (403, "entitlement.expired-token"),
+            "vs_exchange_limit": (403, "entitlement.exchange-limit"),
+            "vs_exchange_throttled": (429, "entitlement.exchange-throttled"),
+            "vs_rejected": (403, "entitlement.rejected"),
         }
         self.keys_status = "ok"
         self.keys_key_id = "ps-entitlement-2026-06"
@@ -543,10 +543,10 @@ class _FakeBackendHandler(BaseHTTPRequestHandler):
         self.state.requests.append({"method": "POST", "path": self.path, "payload": payload})
         if self.path == "/entitlements/request-token":
             if self.state.delivery_status == "throttled":
-                self._json(429, {"schema": "proofsignal.error/v1", "code": "entitlement.delivery-throttled", "message": "Delivery throttled."})
+                self._json(429, {"schema": "verifysignal.error/v1", "code": "entitlement.delivery-throttled", "message": "Delivery throttled."})
                 return
             if self.state.delivery_status == "unavailable":
-                self._json(503, {"schema": "proofsignal.error/v1", "code": "entitlement.delivery-unavailable", "message": "Delivery unavailable."})
+                self._json(503, {"schema": "verifysignal.error/v1", "code": "entitlement.delivery-unavailable", "message": "Delivery unavailable."})
                 return
             self._json(200, token_delivery_response())
             return
@@ -555,19 +555,19 @@ class _FakeBackendHandler(BaseHTTPRequestHandler):
             failure = self.state.exchange_failures.get(token)
             if failure:
                 status, code = failure
-                self._json(status, {"schema": "proofsignal.error/v1", "code": code, "message": "Exchange refused."})
+                self._json(status, {"schema": "verifysignal.error/v1", "code": code, "message": "Exchange refused."})
                 return
             self.state.exchange_count += 1
             self._json(200, token_exchange_response(token=token, exchange_count=self.state.exchange_count))
             return
-        self._json(404, {"schema": "proofsignal.error/v1", "code": "not-found"})
+        self._json(404, {"schema": "verifysignal.error/v1", "code": "not-found"})
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         self.state.requests.append({"method": "GET", "path": self.path, "query": parse_qs(parsed.query)})
         if parsed.path == "/entitlements/keys":
             if self.state.keys_status == "unavailable":
-                self._json(503, {"schema": "proofsignal.error/v1", "code": "api.unavailable"})
+                self._json(503, {"schema": "verifysignal.error/v1", "code": "api.unavailable"})
                 return
             if self.state.keys_status == "malformed":
                 self._json(200, public_verification_keys(malformed=True))
@@ -577,10 +577,10 @@ class _FakeBackendHandler(BaseHTTPRequestHandler):
             return
         if parsed.path.startswith("/runtimes/"):
             if self.state.download_status == "unauthorized" or not self.headers.get("Authorization", "").startswith("Bearer "):
-                self._json(403, {"schema": "proofsignal.error/v1", "code": "distribution.unauthorized"})
+                self._json(403, {"schema": "verifysignal.error/v1", "code": "distribution.unauthorized"})
                 return
             if self.state.download_status == "unavailable" or not self.state.distribution:
-                self._json(503, {"schema": "proofsignal.error/v1", "code": "distribution.unavailable"})
+                self._json(503, {"schema": "verifysignal.error/v1", "code": "distribution.unavailable"})
                 return
             if self.state.download_status == "url-expired":
                 payload = runtime_authorization_response(self.state.distribution)
@@ -589,7 +589,7 @@ class _FakeBackendHandler(BaseHTTPRequestHandler):
                 return
             self._json(200, runtime_authorization_response(self.state.distribution))
             return
-        self._json(404, {"schema": "proofsignal.error/v1", "code": "not-found"})
+        self._json(404, {"schema": "verifysignal.error/v1", "code": "not-found"})
 
     def _json(self, status: int, payload: dict[str, Any]) -> None:
         encoded = json.dumps(payload).encode("utf-8")
@@ -617,23 +617,23 @@ def serve_fake_entitlement_backend(distribution: dict[str, Path | str] | None = 
 
 
 @contextlib.contextmanager
-def managed_runtime_test_env(monkeypatch, tmp_path: Path, *, api_base_url: str | None = None, token: str = "ps_valid", core_version: str = "0.5.1"):
+def managed_runtime_test_env(monkeypatch, tmp_path: Path, *, api_base_url: str | None = None, token: str = "vs_valid", core_version: str = "0.5.1"):
     cache_dir = tmp_path / "user-cache"
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(cache_dir))
-    monkeypatch.setenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", token)
-    monkeypatch.setenv("PROOFSIGNAL_CORE_VERSION", core_version)
-    monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(cache_dir))
+    monkeypatch.setenv("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN", token)
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_VERSION", core_version)
+    monkeypatch.delenv("VERIFYSIGNAL_CORE_CMD", raising=False)
     if api_base_url:
-        monkeypatch.setenv("PROOFSIGNAL_API_BASE_URL", api_base_url)
+        monkeypatch.setenv("VERIFYSIGNAL_API_BASE_URL", api_base_url)
     try:
         yield cache_dir
     finally:
         for key in [
-            "PROOFSIGNAL_RUNTIME_CACHE_DIR",
-            "PROOFSIGNAL_EMAIL_UNLOCK_TOKEN",
-            "PROOFSIGNAL_API_BASE_URL",
-            "PROOFSIGNAL_RUNTIME_MANIFEST_PATH",
-            "PROOFSIGNAL_RUNTIME_MANIFEST_JSON",
-            "PROOFSIGNAL_CORE_VERSION",
+            "VERIFYSIGNAL_RUNTIME_CACHE_DIR",
+            "VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN",
+            "VERIFYSIGNAL_API_BASE_URL",
+            "VERIFYSIGNAL_RUNTIME_MANIFEST_PATH",
+            "VERIFYSIGNAL_RUNTIME_MANIFEST_JSON",
+            "VERIFYSIGNAL_CORE_VERSION",
         ]:
             os.environ.pop(key, None)

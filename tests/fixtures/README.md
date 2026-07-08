@@ -1,10 +1,10 @@
 # Test Fixtures
 
-Fixtures create temporary target repositories and fake ProofSignal Core
+Fixtures create temporary target repositories and fake VerifySignal Core
 executables. They avoid real network access and never persist credential values.
 
 Workflow guardrail fixtures under `tests/fixtures/workflows/` create small
-temporary `.proofsignal/` workspaces for CLI contract, persistence, readiness,
+temporary `.verifysignal/` workspaces for CLI contract, persistence, readiness,
 and migration tests. They intentionally use non-secret placeholder values only.
 
 Real-run guardrail fixtures in `tests/fixtures/workflows/real_run_guardrails.py`

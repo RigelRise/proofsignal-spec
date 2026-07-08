@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from tests.fixtures.workflows.side_effect_contract_alignment import supported_side_effect_contract, unsupported_dom_last_run
 
-from proofsignal_spec.workflows.write_safety import confirmation_support_findings
+from verifysignal_spec.workflows.write_safety import confirmation_support_findings
 
 
 def test_effective_confirmation_support_uses_runtime_outcome_as_stronger_public_signal() -> None:

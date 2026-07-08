@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.models import (
+from verifysignal_spec.workflows.models import (
     CorePublicContract,
     GateIntentState,
     RepairConfirmation,
@@ -20,12 +20,12 @@ def test_workflow_stage_contract_serializes_public_payload_guidance() -> None:
         defaults={"status": "draft"},
         unsupportedFieldsPolicy="warn",
         examples=[{"surface": "/", "behavior": "Validate home.", "expectedOutcome": "Home renders."}],
-        nextAction="proofsignal workflow persist specify --payload <payload.json> --json",
+        nextAction="verifysignal workflow persist specify --payload <payload.json> --json",
     )
 
     data = contract.to_dict()
 
-    assert data["schemaVersion"] == "proofsignal-spec-stage-payload-contract/v1"
+    assert data["schemaVersion"] == "verifysignal-spec-stage-payload-contract/v1"
     assert data["stage"] == "specify"
     assert data["requiredFields"] == ["surface", "behavior", "expectedOutcome"]
     assert data["unsupportedFieldsPolicy"] == "warn"
@@ -40,7 +40,7 @@ def test_stage_payload_finding_uses_actionable_public_fields() -> None:
         severity="blocked",
         message="Payload is missing expectedOutcome.",
         expectedContract="stagePayloadContracts.specify.requiredFields.expectedOutcome",
-        recoveryAction="Add expectedOutcome or run /proofsignal-clarify before planning.",
+        recoveryAction="Add expectedOutcome or run /verifysignal-clarify before planning.",
     )
 
     assert finding.to_dict()["fieldPath"] == "expectedOutcome"
@@ -56,7 +56,7 @@ def test_validation_readiness_summary_distinguishes_authored_mapping_from_browse
         authoredEvidenceCoverageStatus="complete",
         runtimeReadinessStatus="passed",
         fullBrowserFlowExecuted=False,
-        nextAction="proofsignal run home-page-unauth --json",
+        nextAction="verifysignal run home-page-unauth --json",
     )
 
     data = summary.to_dict()
@@ -76,7 +76,7 @@ def test_run_outcome_summary_separates_core_browser_and_spec_coverage_status() -
         profile="normal",
         runId="request_home-page-unauth_1",
         failedStep="scroll-to-activity",
-        nextAction="proofsignal repair home-page-unauth --json",
+        nextAction="verifysignal repair home-page-unauth --json",
     )
 
     data = summary.to_dict()
@@ -104,8 +104,8 @@ def test_runtime_feedback_and_repair_confirmation_serialize_non_secret_evidence(
         category=finding.category,
         confirmationSource="direct-user-answer",
         confirmationTextSummary="Developer confirmed extending the activity wait scope.",
-        approvedScope=[".proofsignal/skills/validate-home-page-unauth-flow.browser.md"],
-        affectedArtifacts=[".proofsignal/skills/validate-home-page-unauth-flow.browser.md"],
+        approvedScope=[".verifysignal/skills/validate-home-page-unauth-flow.browser.md"],
+        affectedArtifacts=[".verifysignal/skills/validate-home-page-unauth-flow.browser.md"],
         revalidationRequired=True,
         status="pending",
     )
@@ -132,7 +132,7 @@ def test_gate_intent_state_keeps_required_gate_stable_after_aborted_run() -> Non
 def test_core_public_contract_serializes_compatibility_details() -> None:
     contract = CorePublicContract(
         operationName="run",
-        schemaName="proofsignal.run/v1",
+        schemaName="verifysignal.run/v1",
         schemaVersion=1,
         compatibilityStatus="compatible",
         incompatibilityBehavior="Block Core-facing workflows and ask the user to upgrade Core.",
@@ -140,6 +140,6 @@ def test_core_public_contract_serializes_compatibility_details() -> None:
 
     data = contract.to_dict()
 
-    assert data["contractVersion"] == "proofsignal-public-cli-json/v1"
+    assert data["contractVersion"] == "verifysignal-public-cli-json/v1"
     assert data["operationName"] == "run"
     assert data["schemaVersion"] == 1

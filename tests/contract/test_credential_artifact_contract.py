@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import os
 
-from proofsignal_spec.core.executable_contract import project_core_contract
-from proofsignal_spec.workspace.artifacts import render_run_request, render_skill
-from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.core.executable_contract import project_core_contract
+from verifysignal_spec.workspace.artifacts import render_run_request, render_skill
+from verifysignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
 from tests.fixtures.managed_runtime import current_core_contract_fixture_payload
 
 
@@ -14,16 +14,16 @@ def test_run_request_renders_core_credential_refs_without_values() -> None:
         alias="add-collaboration-project",
         title="Add collaboration project",
         description="Create a collaboration project.",
-        runRequest=ArtifactReference(path=".proofsignal/run-requests/add-collaboration-project.yaml", kind="run-request"),
+        runRequest=ArtifactReference(path=".verifysignal/run-requests/add-collaboration-project.yaml", kind="run-request"),
         mainSkill=ArtifactReference(
-            path=".proofsignal/skills/validate-add-collaboration-project-flow.browser.md",
+            path=".verifysignal/skills/validate-add-collaboration-project-flow.browser.md",
             kind="skill",
             id="skill.validate-add-collaboration-project-flow",
             version="1.0.0",
         ),
         skills=[
             ArtifactReference(
-                path=".proofsignal/skills/validate-add-collaboration-project-flow.browser.md",
+                path=".verifysignal/skills/validate-add-collaboration-project-flow.browser.md",
                 kind="skill",
                 id="skill.validate-add-collaboration-project-flow",
                 version="1.0.0",
@@ -58,7 +58,7 @@ def test_skill_renders_group_field_credential_placeholders() -> None:
             }
         },
     )
-    skill = ArtifactReference(path=".proofsignal/skills/validate-add-collaboration-project-flow.browser.md", kind="skill")
+    skill = ArtifactReference(path=".verifysignal/skills/validate-add-collaboration-project-flow.browser.md", kind="skill")
     browser = {
         "targets": {"emailInput": {"testId": "email-input"}, "passwordInput": {"testId": "password-input"}},
         "steps": [

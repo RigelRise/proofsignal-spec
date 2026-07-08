@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.models import GoldenPathRunState
+from verifysignal_spec.workflows.models import GoldenPathRunState
 
 
 def test_golden_path_run_result_strict_pass_contract() -> None:

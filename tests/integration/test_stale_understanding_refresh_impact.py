@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.prerequisites import check_prerequisites
-from proofsignal_spec.workspace.models import RefreshImpactResult
-from proofsignal_spec.workspace.repository import load_use_case, save_refresh_impact, save_use_case
+from verifysignal_spec.workflows.prerequisites import check_prerequisites
+from verifysignal_spec.workspace.models import RefreshImpactResult
+from verifysignal_spec.workspace.repository import load_use_case, save_refresh_impact, save_use_case
 from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace
 from tests.fixtures.workflows.prerequisites import create_stale_understanding_workspace
 
@@ -14,7 +14,7 @@ def test_stale_understanding_still_blocks_inventory_dependent_specify(tmp_path) 
 
     assert result["status"] == "stale"
     assert result["recommendedAction"] == "refresh-understanding"
-    assert result["nextCommand"] == "/proofsignal-understand"
+    assert result["nextCommand"] == "/verifysignal-understand"
 
 
 def test_alias_scoped_run_with_stale_understanding_does_not_force_global_understand(tmp_path) -> None:
@@ -28,7 +28,7 @@ def test_alias_scoped_run_with_stale_understanding_does_not_force_global_underst
 
     assert result["status"] in {"ready", "stale"}
     assert result["canProceed"] is True
-    assert result["nextCommand"] != "/proofsignal-understand"
+    assert result["nextCommand"] != "/verifysignal-understand"
     assert result["recommendedAction"] in {"continue-with-warning", "validate-alias", "confirm-risk"}
 
 
@@ -52,4 +52,4 @@ def test_unknown_refresh_impact_requires_confirmation_for_write_run(tmp_path) ->
     assert result["requiresConfirmation"] is True
     assert result["confirmation"]["riskClass"] == "write"
     assert result["confirmation"]["scope"] == "unknown-refresh-impact"
-    assert result["nextCommand"] != "/proofsignal-understand"
+    assert result["nextCommand"] != "/verifysignal-understand"

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from tests.fixtures.workflows.side_effect_contract_alignment import supported_side_effect_contract, unsupported_dom_last_run
 
-from proofsignal_spec.workflows.write_safety import confirmation_support_findings, effective_confirmation_support
+from verifysignal_spec.workflows.write_safety import confirmation_support_findings, effective_confirmation_support
 
 
 def test_runtime_unsupported_confirmation_overrides_static_projection() -> None:

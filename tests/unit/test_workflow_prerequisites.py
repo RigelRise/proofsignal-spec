@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from proofsignal_spec.workflows.prerequisites import check_prerequisites
+from verifysignal_spec.workflows.prerequisites import check_prerequisites
 
 from tests.fixtures.workflows.prerequisites import create_missing_understanding_workspace
 
@@ -13,9 +13,9 @@ def test_missing_understanding_blocks_specify(tmp_path) -> None:
     assert result["status"] == "missing"
     assert result["canProceed"] is False
     assert result["requiresConfirmation"] is False
-    assert ".proofsignal/workflows/understanding.md" in result["missingArtifacts"]
-    assert ".proofsignal/product-context.yaml" in result["missingArtifacts"]
-    assert result["nextCommand"] == "/proofsignal-understand"
+    assert ".verifysignal/workflows/understanding.md" in result["missingArtifacts"]
+    assert ".verifysignal/product-context.yaml" in result["missingArtifacts"]
+    assert result["nextCommand"] == "/verifysignal-understand"
 
 
 def test_understand_and_list_do_not_require_repository_understanding(tmp_path) -> None:

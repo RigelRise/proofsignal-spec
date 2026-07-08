@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from proofsignal_spec.runtime.models import (
+from verifysignal_spec.runtime.models import (
     REQUIRED_RUNTIME_BLOCKER_CODES,
     ManagedRuntimeReadinessResult,
     RuntimeApiStatus,
@@ -15,12 +15,12 @@ def test_readiness_shape_includes_api_and_valid_receipt_summary_without_payload(
     result = ManagedRuntimeReadinessResult(
         status="ready",
         source="managed-cache",
-        runtimeCommand="/cache/proofsignal-core",
-        api=RuntimeApiStatus(baseUrl="https://proofsignal.io/api", source="default", status="reachable"),
+        runtimeCommand="/cache/verifysignal-core",
+        api=RuntimeApiStatus(baseUrl="https://verifysignal.io/api", source="default", status="reachable"),
         entitlement=RuntimeEntitlementStatus(
             status="valid",
             receiptId="rcpt_123",
-            issuer="https://proofsignal.io",
+            issuer="https://verifysignal.io",
             expiresAt="2099-01-01T00:00:00Z",
         ),
     )
@@ -28,8 +28,8 @@ def test_readiness_shape_includes_api_and_valid_receipt_summary_without_payload(
     payload = result.to_dict()
     text = json.dumps(payload)
 
-    assert payload["api"] == {"baseUrl": "https://proofsignal.io/api", "source": "default", "status": "reachable"}
-    assert payload["entitlement"]["issuer"] == "https://proofsignal.io"
+    assert payload["api"] == {"baseUrl": "https://verifysignal.io/api", "source": "default", "status": "reachable"}
+    assert payload["entitlement"]["issuer"] == "https://verifysignal.io"
     assert "signed-receipt" not in text
 
 

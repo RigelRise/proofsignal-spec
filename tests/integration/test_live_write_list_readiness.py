@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.commands.list import run as list_run
-from proofsignal_spec.workspace.repository import load_use_case, save_use_case
+from verifysignal_spec.commands.list import run as list_run
+from verifysignal_spec.workspace.repository import load_use_case, save_use_case
 from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace, old_checked_at, save_ready_snapshot
 from tests.helpers import row_by_alias
 
@@ -41,7 +41,7 @@ def test_list_does_not_call_core_or_credential_runtime(tmp_path, monkeypatch) ->
     def fail(*_args, **_kwargs):
         raise AssertionError("list must not perform Core runtime checks")
 
-    monkeypatch.setattr("proofsignal_spec.runtime.resolver.ensure_core_runtime", fail)
+    monkeypatch.setattr("verifysignal_spec.runtime.resolver.ensure_core_runtime", fail)
     monkeypatch.setenv("APP_TEST_EMAIL", "secret@example.test")
     monkeypatch.delenv("APP_TEST_PASSWORD", raising=False)
 

@@ -3,18 +3,18 @@ from __future__ import annotations
 import builtins
 import json
 
-from proofsignal_spec.commands import run as run_command
-from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace
-from proofsignal_spec.workspace.repository import load_use_case, save_use_case
-from proofsignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, validate_stage
+from verifysignal_spec.commands import run as run_command
+from verifysignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace
+from verifysignal_spec.workspace.repository import load_use_case, save_use_case
+from verifysignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, validate_stage
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 
 
 def test_workflow_validate_preserves_core_result(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     create_workflow_run(tmp_path, "Validate login.", alias="login", integration="codex")
     plan_artifacts(tmp_path, "login")
@@ -27,21 +27,21 @@ def test_workflow_validate_preserves_core_result(tmp_path, monkeypatch) -> None:
 def test_run_uses_run_request_parameters_before_prompting(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     monkeypatch.setattr(builtins, "input", lambda prompt: (_ for _ in ()).throw(AssertionError(f"unexpected prompt: {prompt}")))
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     record = UseCaseRecord(
         alias="login",
         title="Login",
         description="Validate login.",
-        runRequest=ArtifactReference(path=".proofsignal/run-requests/login.yaml", kind="run-request", id="request.login", version="1.0.0"),
-        mainSkill=ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login", version="1.0.0"),
-        skills=[ArtifactReference(path=".proofsignal/skills/login.browser.md", kind="skill", id="skill.login", version="1.0.0")],
+        runRequest=ArtifactReference(path=".verifysignal/run-requests/login.yaml", kind="run-request", id="request.login", version="1.0.0"),
+        mainSkill=ArtifactReference(path=".verifysignal/skills/login.browser.md", kind="skill", id="skill.login", version="1.0.0"),
+        skills=[ArtifactReference(path=".verifysignal/skills/login.browser.md", kind="skill", id="skill.login", version="1.0.0")],
         runtimeInputs=[RuntimeInputRequirement(name="baseUrl", description="Target URL")],
     )
-    (tmp_path / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
-    (tmp_path / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
-    (tmp_path / ".proofsignal/run-requests/login.yaml").write_text(
+    (tmp_path / ".verifysignal/run-requests").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".verifysignal/skills").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".verifysignal/run-requests/login.yaml").write_text(
         json.dumps(
             {
                 "schemaVersion": "qa-run-request/v1",
@@ -54,7 +54,7 @@ def test_run_uses_run_request_parameters_before_prompting(tmp_path, monkeypatch)
         ),
         encoding="utf-8",
     )
-    (tmp_path / ".proofsignal/skills/login.browser.md").write_text(
+    (tmp_path / ".verifysignal/skills/login.browser.md").write_text(
         """# Login
 
 ```yaml
@@ -84,16 +84,16 @@ browser:
 def test_run_blocks_write_without_side_effect_envelope_before_core_execution(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
     record = UseCaseRecord(
         alias="create-resource",
         title="Create Resource",
         description="Create a resource.",
-        runRequest=ArtifactReference(path=".proofsignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
-        mainSkill=ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
-        skills=[ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
+        runRequest=ArtifactReference(path=".verifysignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
+        mainSkill=ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
+        skills=[ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
         runtimeInputs=[RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test")],
         sideEffects={"class": "write"},
         sideEffectLifecycle=_manual_cleanup_lifecycle(),
@@ -110,19 +110,19 @@ def test_run_blocks_write_without_side_effect_envelope_before_core_execution(tmp
 def test_run_resolves_generated_inputs_in_ephemeral_request_without_rewriting_authored_intent(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     authored_request = _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
     record = UseCaseRecord(
         alias="create-resource",
         title="Create Resource",
         description="Create a resource.",
-        runRequest=ArtifactReference(path=".proofsignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
-        mainSkill=ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
-        skills=[ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
+        runRequest=ArtifactReference(path=".verifysignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
+        mainSkill=ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
+        skills=[ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
         runtimeInputs=[
             RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test"),
-            RuntimeInputRequirement(name="resourceName", source="generated", template="ProofSignal {{run.shortId}}", refreshOnRerunAfterCommit=True),
+            RuntimeInputRequirement(name="resourceName", source="generated", template="VerifySignal {{run.shortId}}", refreshOnRerunAfterCommit=True),
         ],
         sideEffects={"class": "none"},
     )
@@ -141,26 +141,26 @@ def test_run_resolves_generated_inputs_in_ephemeral_request_without_rewriting_au
             "parameters": {"baseUrl": "https://example.test"},
         }
     )
-    prepared = list((tmp_path / ".proofsignal/runs/create-resource").glob("*.run-request.json"))
+    prepared = list((tmp_path / ".verifysignal/runs/create-resource").glob("*.run-request.json"))
     assert prepared
-    assert json.loads(prepared[0].read_text(encoding="utf-8"))["parameters"]["resourceName"].startswith("ProofSignal ")
+    assert json.loads(prepared[0].read_text(encoding="utf-8"))["parameters"]["resourceName"].startswith("VerifySignal ")
     assert result["core"]["data"]["args"][1] == str(prepared[0])
 
 
 def test_run_preserves_post_commit_interpretation_from_public_core_fields(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "post-commit-report")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "post-commit-report")
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
     record = UseCaseRecord(
         alias="create-resource",
         title="Create Resource",
         description="Create a resource.",
-        runRequest=ArtifactReference(path=".proofsignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
-        mainSkill=ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
-        skills=[ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
+        runRequest=ArtifactReference(path=".verifysignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
+        mainSkill=ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
+        skills=[ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
         runtimeInputs=[RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test")],
         sideEffects={
             "class": "write",
@@ -184,16 +184,16 @@ def test_run_preserves_post_commit_interpretation_from_public_core_fields(tmp_pa
 def test_second_run_after_post_commit_write_is_blocked_by_rerun_policy(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
     record = UseCaseRecord(
         alias="create-resource",
         title="Create Resource",
         description="Create a resource.",
-        runRequest=ArtifactReference(path=".proofsignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
-        mainSkill=ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
-        skills=[ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
+        runRequest=ArtifactReference(path=".verifysignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
+        mainSkill=ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
+        skills=[ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
         runtimeInputs=[RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test")],
         sideEffects={
             "class": "write",
@@ -227,19 +227,19 @@ def test_second_run_after_post_commit_write_is_blocked_by_rerun_policy(tmp_path,
 def test_rerun_allowed_with_new_inputs_refreshes_declared_generated_value(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
     record = UseCaseRecord(
         alias="create-resource",
         title="Create Resource",
         description="Create a resource.",
-        runRequest=ArtifactReference(path=".proofsignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
-        mainSkill=ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
-        skills=[ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
+        runRequest=ArtifactReference(path=".verifysignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
+        mainSkill=ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
+        skills=[ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
         runtimeInputs=[
             RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test"),
-            RuntimeInputRequirement(name="resourceName", source="generated", template="ProofSignal {{run.shortId}}", refreshOnRerunAfterCommit=True),
+            RuntimeInputRequirement(name="resourceName", source="generated", template="VerifySignal {{run.shortId}}", refreshOnRerunAfterCommit=True),
         ],
         sideEffects={
             "class": "write",
@@ -276,8 +276,8 @@ def test_rerun_allowed_with_new_inputs_refreshes_declared_generated_value(tmp_pa
 def test_run_summary_shows_missing_required_gates_and_partial_diagnostics(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "failed-with-partial")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "failed-with-partial")
     create_main_skill_coverage_workspace(tmp_path)
 
     result = run_command.run(tmp_path, "profile-view-unauth", interactive=False, core_cmd=str(FAKE_CORE))
@@ -291,8 +291,8 @@ def test_run_summary_shows_missing_required_gates_and_partial_diagnostics(tmp_pa
 def test_failed_run_summary_uses_diagnostic_coverage_language(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "aborted-activity-wait")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "aborted-activity-wait")
     create_main_skill_coverage_workspace(tmp_path)
 
     result = run_command.run(tmp_path, "profile-view-unauth", interactive=False, core_cmd=str(FAKE_CORE))
@@ -306,8 +306,8 @@ def test_failed_run_summary_uses_diagnostic_coverage_language(tmp_path, monkeypa
 def test_conditional_gate_not_evaluated_does_not_hard_fail_required_coverage(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "full-coverage")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "full-coverage")
     create_main_skill_coverage_workspace(tmp_path)
 
     result = run_command.run(tmp_path, "profile-view-unauth", interactive=False, core_cmd=str(FAKE_CORE))
@@ -318,9 +318,9 @@ def test_conditional_gate_not_evaluated_does_not_hard_fail_required_coverage(tmp
 
 
 def _write_minimal_artifacts(tmp_path, alias: str, *, parameters: dict[str, str]) -> object:
-    (tmp_path / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
-    (tmp_path / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
-    request_path = tmp_path / f".proofsignal/run-requests/{alias}.yaml"
+    (tmp_path / ".verifysignal/run-requests").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".verifysignal/skills").mkdir(parents=True, exist_ok=True)
+    request_path = tmp_path / f".verifysignal/run-requests/{alias}.yaml"
     request_path.write_text(
         json.dumps(
             {
@@ -334,7 +334,7 @@ def _write_minimal_artifacts(tmp_path, alias: str, *, parameters: dict[str, str]
         ),
         encoding="utf-8",
     )
-    (tmp_path / f".proofsignal/skills/{alias}.browser.md").write_text(
+    (tmp_path / f".verifysignal/skills/{alias}.browser.md").write_text(
         f"""# {alias}
 
 ```yaml

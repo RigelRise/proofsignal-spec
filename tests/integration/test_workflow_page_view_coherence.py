@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workflows.stage_persistence import persist_stage
 
 from tests.fixtures.workflows.real_run_guardrails import (
     coherent_profile_skill,

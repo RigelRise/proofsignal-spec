@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.repository import capability_stamp, load_use_case, run_confirmation_requirements, save_use_case
+from verifysignal_spec.workspace.repository import capability_stamp, load_use_case, run_confirmation_requirements, save_use_case
 from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace
 
 
@@ -12,7 +12,7 @@ def test_current_capability_stamp_satisfies_legacy_missing_capability_confirmati
         "status": "current",
         "stamp": capability_stamp(
             ["explicit-confirmation", "side-effect-lifecycle", "write-activity-interpretation"],
-            contract_version="proofsignal-spec-use-case/v1",
+            contract_version="verifysignal-spec-use-case/v1",
         ),
     }
     save_use_case(tmp_path, record)

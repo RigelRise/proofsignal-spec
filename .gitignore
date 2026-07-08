@@ -32,5 +32,5 @@ specs/*
 
 # local run evidence and workspaces must never be committed
 runs/
-.proofsignal/
+.verifysignal/
 uv.lock

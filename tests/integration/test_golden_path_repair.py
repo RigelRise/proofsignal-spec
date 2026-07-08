@@ -9,7 +9,7 @@ from tests.fixtures.workflows.golden_path_productization import PUBLIC_ALIAS, cr
 
 class GoldenPathRepairIntegrationTests(CliTestCase):
     def test_repairable_first_run_failure_emits_auto_repair_feedback(self) -> None:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "aborted-activity-wait"
         create_golden_path_workspace(self.project)
         self.cli(["workflow", "accept-first-run", PUBLIC_ALIAS, "--project", str(self.project), "--json"])
         report = self.project / "report.json"

@@ -16,15 +16,15 @@ class WorkflowPrerequisiteCheckContractTests(CliTestCase):
         code, out, err = self.cli(["workflow", "check", "specify", "--project", str(self.project), "--json"])
         self.assertEqual(code, 0, err)
         payload = json.loads(out)
-        self.assertEqual(payload["schemaVersion"], "proofsignal-spec-workflow-capability/v1")
-        self.assertEqual(payload["prerequisiteSchemaVersion"], "proofsignal-spec-workflow-prerequisite-check/v1")
+        self.assertEqual(payload["schemaVersion"], "verifysignal-spec-workflow-capability/v1")
+        self.assertEqual(payload["prerequisiteSchemaVersion"], "verifysignal-spec-workflow-prerequisite-check/v1")
         self.assertEqual(payload["requiredCapability"], "workflow.guardrails/v1")
         self.assertTrue(payload["supported"])
         self.assertEqual(payload["stage"], "specify")
         self.assertIsNone(payload["useCaseAlias"])
         self.assertEqual(payload["status"], "missing")
         self.assertFalse(payload["canProceed"])
-        self.assertEqual(payload["nextCommand"], "/proofsignal-understand")
+        self.assertEqual(payload["nextCommand"], "/verifysignal-understand")
 
     def test_ready_stale_accepted_and_declined_refresh_responses(self) -> None:
         create_current_understanding_workspace(self.project)
@@ -59,7 +59,7 @@ class WorkflowPrerequisiteCheckContractTests(CliTestCase):
         self.assertEqual(accepted["status"], "stale")
         self.assertFalse(accepted["canProceed"])
         self.assertEqual(accepted["recordedDecision"]["decision"], "accepted")
-        self.assertEqual(accepted["nextCommand"], "/proofsignal-understand")
+        self.assertEqual(accepted["nextCommand"], "/verifysignal-understand")
 
         code, out, err = self.cli([
             "workflow",
@@ -84,7 +84,7 @@ class WorkflowPrerequisiteCheckContractTests(CliTestCase):
         self.cli([
             "workflow",
             "run",
-            "proofsignal-use-case",
+            "verifysignal-use-case",
             "--goal",
             "Validate login.",
             "--alias",
@@ -107,10 +107,10 @@ class WorkflowPrerequisiteCheckContractTests(CliTestCase):
         self.assertEqual(code, 0, err)
         clarify = json.loads(out)
         self.assertEqual(clarify["status"], "missing")
-        self.assertEqual(clarify["nextCommand"], "/proofsignal-specify login")
+        self.assertEqual(clarify["nextCommand"], "/verifysignal-specify login")
 
         self.cli(["workflow", "check", "specify", "--project", str(self.project), "--json"])
-        from proofsignal_spec.workflows.engine import specify
+        from verifysignal_spec.workflows.engine import specify
 
         specify(self.project, "login", "Validate login.")
         code, out, err = self.cli([
@@ -126,7 +126,7 @@ class WorkflowPrerequisiteCheckContractTests(CliTestCase):
         self.assertEqual(code, 0, err)
         tasks = json.loads(out)
         self.assertEqual(tasks["status"], "missing")
-        self.assertEqual(tasks["nextCommand"], "/proofsignal-plan login")
+        self.assertEqual(tasks["nextCommand"], "/verifysignal-plan login")
 
     def test_unresolved_browser_target_blocks_plan_check(self) -> None:
         create_current_understanding_workspace(self.project)
@@ -167,7 +167,7 @@ class WorkflowPrerequisiteCheckContractTests(CliTestCase):
         self.assertEqual(code, 0, err)
         payload = json.loads(out)
         self.assertEqual(payload["status"], "missing")
-        self.assertEqual(payload["nextCommand"], "/proofsignal-clarify profile-view-unauth")
+        self.assertEqual(payload["nextCommand"], "/verifysignal-clarify profile-view-unauth")
         self.assertIn("authoringQuestions", payload["missingArtifacts"][0])
 
     def test_ambiguous_alias_requires_selector(self) -> None:
@@ -176,7 +176,7 @@ class WorkflowPrerequisiteCheckContractTests(CliTestCase):
             self.cli([
                 "workflow",
                 "run",
-                "proofsignal-use-case",
+                "verifysignal-use-case",
                 "--goal",
                 f"Validate {alias}.",
                 "--alias",

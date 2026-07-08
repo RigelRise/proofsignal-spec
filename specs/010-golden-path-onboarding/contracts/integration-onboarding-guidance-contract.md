@@ -8,9 +8,9 @@ what to do immediately after installation and can revisit the guidance locally.
 ## CLI surface
 
 ```text
-proofsignal-spec integration install codex --project <path> --json
-proofsignal-spec integration install claude --project <path> --json
-proofsignal-spec integration upgrade [codex|claude] --project <path> --json
+verifysignal-spec integration install codex --project <path> --json
+verifysignal-spec integration install claude --project <path> --json
+verifysignal-spec integration upgrade [codex|claude] --project <path> --json
 ```
 
 ## JSON shape

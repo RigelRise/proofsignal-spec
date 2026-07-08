@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.runtime.models import RuntimeSetupBlocker
+from verifysignal_spec.runtime.models import RuntimeSetupBlocker
 
 
 def test_runtime_blockers_map_categories_and_remain_non_repairable() -> None:

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
-from proofsignal_spec.workflows.stage_persistence import persist_stage
-from proofsignal_spec.workspace.repository import init_workspace, load_document
+from verifysignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workspace.repository import init_workspace, load_document
 from tests.helpers import FAKE_CORE
 
 
@@ -26,9 +26,9 @@ def _prepare_project(project) -> None:
         "plan",
         alias="add-collaboration-project",
         payload={
-            "runRequest": ".proofsignal/run-requests/add-collaboration-project.yaml",
-            "mainSkill": ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md",
-            "reusableSkills": [".proofsignal/skills/validate-add-collaboration-project-flow.browser.md"],
+            "runRequest": ".verifysignal/run-requests/add-collaboration-project.yaml",
+            "mainSkill": ".verifysignal/skills/validate-add-collaboration-project-flow.browser.md",
+            "reusableSkills": [".verifysignal/skills/validate-add-collaboration-project-flow.browser.md"],
             "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
             "unresolvedBlockingClarifications": [],
         },
@@ -43,7 +43,7 @@ def test_authenticated_artifact_generation_uses_core_credential_contract(tmp_pat
         "implement",
         alias="add-collaboration-project",
         payload={
-            "runRequest": {"path": ".proofsignal/run-requests/add-collaboration-project.yaml"},
+            "runRequest": {"path": ".verifysignal/run-requests/add-collaboration-project.yaml"},
             "credentialRefs": {
                 "e2eUser": {
                     "source": "environment",
@@ -52,7 +52,7 @@ def test_authenticated_artifact_generation_uses_core_credential_contract(tmp_pat
             },
             "skills": [
                 {
-                    "path": ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md",
+                    "path": ".verifysignal/skills/validate-add-collaboration-project-flow.browser.md",
                     "kind": "skill",
                     "browser": {
                         "targets": {
@@ -70,9 +70,9 @@ def test_authenticated_artifact_generation_uses_core_credential_contract(tmp_pat
     )
 
     assert result["status"] == "persisted"
-    run_request = json.loads((tmp_path / ".proofsignal/run-requests/add-collaboration-project.yaml").read_text())
-    skill = (tmp_path / ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md").read_text()
-    use_case = load_document(tmp_path / ".proofsignal/use-cases/add-collaboration-project.yaml")
+    run_request = json.loads((tmp_path / ".verifysignal/run-requests/add-collaboration-project.yaml").read_text())
+    skill = (tmp_path / ".verifysignal/skills/validate-add-collaboration-project-flow.browser.md").read_text()
+    use_case = load_document(tmp_path / ".verifysignal/use-cases/add-collaboration-project.yaml")
 
     assert run_request["credentialRefs"]["e2eUser"]["keys"]["email"] == "E2E_USER_EMAIL"
     assert "{{credentials.e2eUser.email}}" in skill
@@ -83,8 +83,8 @@ def test_authenticated_artifact_generation_uses_core_credential_contract(tmp_pat
 
 
 def test_implement_persistence_accepts_core_added_browser_action(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "contract-drift")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "contract-drift")
     _prepare_project(tmp_path)
 
     result = persist_stage(
@@ -92,10 +92,10 @@ def test_implement_persistence_accepts_core_added_browser_action(tmp_path, monke
         "implement",
         alias="add-collaboration-project",
         payload={
-            "runRequest": {"path": ".proofsignal/run-requests/add-collaboration-project.yaml"},
+            "runRequest": {"path": ".verifysignal/run-requests/add-collaboration-project.yaml"},
             "skills": [
                 {
-                    "path": ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md",
+                    "path": ".verifysignal/skills/validate-add-collaboration-project-flow.browser.md",
                     "kind": "skill",
                     "browser": {
                         "targets": {"searchBox": {"testId": "search-box"}},
@@ -110,8 +110,8 @@ def test_implement_persistence_accepts_core_added_browser_action(tmp_path, monke
 
 
 def test_implement_persistence_rejects_core_removed_browser_action(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "contract-drift")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "contract-drift")
     _prepare_project(tmp_path)
 
     result = persist_stage(
@@ -119,10 +119,10 @@ def test_implement_persistence_rejects_core_removed_browser_action(tmp_path, mon
         "implement",
         alias="add-collaboration-project",
         payload={
-            "runRequest": {"path": ".proofsignal/run-requests/add-collaboration-project.yaml"},
+            "runRequest": {"path": ".verifysignal/run-requests/add-collaboration-project.yaml"},
             "skills": [
                 {
-                    "path": ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md",
+                    "path": ".verifysignal/skills/validate-add-collaboration-project-flow.browser.md",
                     "kind": "skill",
                     "browser": {
                         "steps": [{"id": "legacy-repeat", "action": "repeatUntil", "until": {"text": "Done"}, "do": {"action": "click"}}],

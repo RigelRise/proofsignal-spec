@@ -3,16 +3,16 @@ from __future__ import annotations
 import time
 
 from helpers import FAKE_CORE
-from proofsignal_spec.core.adapter import CoreAdapter
-from proofsignal_spec.core.executable_contract import CommandContractReuse
-from proofsignal_spec.workflows.authoring_coherence import evaluate_implementation_coherence
-from proofsignal_spec.workspace.repository import init_workspace
-from proofsignal_spec.workflows.evidence import extract_core_runtime_evidence, normalize_planned_gates
-from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
-from proofsignal_spec.workflows.readiness import validation_readiness
-from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
-from proofsignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, specify, workflow_list
-from proofsignal_spec.workflows.prerequisites import check_prerequisites
+from verifysignal_spec.core.adapter import CoreAdapter
+from verifysignal_spec.core.executable_contract import CommandContractReuse
+from verifysignal_spec.workflows.authoring_coherence import evaluate_implementation_coherence
+from verifysignal_spec.workspace.repository import init_workspace
+from verifysignal_spec.workflows.evidence import extract_core_runtime_evidence, normalize_planned_gates
+from verifysignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
+from verifysignal_spec.workflows.readiness import validation_readiness
+from verifysignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
+from verifysignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, specify, workflow_list
+from verifysignal_spec.workflows.prerequisites import check_prerequisites
 from tests.fixtures.workflows.real_run_guardrails import coherent_profile_skill, create_real_run_guardrail_workspace, run_request_payload
 from tests.fixtures.workflows.skill_execution_boundary import create_planned_workspace
 
@@ -49,7 +49,7 @@ def test_representative_workflow_checks_complete_under_one_second(tmp_path) -> N
 
 
 def test_validation_readiness_check_completes_under_one_second_without_core(tmp_path) -> None:
-    init_workspace(tmp_path, core_cmd="missing-proofsignal-core-for-test")
+    init_workspace(tmp_path, core_cmd="missing-verifysignal-core-for-test")
     create_workflow_run(tmp_path, "Validate login.", alias="login", integration="codex")
     specify(tmp_path, "login", "Validate login.")
     plan_artifacts(tmp_path, "login")
@@ -59,7 +59,7 @@ def test_validation_readiness_check_completes_under_one_second_without_core(tmp_
     started = time.monotonic()
     result = validation_readiness(tmp_path, alias="login")
     elapsed = time.monotonic() - started
-    assert result["schemaVersion"] == "proofsignal-spec-validation-readiness/v1"
+    assert result["schemaVersion"] == "verifysignal-spec-validation-readiness/v1"
     assert elapsed < 1.0
 
 
@@ -115,19 +115,19 @@ def test_core_contract_projection_reuses_discovery_within_one_command_only() -> 
     first_projection = first_command.get_or_discover(
         runtime_identity=str(FAKE_CORE),
         core_version="0.1.0",
-        public_contract_version="proofsignal-public-cli-json/v1",
+        public_contract_version="verifysignal-public-cli-json/v1",
         discover=adapter.contracts,
     )
     second_projection = first_command.get_or_discover(
         runtime_identity=str(FAKE_CORE),
         core_version="0.1.0",
-        public_contract_version="proofsignal-public-cli-json/v1",
+        public_contract_version="verifysignal-public-cli-json/v1",
         discover=adapter.contracts,
     )
     third_projection = second_command.get_or_discover(
         runtime_identity=str(FAKE_CORE),
         core_version="0.1.0",
-        public_contract_version="proofsignal-public-cli-json/v1",
+        public_contract_version="verifysignal-public-cli-json/v1",
         discover=adapter.contracts,
     )
 
@@ -138,8 +138,8 @@ def test_core_contract_projection_reuses_discovery_within_one_command_only() -> 
 
 
 def test_execution_boundary_overhead_adds_less_than_fifty_ms_without_core_discovery(tmp_path, monkeypatch) -> None:
-    from proofsignal_spec.workspace.repository import load_use_case
-    from proofsignal_spec.workflows.skill_execution_boundary import resolve_execution_boundary
+    from verifysignal_spec.workspace.repository import load_use_case
+    from verifysignal_spec.workflows.skill_execution_boundary import resolve_execution_boundary
 
     create_planned_workspace(tmp_path)
     record = load_use_case(tmp_path, "brands-search-authenticated")

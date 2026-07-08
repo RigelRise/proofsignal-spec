@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from proofsignal_spec.commands import workflow as workflow_command
-from proofsignal_spec.workspace.repository import load_supersede_reviews, load_use_case, save_use_case
-from proofsignal_spec.workflows.prerequisites import check_prerequisites
+from verifysignal_spec.commands import workflow as workflow_command
+from verifysignal_spec.workspace.repository import load_supersede_reviews, load_use_case, save_use_case
+from verifysignal_spec.workflows.prerequisites import check_prerequisites
 
 from tests.fixtures.workflows.prerequisites import create_current_understanding_workspace
 from tests.fixtures.workflows.side_effect_contract_alignment import (
@@ -74,5 +74,5 @@ def test_approve_rerun_refuses_blocked_write_outcome_without_supersede_review(tm
 
     assert result["status"] == "blocked"
     assert result["blockers"][0]["code"] == "runtime.rerun-policy-blocked"
-    assert result["nextAction"] == "proofsignal workflow supersede-write-outcome --alias add-collaboration-project --json"
+    assert result["nextAction"] == "verifysignal workflow supersede-write-outcome --alias add-collaboration-project --json"
     assert load_supersede_reviews(tmp_path, "add-collaboration-project") == []

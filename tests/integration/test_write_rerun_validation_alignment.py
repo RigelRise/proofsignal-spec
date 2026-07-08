@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from proofsignal_spec.commands.run import evaluate_rerun_decision
-from proofsignal_spec.commands.validate import run as validate_run
-from proofsignal_spec.workspace.models import RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.commands.run import evaluate_rerun_decision
+from verifysignal_spec.commands.validate import run as validate_run
+from verifysignal_spec.workspace.models import RuntimeInputRequirement, UseCaseRecord
 
 
 def test_validation_and_run_can_share_same_rerun_decision_evaluator() -> None:
@@ -66,7 +66,7 @@ def test_validate_reports_same_rerun_decision_as_run_preflight(tmp_path, monkeyp
     from tests.fixtures.workflows.write_rerun_identity import committed_last_run, write_use_case_record
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     record = write_use_case_record(
         tmp_path,
         rerun_policy={"afterCommit": "allowed-with-new-inputs", "refreshRuntimeInputs": ["projectTitle"]},

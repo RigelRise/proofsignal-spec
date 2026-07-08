@@ -7,7 +7,7 @@ from helpers import CliTestCase
 
 class RepairFromReportTests(CliTestCase):
     def test_deterministic_report_inspection_repair_can_be_approved(self) -> None:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "report-main-skill"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "report-main-skill"
         self.cli(["init", str(self.project), "--integration", "codex"])
         self.cli(["author", "login", "Validate login.", "--project", str(self.project)])
         report = self.project / "report.json"
@@ -34,7 +34,7 @@ class RepairFromReportTests(CliTestCase):
         self.assertFalse(any(item.get("requiresUserDecision") for item in repair["recommendations"]))
 
     def test_safe_repair_matrix_covers_supported_categories(self) -> None:
-        from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings
+        from verifysignal_spec.workflows.repair_recommendations import classify_repair_findings
 
         findings = [
             {"code": "strict-mode-violation", "message": "locator matched multiple elements"},
@@ -56,7 +56,7 @@ class RepairFromReportTests(CliTestCase):
         assert {item.safeCategory for item in recommendations if item.requiresUserDecision} == {"gateid-mapping"}
 
     def test_activity_skeleton_report_recommends_wait_flow_fix(self) -> None:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "aborted-activity-wait"
         self.cli(["init", str(self.project), "--integration", "codex"])
         self.cli(["author", "home-page-unauth", "Validate home page.", "--project", str(self.project)])
         report = self.project / "report.json"

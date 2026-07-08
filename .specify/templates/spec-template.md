@@ -8,7 +8,7 @@
 ## Constitution Alignment *(mandatory)*
 
 <!--
-  ACTION REQUIRED: Summarize how this feature respects the ProofSignal Spec
+  ACTION REQUIRED: Summarize how this feature respects the VerifySignal Spec
   constitution. Cover public Core boundary, project-local workspace portability,
   secret safety, agent-neutral behavior, and testable spec-driven delivery.
 -->

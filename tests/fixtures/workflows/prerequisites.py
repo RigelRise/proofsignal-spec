@@ -5,9 +5,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec.workspace.product_context import load_product_context, save_product_context
-from proofsignal_spec.workspace.repository import init_workspace, now_iso
-from proofsignal_spec.workflows.stage_documents import write_global_understanding
+from verifysignal_spec.workspace.product_context import load_product_context, save_product_context
+from verifysignal_spec.workspace.repository import init_workspace, now_iso
+from verifysignal_spec.workflows.stage_documents import write_global_understanding
 
 from .target_workspace import write_basic_target
 

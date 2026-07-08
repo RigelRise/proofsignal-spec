@@ -8,7 +8,7 @@ from helpers import CliTestCase, assert_no_core_contract_snapshots
 from tests.fixtures.workflows.main_skill_run_coverage import HELPER_SKILL_PATH, MAIN_SKILL_PATH, create_main_skill_coverage_workspace
 from tests.fixtures.workflows.guardrails import stage_payload, write_payload
 from tests.fixtures.workflows.prerequisites import create_current_understanding_workspace
-from proofsignal_spec.workspace.repository import load_document, load_refresh_impact
+from verifysignal_spec.workspace.repository import load_document, load_refresh_impact
 
 
 class WorkflowStagePersistenceContractTests(CliTestCase):
@@ -19,8 +19,8 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         result = json.loads(out)
-        self.assertEqual(result["schemaVersion"], "proofsignal-spec-workflow-info/v1")
-        self.assertEqual(result["workflowId"], "proofsignal-use-case")
+        self.assertEqual(result["schemaVersion"], "verifysignal-spec-workflow-info/v1")
+        self.assertEqual(result["workflowId"], "verifysignal-use-case")
         contract = result["browserAuthoringContract"]
         self.assertEqual(contract["source"], "core-public-contract")
         self.assertIn("navigate", contract["validActions"])
@@ -47,7 +47,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         self.assertIn("artifactCapabilities", implement)
 
     def test_workflow_info_projects_current_core_contract_shape(self) -> None:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "current-contract"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "current-contract"
         self.cli(["init", str(self.project), "--integration", "codex", "--json"])
 
         code, out, err = self.cli(["workflow", "info", "--project", str(self.project), "--json"])
@@ -60,7 +60,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         self.assertIn("request.id", core["sections"]["runRequest"]["fieldNames"])
 
     def test_workflow_info_projects_current_field_schema_and_credential_metadata(self) -> None:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "current-contract"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "current-contract"
         self.cli(["init", str(self.project), "--integration", "codex", "--json"])
 
         code, out, err = self.cli(["workflow", "info", "--project", str(self.project), "--json"])
@@ -76,7 +76,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         self.assertEqual(core["sections"]["credentials"]["placeholderSyntax"], "{{credentials.<group>.<field>}}")
 
     def test_workflow_info_does_not_persist_core_contract_projection_cache(self) -> None:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "current-contract"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "current-contract"
         self.cli(["init", str(self.project), "--integration", "codex", "--json"])
 
         code, _out, err = self.cli(["workflow", "info", "--project", str(self.project), "--json"])
@@ -141,10 +141,10 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         ])
         self.assertEqual(code, 0, err)
         result = json.loads(out)
-        self.assertEqual(result["schemaVersion"], "proofsignal-spec-workflow-stage-persistence-result/v1")
+        self.assertEqual(result["schemaVersion"], "verifysignal-spec-workflow-stage-persistence-result/v1")
         self.assertEqual(result["status"], "persisted")
-        self.assertTrue((self.project / ".proofsignal/product-context.yaml").exists())
-        self.assertTrue((self.project / ".proofsignal/workflows/understanding.md").exists())
+        self.assertTrue((self.project / ".verifysignal/product-context.yaml").exists())
+        self.assertTrue((self.project / ".verifysignal/workflows/understanding.md").exists())
         impact = load_refresh_impact(self.project, "existing-write-flow")
         self.assertIsNotNone(impact)
         self.assertEqual(impact.status, "unaffected")
@@ -208,8 +208,8 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
             "plan",
             payload={
                 "alias": "login",
-                "runRequest": ".proofsignal/run-requests/login.yaml",
-                "reusableSkills": [".proofsignal/skills/login.browser.md"],
+                "runRequest": ".verifysignal/run-requests/login.yaml",
+                "reusableSkills": [".verifysignal/skills/login.browser.md"],
                 "runtimeInputs": [],
                 "unresolvedBlockingClarifications": [{"id": "q1"}],
             },
@@ -283,8 +283,8 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
             "plan",
             payload={
                 "alias": "profile",
-                "runRequest": ".proofsignal/run-requests/profile.yaml",
-                "reusableSkills": [".proofsignal/skills/profile.browser.md"],
+                "runRequest": ".verifysignal/run-requests/profile.yaml",
+                "reusableSkills": [".verifysignal/skills/profile.browser.md"],
                 "runtimeInputs": [{"name": "baseUrl", "required": True}],
             },
         )
@@ -305,7 +305,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         self.assertEqual(code, 0, err)
         result = json.loads(out)
         self.assertEqual(result["status"], "persisted")
-        plan = load_document(self.project / ".proofsignal/workflows/use-cases/profile/plan.yaml")
+        plan = load_document(self.project / ".verifysignal/workflows/use-cases/profile/plan.yaml")
         self.assertEqual(plan["runtimeInputs"][0]["value"], "https://app.example.test")
 
     def test_workflow_show_and_status_alias_read_persisted_use_case_context(self) -> None:
@@ -337,7 +337,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         code, out, err = self.cli(["workflow", "show", "--alias", "login", "--project", str(self.project), "--json"])
         self.assertEqual(code, 0, err)
         shown = json.loads(out)
-        self.assertEqual(shown["schemaVersion"], "proofsignal-spec-workflow-show/v1")
+        self.assertEqual(shown["schemaVersion"], "verifysignal-spec-workflow-show/v1")
         self.assertEqual(shown["useCase"]["alias"], "login")
         self.assertTrue(shown["documents"]["specify"]["exists"])
         self.assertIn("Validate login.", shown["documents"]["specify"]["content"])
@@ -345,7 +345,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         code, out, err = self.cli(["workflow", "status", "--alias", "login", "--project", str(self.project), "--json"])
         self.assertEqual(code, 0, err)
         status = json.loads(out)
-        self.assertEqual(status["schemaVersion"], "proofsignal-spec-workflow-status/v1")
+        self.assertEqual(status["schemaVersion"], "verifysignal-spec-workflow-status/v1")
         self.assertEqual(status["useCaseAlias"], "login")
 
         code, out, err = self.cli(["workflow", "status", "login", "--project", str(self.project), "--json"])
@@ -357,7 +357,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         payload = stage_payload(
             "implement",
             payload={
-                "runRequest": ".proofsignal/run-requests/profile-view-unauth.yaml",
+                "runRequest": ".verifysignal/run-requests/profile-view-unauth.yaml",
                 "skills": [{"path": HELPER_SKILL_PATH, "kind": "skill", "browser": {"targets": {}, "steps": [], "assertions": []}}],
             },
         )
@@ -387,7 +387,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         payload = stage_payload(
             "implement",
             payload={
-                "runRequest": ".proofsignal/run-requests/profile-view-unauth.yaml",
+                "runRequest": ".verifysignal/run-requests/profile-view-unauth.yaml",
                 "skills": [
                     {"path": HELPER_SKILL_PATH, "kind": "skill", "browser": {"targets": {}, "steps": [], "assertions": []}},
                     {
@@ -426,7 +426,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         self.assertEqual(code, 0, err)
         result = json.loads(out)
         self.assertEqual(result["status"], "persisted")
-        record = json.loads((self.project / ".proofsignal/use-cases/profile-view-unauth.yaml").read_text(encoding="utf-8"))
+        record = json.loads((self.project / ".verifysignal/use-cases/profile-view-unauth.yaml").read_text(encoding="utf-8"))
         self.assertEqual(record["mainSkill"]["path"], MAIN_SKILL_PATH)
         self.assertEqual(record["skills"][0]["path"], MAIN_SKILL_PATH)
         self.assertEqual(record["mainSkill"]["version"], "3.0.0")
@@ -437,7 +437,7 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
             "implement",
             payload={
                 "runRequest": {
-                    "path": ".proofsignal/run-requests/profile-view-unauth.yaml",
+                    "path": ".verifysignal/run-requests/profile-view-unauth.yaml",
                     "kind": "run-request",
                     "content": {
                         "schemaVersion": "qa-run-request/v1",
@@ -483,6 +483,6 @@ class WorkflowStagePersistenceContractTests(CliTestCase):
         )
 
         self.assertEqual(code, 0, err)
-        run_request = json.loads((self.project / ".proofsignal/run-requests/profile-view-unauth.yaml").read_text(encoding="utf-8"))
+        run_request = json.loads((self.project / ".verifysignal/run-requests/profile-view-unauth.yaml").read_text(encoding="utf-8"))
         self.assertEqual(run_request["parameters"]["baseUrl"], "https://app.example.test")
         self.assertEqual(run_request["skills"][0]["version"], "3.0.0")

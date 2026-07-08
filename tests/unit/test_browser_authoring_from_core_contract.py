@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from tests.fixtures.managed_runtime import core_contract_fixture_payload, current_core_contract_fixture_payload
-from proofsignal_spec.core.executable_contract import project_core_contract
-from proofsignal_spec.workflows.browser_authoring import validate_browser_payload
+from verifysignal_spec.core.executable_contract import project_core_contract
+from verifysignal_spec.workflows.browser_authoring import validate_browser_payload
 
 
 def _projection() -> dict:

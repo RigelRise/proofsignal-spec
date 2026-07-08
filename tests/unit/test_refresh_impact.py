@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import RefreshImpactResult
-from proofsignal_spec.workspace.repository import load_refresh_impact, save_refresh_impact
-from proofsignal_spec.workflows.coverage_inventory import classify_refresh_impacts
+from verifysignal_spec.workspace.models import RefreshImpactResult
+from verifysignal_spec.workspace.repository import load_refresh_impact, save_refresh_impact
+from verifysignal_spec.workflows.coverage_inventory import classify_refresh_impacts
 
 
 class _Record:

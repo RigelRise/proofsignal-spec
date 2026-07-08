@@ -11,23 +11,23 @@ def test_all_agent_command_templates_include_guardrail_contract() -> None:
 def test_validate_template_mentions_structural_validation_and_core_requirement() -> None:
     content = agent_template("validate")
     assert "structuralValidation" in content
-    assert "ProofSignal Core is required for the complete ProofSignal validation and browser execution experience" in content
+    assert "VerifySignal Core is required for the complete VerifySignal validation and browser execution experience" in content
     assert "runtime readiness verifies target resolution, target reachability, required runtime prerequisites, and Core authoring readiness" in content
-    assert "proofsignal workflow migrate --approve <migration-id> --json" in content
+    assert "verifysignal workflow migrate --approve <migration-id> --json" in content
 
 
 def test_implement_template_uses_canonical_skill_shape_and_cli_persistence() -> None:
     content = agent_template("implement")
-    assert ".proofsignal/skills/<name>.browser.md" in content
-    assert "proofsignal workflow persist implement" in content
+    assert ".verifysignal/skills/<name>.browser.md" in content
+    assert "verifysignal workflow persist implement" in content
     assert "never manually author registry entries" in content
-    assert "Do not use `proofsignal author`" in content
+    assert "Do not use `verifysignal author`" in content
     assert "the CLI owns the final `qa-run-request/v1` and `qa-skill/v1` envelopes" in content
     assert "intent.browser.steps" in content
     assert "browserAuthoringContract" in content
     assert "`navigate` uses `value`" in content
     assert "intent.browser.targets" in content
-    assert "Run `proofsignal validate <alias> --runtime-readiness` before reporting browser artifacts ready" in content
+    assert "Run `verifysignal validate <alias> --runtime-readiness` before reporting browser artifacts ready" in content
 
 
 def test_plan_and_implement_templates_do_not_author_from_hardcoded_core_lists() -> None:

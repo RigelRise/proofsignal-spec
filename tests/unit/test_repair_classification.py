@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.repair_classification import classify_runtime_feedback
+from verifysignal_spec.workflows.repair_classification import classify_runtime_feedback
 
 
 def test_wait_flow_timeout_is_classified_with_high_confidence() -> None:

@@ -2,19 +2,19 @@ from __future__ import annotations
 
 import pytest
 
-from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
-from proofsignal_spec.core.errors import RuntimeInputError
-from proofsignal_spec.workspace.models import ReadinessSnapshot, RuntimeInputRequirement
-from proofsignal_spec.workspace.repository import init_workspace, save_readiness_snapshot
-from proofsignal_spec.workspace.validation import validate_workspace
-from proofsignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.commands.runtime_inputs import resolve_runtime_inputs
+from verifysignal_spec.core.errors import RuntimeInputError
+from verifysignal_spec.workspace.models import ReadinessSnapshot, RuntimeInputRequirement
+from verifysignal_spec.workspace.repository import init_workspace, save_readiness_snapshot
+from verifysignal_spec.workspace.validation import validate_workspace
+from verifysignal_spec.workflows.stage_persistence import persist_stage
 from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace
 
 
 def test_generated_runtime_input_secret_like_name_is_rejected_before_persistence() -> None:
     with pytest.raises(RuntimeInputError):
         resolve_runtime_inputs(
-            [RuntimeInputRequirement(name="apiToken", source="generated", template="ProofSignal {{run.shortId}}")],
+            [RuntimeInputRequirement(name="apiToken", source="generated", template="VerifySignal {{run.shortId}}")],
             interactive=False,
             run_id="run-one",
         )
@@ -62,8 +62,8 @@ def test_readiness_snapshot_artifact_fingerprints_are_not_secret_findings(tmp_pa
             status="ready",
             checkedAt="2026-06-17T00:00:00Z",
             artifactFingerprints={
-                ".proofsignal/run-requests/add-collaboration-project.yaml": "a" * 64,
-                ".proofsignal/skills/validate-add-collaboration-project-flow.browser.md": "b" * 64,
+                ".verifysignal/run-requests/add-collaboration-project.yaml": "a" * 64,
+                ".verifysignal/skills/validate-add-collaboration-project-flow.browser.md": "b" * 64,
             },
         ),
     )

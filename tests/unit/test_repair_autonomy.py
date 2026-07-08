@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.repair_recommendations import classify_repair_findings
+from verifysignal_spec.workflows.repair_recommendations import classify_repair_findings
 
 
 def test_safe_mechanical_repairs_are_auto_applicable_when_intent_preserved() -> None:

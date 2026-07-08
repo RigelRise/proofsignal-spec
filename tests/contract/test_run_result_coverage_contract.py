@@ -4,10 +4,10 @@ import json
 import os
 
 from helpers import CliTestCase
-from proofsignal_spec.workflows.evidence import normalize_planned_gates
-from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
-from proofsignal_spec.workflows.models import EvidenceInventory
-from proofsignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
+from verifysignal_spec.workflows.evidence import normalize_planned_gates
+from verifysignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
+from verifysignal_spec.workflows.models import EvidenceInventory
+from verifysignal_spec.workflows.repair_recommendations import recommend_repairs_for_gate_coverage
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 
 
@@ -42,7 +42,7 @@ def test_conditional_unmet_gate_does_not_make_run_incomplete() -> None:
 class RunResultCoverageCliContractTests(CliTestCase):
     def test_helper_only_core_success_is_incomplete_and_nonzero(self) -> None:
         create_main_skill_coverage_workspace(self.project)
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "helper-only"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "helper-only"
 
         code, out, err = self.cli(["run", "profile-view-unauth", "--project", str(self.project), "--json", "--non-interactive"])
 
@@ -61,18 +61,18 @@ class RunResultCoverageCliContractTests(CliTestCase):
 
     def test_incomplete_summary_includes_missing_gates_reason_and_next_action(self) -> None:
         create_main_skill_coverage_workspace(self.project)
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "helper-only"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "helper-only"
 
         _code, out, _err = self.cli(["run", "profile-view-unauth", "--project", str(self.project), "--json", "--non-interactive"])
         payload = json.loads(out)
 
         assert payload["missingRequiredGates"]
         assert "required validation gates" in payload["reason"]
-        assert "proofsignal repair profile-view-unauth" in payload["nextAction"]
+        assert "verifysignal repair profile-view-unauth" in payload["nextAction"]
 
     def test_failed_core_run_separates_browser_status_from_diagnostic_coverage(self) -> None:
         create_main_skill_coverage_workspace(self.project)
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "aborted-activity-wait"
 
         code, out, err = self.cli(["run", "profile-view-unauth", "--project", str(self.project), "--json", "--non-interactive"])
 

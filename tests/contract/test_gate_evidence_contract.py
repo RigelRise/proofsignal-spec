@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.evidence import extract_browser_evidence, normalize_planned_gates
-from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage
+from verifysignal_spec.workflows.evidence import extract_browser_evidence, normalize_planned_gates
+from verifysignal_spec.workflows.gate_coverage import calculate_gate_coverage
 
 from tests.fixtures.workflows.real_run_guardrails import coherent_profile_skill, profile_validation_gates
 

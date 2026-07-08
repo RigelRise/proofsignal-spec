@@ -4,7 +4,7 @@ import json
 import os
 
 from helpers import CliTestCase
-from proofsignal_spec.workspace.repository import load_use_case, save_use_case
+from verifysignal_spec.workspace.repository import load_use_case, save_use_case
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 
 
@@ -22,11 +22,11 @@ class RepairContractTests(CliTestCase):
         record = load_use_case(self.project, "profile-view-unauth")
         record.validation = {
             "findings": [
-                {"code": "strict-mode-violation", "message": "locator resolved to 84 elements", "artifact": ".proofsignal/skills/profile.browser.md", "path": "targets.profileCard"},
-                {"code": "wait-timeout", "message": "waited for client-side GraphQL on an SSR page", "artifact": ".proofsignal/skills/profile.browser.md", "path": "steps[1]"},
-                {"code": "main-skill-ordering", "message": "helper skill executed before main skill", "artifact": ".proofsignal/run-requests/profile.yaml", "path": "skills"},
-                {"code": "debug-slowmo-default", "message": "debug run has slowMoMs 0", "artifact": ".proofsignal/use-cases/profile.yaml", "path": "profiles.debug"},
-                {"code": "missing-gateid", "message": "assertion lacks gateId", "artifact": ".proofsignal/skills/profile.browser.md", "path": "assertions[0]"},
+                {"code": "strict-mode-violation", "message": "locator resolved to 84 elements", "artifact": ".verifysignal/skills/profile.browser.md", "path": "targets.profileCard"},
+                {"code": "wait-timeout", "message": "waited for client-side GraphQL on an SSR page", "artifact": ".verifysignal/skills/profile.browser.md", "path": "steps[1]"},
+                {"code": "main-skill-ordering", "message": "helper skill executed before main skill", "artifact": ".verifysignal/run-requests/profile.yaml", "path": "skills"},
+                {"code": "debug-slowmo-default", "message": "debug run has slowMoMs 0", "artifact": ".verifysignal/use-cases/profile.yaml", "path": "profiles.debug"},
+                {"code": "missing-gateid", "message": "assertion lacks gateId", "artifact": ".verifysignal/skills/profile.browser.md", "path": "assertions[0]"},
             ]
         }
         save_use_case(self.project, record)
@@ -54,7 +54,7 @@ class RepairContractTests(CliTestCase):
                 {
                     "code": "missing-gateid",
                     "message": "assertion lacks gateId",
-                    "artifact": ".proofsignal/skills/profile.browser.md",
+                    "artifact": ".verifysignal/skills/profile.browser.md",
                     "path": "assertions[0]",
                 }
             ]
@@ -74,10 +74,10 @@ class RepairContractTests(CliTestCase):
         record = load_use_case(self.project, "profile-view-unauth")
         record.validation = {
             "findings": [
-                {"code": "seeded-data-change", "message": "Change data assumptions.", "artifact": ".proofsignal/use-cases/profile.yaml"},
-                {"code": "credential-reference-change", "message": "Change credential requirements.", "artifact": ".proofsignal/use-cases/profile.yaml"},
-                {"code": "missing-gateid", "message": "assertion lacks gateId", "artifact": ".proofsignal/skills/profile.browser.md"},
-                {"code": "expected-behavior-change", "message": "Expected product behavior is different.", "artifact": ".proofsignal/use-cases/profile.yaml"},
+                {"code": "seeded-data-change", "message": "Change data assumptions.", "artifact": ".verifysignal/use-cases/profile.yaml"},
+                {"code": "credential-reference-change", "message": "Change credential requirements.", "artifact": ".verifysignal/use-cases/profile.yaml"},
+                {"code": "missing-gateid", "message": "assertion lacks gateId", "artifact": ".verifysignal/skills/profile.browser.md"},
+                {"code": "expected-behavior-change", "message": "Expected product behavior is different.", "artifact": ".verifysignal/use-cases/profile.yaml"},
             ]
         }
         save_use_case(self.project, record)
@@ -97,7 +97,7 @@ class RepairContractTests(CliTestCase):
                 {
                     "code": "hardcoded-profile-replacement",
                     "message": "Replace dynamic discovery with fixed profile identifier.",
-                    "artifact": ".proofsignal/skills/profile.browser.md",
+                    "artifact": ".verifysignal/skills/profile.browser.md",
                     "path": "steps[0]",
                 }
             ]
@@ -114,7 +114,7 @@ class RepairContractTests(CliTestCase):
 
     def test_aborted_run_does_not_generate_required_gate_weakening_recommendations(self) -> None:
         create_main_skill_coverage_workspace(self.project)
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "aborted-activity-wait"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "aborted-activity-wait"
 
         code, out, err = self.cli(["run", "profile-view-unauth", "--project", str(self.project), "--json", "--non-interactive"])
 
@@ -132,7 +132,7 @@ class RepairContractTests(CliTestCase):
                 {
                     "code": "skill-execution.legacy-migration-required",
                     "message": "Helper skill executed as an unintended executable participant while required gates were missing.",
-                    "artifact": ".proofsignal/run-requests/profile-view-unauth.yaml",
+                    "artifact": ".verifysignal/run-requests/profile-view-unauth.yaml",
                     "path": "skills",
                 }
             ]

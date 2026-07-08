@@ -11,17 +11,17 @@ class IntegrationOnboardingGuidanceIntegrationTests(CliTestCase):
         code, out, err = self.cli(["integration", "install", "codex", "--project", str(self.project)])
 
         self.assertEqual(code, 0, err)
-        self.assertIn("ProofSignal Golden Path", out)
-        self.assertIn("ProofSignal Core: [READY]", out)
+        self.assertIn("VerifySignal Golden Path", out)
+        self.assertIn("VerifySignal Core: [READY]", out)
         self.assertIn("Source: env", out)
         self.assertIn("[RECOMMENDED]", out)
-        self.assertIn("/proofsignal-specify", out)
+        self.assertIn("/verifysignal-specify", out)
 
-        guide_path = self.project / ".agents" / "PROOFSIGNAL_ONBOARDING.md"
+        guide_path = self.project / ".agents" / "VERIFYSIGNAL_ONBOARDING.md"
         self.assertTrue(guide_path.exists())
         content = guide_path.read_text(encoding="utf-8")
         self.assertIn("Core Runtime", content)
-        self.assertIn("ProofSignal Core is ready", content)
+        self.assertIn("VerifySignal Core is ready", content)
         self.assertIn("Safety Boundaries", content)
         self.assertIn("Repaired strict pass", content)
 
@@ -29,13 +29,13 @@ class IntegrationOnboardingGuidanceIntegrationTests(CliTestCase):
         code, out, err = self.cli(["integration", "install", "claude", "--project", str(self.project)])
 
         self.assertEqual(code, 0, err)
-        self.assertIn("ProofSignal Golden Path", out)
-        self.assertIn("ProofSignal Core: [READY]", out)
+        self.assertIn("VerifySignal Golden Path", out)
+        self.assertIn("VerifySignal Core: [READY]", out)
         self.assertIn("[PASS]", out)
 
-        guide_path = self.project / ".claude" / "PROOFSIGNAL_ONBOARDING.md"
+        guide_path = self.project / ".claude" / "VERIFYSIGNAL_ONBOARDING.md"
         self.assertTrue(guide_path.exists())
-        self.assertIn("/proofsignal-specify", guide_path.read_text(encoding="utf-8"))
+        self.assertIn("/verifysignal-specify", guide_path.read_text(encoding="utf-8"))
 
     def test_upgrade_includes_guidance_for_each_result(self) -> None:
         code, out, err = self.cli(["integration", "upgrade", "--project", str(self.project), "--json"])
@@ -48,26 +48,26 @@ class IntegrationOnboardingGuidanceIntegrationTests(CliTestCase):
         self.assertTrue(all(item["onboardingGuide"]["coreStatus"]["statusMarker"] == "[READY]" for item in data["upgraded"]))
 
     def test_install_missing_core_prints_blocked_status_and_guide_recovery(self) -> None:
-        os.environ["PROOFSIGNAL_CORE_CMD"] = "missing-proofsignal-core-for-guide-test"
+        os.environ["VERIFYSIGNAL_CORE_CMD"] = "missing-verifysignal-core-for-guide-test"
 
         code, out, err = self.cli(["integration", "install", "claude", "--project", str(self.project)])
 
         self.assertEqual(code, 0, err)
-        self.assertIn("ProofSignal Core: [BLOCKED]", out)
+        self.assertIn("VerifySignal Core: [BLOCKED]", out)
         self.assertIn("full validation and browser execution require Core", out)
-        self.assertIn("Next: proofsignal core setup --json", out)
+        self.assertIn("Next: verifysignal core setup --json", out)
 
-        guide_path = self.project / ".claude" / "PROOFSIGNAL_ONBOARDING.md"
+        guide_path = self.project / ".claude" / "VERIFYSIGNAL_ONBOARDING.md"
         content = guide_path.read_text(encoding="utf-8")
         self.assertIn("Core Runtime", content)
         self.assertIn("Specification, understanding, planning, task generation, and artifact authoring can continue without Core.", content)
-        self.assertIn("proofsignal core setup --json", content)
+        self.assertIn("verifysignal core setup --json", content)
 
     def test_install_incompatible_core_prints_incompatible_status(self) -> None:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "incompatible-run-schema"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "incompatible-run-schema"
 
         code, out, err = self.cli(["integration", "install", "codex", "--project", str(self.project)])
 
         self.assertEqual(code, 0, err)
-        self.assertIn("ProofSignal Core: [INCOMPATIBLE]", out)
+        self.assertIn("VerifySignal Core: [INCOMPATIBLE]", out)
         self.assertIn("does not satisfy required operations", out)

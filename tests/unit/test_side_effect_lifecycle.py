@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.validation import validate_side_effect_lifecycle
+from verifysignal_spec.workspace.validation import validate_side_effect_lifecycle
 
 
 def test_new_write_use_case_without_lifecycle_blocks() -> None:

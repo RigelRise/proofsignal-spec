@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, load_document, save_document, save_use_case
-from proofsignal_spec.workflows.models import ArtifactPlan
-from proofsignal_spec.workflows.repository import save_artifact_plan
+from verifysignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, load_document, save_document, save_use_case
+from verifysignal_spec.workflows.models import ArtifactPlan
+from verifysignal_spec.workflows.repository import save_artifact_plan
 
 
 PUBLIC_ALIAS = "home-page-unauth"
@@ -25,14 +25,14 @@ def create_golden_path_workspace(
     include_unreachable_target: bool = False,
 ) -> Path:
     init_workspace(project)
-    product_context = load_document(project / ".proofsignal/product-context.yaml", default={}) or {}
+    product_context = load_document(project / ".verifysignal/product-context.yaml", default={}) or {}
     product_context["repositorySummary"] = "Test target with public and authenticated browser validation candidates."
     product_context["localStartInstructions"] = "npm run dev"
     product_context["knownRuntimeRequirements"] = [{"name": "baseUrl", "value": target}]
     product_context["coverageInventory"] = coverage_inventory(include_credentials=include_credentials)
     if include_unreachable_target:
         product_context["knownRuntimeRequirements"] = [{"name": "baseUrl", "value": "http://127.0.0.1:9"}]
-    save_document(project / ".proofsignal/product-context.yaml", product_context)
+    save_document(project / ".verifysignal/product-context.yaml", product_context)
 
     create_use_case(project, PUBLIC_ALIAS, target=target)
     create_use_case(project, AUTH_ALIAS, target=target, credential=True)
@@ -89,10 +89,10 @@ def coverage_inventory(*, include_credentials: bool = False) -> dict[str, Any]:
 
 
 def create_use_case(project: Path, alias: str, *, target: str = REAL_TARGET, credential: bool = False) -> None:
-    run_request = f".proofsignal/run-requests/{alias}.yaml"
-    skill = f".proofsignal/skills/{alias}.browser.md"
-    (project / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
-    (project / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
+    run_request = f".verifysignal/run-requests/{alias}.yaml"
+    skill = f".verifysignal/skills/{alias}.browser.md"
+    (project / ".verifysignal/run-requests").mkdir(parents=True, exist_ok=True)
+    (project / ".verifysignal/skills").mkdir(parents=True, exist_ok=True)
     (project / run_request).write_text(json.dumps({"parameters": {"baseUrl": target}}, indent=2), encoding="utf-8")
     (project / skill).write_text("# Browser skill\n", encoding="utf-8")
     runtime_inputs = [
@@ -162,6 +162,6 @@ def create_canonical_example_workspaces(root: Path) -> dict[str, dict[str, Any]]
     for key, metadata in examples.items():
         project = root / key
         create_golden_path_workspace(project, target=str(metadata["target"]))
-        save_document(project / ".proofsignal/workflows/canonical-example.yaml", metadata)
+        save_document(project / ".verifysignal/workflows/canonical-example.yaml", metadata)
         metadata["project"] = str(project)
     return examples

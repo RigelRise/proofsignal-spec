@@ -2,12 +2,12 @@
 
 ## Problem
 
-ProofSignal Spec owns the public user experience, but it is open source. If Spec
+VerifySignal Spec owns the public user experience, but it is open source. If Spec
 is the only place where token validation happens, users can bypass or modify the
 checks and still try to acquire or run the private Core runtime.
 
 The user experience must remain smooth: users should install the public
-`proofsignal` CLI and run it without manually downloading Core. Spec should guide
+`verifysignal` CLI and run it without manually downloading Core. Spec should guide
 the unlock flow, acquire Core when allowed, verify it, cache it, and pass only a
 signed entitlement receipt to Core.
 
@@ -24,7 +24,7 @@ Spec should implement the public orchestration layer:
   storage outside the target project;
 - download Core artifacts through backend-authorized short-lived URLs;
 - verify Core release metadata, detached signature, archive `sha256`, package
-  contents, manifest, and `proofsignal-core version --json`;
+  contents, manifest, and `verifysignal-core version --json`;
 - cache the verified runtime atomically;
 - invoke Core only through the documented public CLI JSON contract;
 - pass the entitlement receipt path to Core for protected operations;
@@ -51,20 +51,20 @@ removes the backend entitlement boundary.
 ## Shared Architecture
 
 ```text
-proofsignal CLI
+verifysignal CLI
   readiness detects missing Core
   prompts for email token when needed
-  exchanges token with proofsignal-be
+  exchanges token with verifysignal-be
   receives signed entitlement receipt
   fetches runtime metadata and signed artifact URL
-  verifies and caches proofsignal-core
-  passes receipt path into proofsignal-core
+  verifies and caches verifysignal-core
+  passes receipt path into verifysignal-core
 
-proofsignal-core
+verifysignal-core
   validates receipt for protected operations
   emits public JSON only
 
-proofsignal-be
+verifysignal-be
   validates raw tokens
   signs receipts
   authorizes downloads
@@ -72,11 +72,11 @@ proofsignal-be
 
 ## UX Flow
 
-1. User installs or runs the public `proofsignal` CLI.
+1. User installs or runs the public `verifysignal` CLI.
 2. Spec checks manual/dev overrides first.
 3. If no usable Core runtime exists, Spec checks the user-scoped runtime cache.
 4. If no valid cached runtime exists, Spec asks for the email token.
-5. Spec sends the raw token to `proofsignal-be` over HTTPS.
+5. Spec sends the raw token to `verifysignal-be` over HTTPS.
 6. Spec receives a signed entitlement receipt.
 7. Spec stores the receipt in user-scoped storage with restrictive permissions.
 8. Spec requests runtime download metadata for the host platform and required
@@ -93,7 +93,7 @@ exchange.
 
 ## Storage Rules
 
-Target project `.proofsignal/` may store only portable, non-sensitive workflow
+Target project `.verifysignal/` may store only portable, non-sensitive workflow
 state and non-sensitive readiness summaries.
 
 User-scoped storage may contain:
@@ -121,7 +121,7 @@ future flow introduces refresh secrets.
 
 ## Backend API Client Contract
 
-Spec should call backend endpoints owned by `proofsignal-be`.
+Spec should call backend endpoints owned by `verifysignal-be`.
 
 Token exchange:
 
@@ -131,7 +131,7 @@ Cache-Control: no-store
 Content-Type: application/json
 
 {
-  "token": "ps_...",
+  "token": "vs_...",
   "client": {
     "cliVersion": "0.1.0",
     "platform": "darwin-arm64"
@@ -164,7 +164,7 @@ Spec should reuse the Core-owned runtime package contract:
 6. extract into a staging directory;
 7. inspect the content boundary;
 8. verify `manifest.json` hash and fields;
-9. run `proofsignal-core version --json`;
+9. run `verifysignal-core version --json`;
 10. compare Core version, public contract version, and operation metadata.
 
 Only after all checks pass may Spec promote the runtime into the user cache.
@@ -194,7 +194,7 @@ Recommended blocker codes:
 
 - Add a backend client for entitlement exchange and runtime metadata/download
   authorization.
-- Add receipt storage in user-scoped config/cache outside `.proofsignal/`.
+- Add receipt storage in user-scoped config/cache outside `.verifysignal/`.
 - Add raw token redaction and signed URL redaction fixtures.
 - Add runtime cache staging, safe extraction, verification, and atomic promote
 - Add managed runtime readiness integration to `init`, `check`, `run`,
@@ -212,7 +212,7 @@ Recommended blocker codes:
 - Raw tokens are never persisted and signed URLs are never printed or stored
   after use.
 - A valid receipt plus valid artifact metadata produces a cached
-  `proofsignal-core` executable.
+  `verifysignal-core` executable.
 - Offline cached use works while the receipt remains valid.
 - Expired, revoked, malformed, or Core-rejected receipts block protected
   operations with stable JSON/readiness blockers.

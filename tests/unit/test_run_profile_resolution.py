@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from proofsignal_spec.cli import create_parser
-from proofsignal_spec.commands.run import resolve_effective_profile_settings
-from proofsignal_spec.workspace.models import RunProfile
+from verifysignal_spec.cli import create_parser
+from verifysignal_spec.commands.run import resolve_effective_profile_settings
+from verifysignal_spec.workspace.models import RunProfile
 
 
 def test_cli_accepts_use_case_specific_profile_names() -> None:

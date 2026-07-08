@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.readiness import default_capability_policies
-from proofsignal_spec.workspace.repository import load_use_case, run_confirmation_requirements
+from verifysignal_spec.workflows.readiness import default_capability_policies
+from verifysignal_spec.workspace.repository import load_use_case, run_confirmation_requirements
 from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace
 
 

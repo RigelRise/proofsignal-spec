@@ -4,7 +4,7 @@ import json
 
 from helpers import CliTestCase
 
-from proofsignal_spec.integrations.mcp import PLAYWRIGHT_MCP_SERVER, merge_mcp_servers
+from verifysignal_spec.integrations.mcp import PLAYWRIGHT_MCP_SERVER, merge_mcp_servers
 
 
 def _read_mcp(project) -> dict:
@@ -54,7 +54,7 @@ def test_merge_does_not_clobber_malformed_file(tmp_path) -> None:
 
 
 def test_merge_reports_node_missing_but_still_writes(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("proofsignal_spec.integrations.mcp.shutil.which", lambda _name: None)
+    monkeypatch.setattr("verifysignal_spec.integrations.mcp.shutil.which", lambda _name: None)
 
     result = merge_mcp_servers(tmp_path, {"playwright": PLAYWRIGHT_MCP_SERVER})
 

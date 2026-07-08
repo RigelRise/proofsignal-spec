@@ -19,7 +19,7 @@ class FirstRunSuitabilityContractTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         data = json.loads(out)
-        self.assertEqual(data["schemaVersion"], "proofsignal-spec-first-run-recommendation/v1")
+        self.assertEqual(data["schemaVersion"], "verifysignal-spec-first-run-recommendation/v1")
         self.assertEqual(data["status"], "ready")
         self.assertEqual(data["recommendedCandidate"]["alias"], PUBLIC_ALIAS)
         self.assertFalse(data["explicitAcceptanceRequired"])

@@ -1,7 +1,0 @@
----
-name: "proofsignal-spec-refine"
-description: "Refine an existing ProofSignal browser use case."
----
-
-Inspect only non-sensitive context by default. Preserve linked external
-artifacts unless the user approves edits.

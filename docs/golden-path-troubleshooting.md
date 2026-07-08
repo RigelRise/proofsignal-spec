@@ -20,28 +20,28 @@ evidence, and provide the exact next action without weakening validation intent.
   credential values.
 - Stale inventory or guidance: rerun repository understanding or regenerate the
   agent integration.
-- Managed runtime blocked: run `proofsignal init --here --integration codex` to
-  complete email-token unlock and managed runtime acquisition. Use `proofsignal
+- Managed runtime blocked: run `verifysignal init --here --integration codex` to
+  complete email-token unlock and managed runtime acquisition. Use `verifysignal
   core setup --core-cmd <path>` only for diagnostics, offline environments, and
   development overrides.
-- Incompatible Core: verify `proofsignal core version --json` and upgrade the
+- Incompatible Core: verify `verifysignal core version --json` and upgrade the
   component that is behind the public CLI JSON contract.
-- Install guidance missing or stale: rerun `proofsignal-spec integration install
-  <codex|claude>` or `proofsignal-spec integration upgrade` to regenerate local
+- Install guidance missing or stale: rerun `verifysignal-spec integration install
+  <codex|claude>` or `verifysignal-spec integration upgrade` to regenerate local
   onboarding guidance.
-- Blocked guided flow: inspect `.proofsignal/workflows/golden-path-state.yaml`
+- Blocked guided flow: inspect `.verifysignal/workflows/golden-path-state.yaml`
   and follow `resumeCommand`; do not infer a new stage from chat history.
 - 009 workspace state compatibility: inspect/reset state through the public
-  workflow commands below. Do not delete unrelated `.proofsignal/` artifacts.
+  workflow commands below. Do not delete unrelated `.verifysignal/` artifacts.
 - Write rerun blocked by resource identity: validate the use case, then repair
   or re-implement the generated identity input/template, `resourceIdentity`, or
   `rerunPolicy`. Do not hand-edit `lastRun` or registry state to bypass a
   write-safety guard.
 - Write rerun requires owner confirmation after a committed write: run
-  `proofsignal workflow approve-rerun --alias <alias> --confirm-risk <id> --json`
+  `verifysignal workflow approve-rerun --alias <alias> --confirm-risk <id> --json`
   using the confirmation id from `workflow check run`, then re-check/run.
 - Reviewed false-positive write outcome: record an auditable review with
-  `proofsignal workflow supersede-write-outcome`; do not hand-edit managed
+  `verifysignal workflow supersede-write-outcome`; do not hand-edit managed
   run history. Write policies should use `sideEffectPolicy.allowed[]` and
   `sideEffectPolicy.forbidden[]`, not legacy
   `sideEffectPolicy.rules[].effect/match`, and confirmation signals must be
@@ -62,9 +62,9 @@ evidence, and provide the exact next action without weakening validation intent.
 Use read-only inspection before cleanup:
 
 ```sh
-proofsignal workflow inspect-golden-path-state --json
-proofsignal workflow reset-golden-path-state --preview --json
-proofsignal workflow reset-golden-path-state --confirm --json
+verifysignal workflow inspect-golden-path-state --json
+verifysignal workflow reset-golden-path-state --preview --json
+verifysignal workflow reset-golden-path-state --confirm --json
 ```
 
 Reset removes only Golden Path-owned state and preserves unrelated use cases,

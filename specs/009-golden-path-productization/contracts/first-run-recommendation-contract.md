@@ -4,24 +4,24 @@
 
 Expose a deterministic product-owned recommendation for the first golden-path
 run. Agents render the recommendation in chat, but the ranking and status come
-from ProofSignal Spec data.
+from VerifySignal Spec data.
 
 ## Proposed CLI surface
 
 ```text
-proofsignal-spec workflow recommend-first-run --project <path> --json
-proofsignal-spec workflow accept-first-run <alias> --project <path> --json
-proofsignal-spec workflow skip-first-run --project <path> --json
+verifysignal-spec workflow recommend-first-run --project <path> --json
+verifysignal-spec workflow accept-first-run <alias> --project <path> --json
+verifysignal-spec workflow skip-first-run --project <path> --json
 ```
 
-The recommendation command reads project-local `.proofsignal/` state and safe
+The recommendation command reads project-local `.verifysignal/` state and safe
 coverage inventory. It does not execute a browser run. Acceptance and skip
 commands record golden-path state only; execution still happens through the
 normal validated run command.
 
 ## JSON schema
 
-`schemaVersion`: `proofsignal-spec-first-run-recommendation/v1`
+`schemaVersion`: `verifysignal-spec-first-run-recommendation/v1`
 
 Required fields:
 

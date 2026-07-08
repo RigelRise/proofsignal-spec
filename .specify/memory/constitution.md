@@ -19,26 +19,26 @@ Templates requiring updates:
 Deferred items:
 - none
 -->
-# ProofSignal Spec Constitution
+# VerifySignal Spec Constitution
 
 ## Core Principles
 
 ### I. Public Core Boundary
 
-ProofSignal Spec MUST interact with ProofSignal Core only through documented
+VerifySignal Spec MUST interact with VerifySignal Core only through documented
 public CLI JSON contracts. Features that validate, run, inspect reports, or
 check Core readiness MUST define the required public operation names, schema
 names, schema versions, and incompatibility behavior. Private Core package
 imports, private source inspection, undocumented report internals, and
 implementation-specific response fields are prohibited.
 
-Rationale: ProofSignal Spec is an open-source interface over a private Core.
+Rationale: VerifySignal Spec is an open-source interface over a private Core.
 The boundary must remain stable, reviewable, and safe for external clients.
 
 ### II. Project-Local Workspace Portability
 
-Project state owned by ProofSignal Spec MUST live in the target repository and
-MUST use `.proofsignal/` as the canonical workspace unless a future constitution
+Project state owned by VerifySignal Spec MUST live in the target repository and
+MUST use `.verifysignal/` as the canonical workspace unless a future constitution
 amendment changes the workspace contract. Workspace records MUST remain portable
 across supported coding-agent integrations and deterministic non-AI CLI flows.
 Generated run requests, reusable skills, registry records, run history, repair
@@ -70,7 +70,7 @@ without AI assistance. Integration install, upgrade, switch, and removal flows
 MUST preserve user-modified managed files unless explicit replacement is
 approved.
 
-Rationale: ProofSignal Spec is the interface layer for ProofSignal use cases,
+Rationale: VerifySignal Spec is the interface layer for VerifySignal use cases,
 not a one-assistant workflow that locks users into generated files.
 
 ### V. Testable Spec-Driven Delivery
@@ -82,7 +82,7 @@ compatibility behavior, secret safety behavior, and cross-agent portability
 behavior MUST have contract, unit, integration, or documented repeatable manual
 validation tasks before implementation is considered complete.
 
-Rationale: The repository exists to make ProofSignal use cases repeatable.
+Rationale: The repository exists to make VerifySignal use cases repeatable.
 Implementation work must remain traceable to executable behavior and reviewable
 artifacts.
 
@@ -92,7 +92,7 @@ artifacts.
   instructions, command help, and template text MUST be written in English.
 - Conversations with maintainers MAY happen in other languages, but committed
   project artifacts MUST remain English.
-- ProofSignal Spec SHOULD prefer local file workflows and bundled templates over
+- VerifySignal Spec SHOULD prefer local file workflows and bundled templates over
   network-dependent setup.
 - New dependencies MUST be justified in `plan.md` and must not weaken the public
   Core boundary or secret-safety rules.

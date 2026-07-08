@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, save_use_case
-from proofsignal_spec.workflows.models import BrowserTargetEnvironment, RuntimePrerequisite, RuntimeReadinessCheck
+from verifysignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, save_use_case
+from verifysignal_spec.workflows.models import BrowserTargetEnvironment, RuntimePrerequisite, RuntimeReadinessCheck
 
 
 ALIAS = "browser-target-guardrail"
@@ -59,8 +59,8 @@ def create_browser_target_workspace(project: Path, *, target_url: str = TARGET_U
         alias=ALIAS,
         title="Browser Target Guardrail",
         description="Validate browser target handoff guardrails.",
-        runRequest=ArtifactReference(path=f".proofsignal/run-requests/{ALIAS}.yaml", kind="run-request"),
-        mainSkill=ArtifactReference(path=".proofsignal/skills/browser-target.browser.md", kind="skill"),
+        runRequest=ArtifactReference(path=f".verifysignal/run-requests/{ALIAS}.yaml", kind="run-request"),
+        mainSkill=ArtifactReference(path=".verifysignal/skills/browser-target.browser.md", kind="skill"),
         runtimeInputs=[
             RuntimeInputRequirement(
                 name="baseUrl",

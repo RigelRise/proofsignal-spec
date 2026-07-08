@@ -8,13 +8,13 @@ first-run onboarding path.
 ## CLI surfaces
 
 ```text
-proofsignal-spec workflow check specify --project <path> --json
-proofsignal-spec workflow persist understand --scope all --payload <path> --project <path> --json
-proofsignal-spec workflow recommend-first-run --project <path> --json
+verifysignal-spec workflow check specify --project <path> --json
+verifysignal-spec workflow persist understand --scope all --payload <path> --project <path> --json
+verifysignal-spec workflow recommend-first-run --project <path> --json
 ```
 
 Agents may orchestrate these commands, but the state and validation semantics
-come from ProofSignal Spec.
+come from VerifySignal Spec.
 
 ## Missing understanding behavior
 

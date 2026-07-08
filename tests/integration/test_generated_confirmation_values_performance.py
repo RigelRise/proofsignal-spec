@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from time import perf_counter
 
-from proofsignal_spec.commands.runtime_inputs import resolve_runtime_inputs
-from proofsignal_spec.workspace.models import RuntimeInputRequirement
-from proofsignal_spec.workflows.write_safety import resolve_confirmation_signal_placeholders
+from verifysignal_spec.commands.runtime_inputs import resolve_runtime_inputs
+from verifysignal_spec.workspace.models import RuntimeInputRequirement
+from verifysignal_spec.workflows.write_safety import resolve_confirmation_signal_placeholders
 
 
 def test_generated_and_confirmation_preparation_stays_local_and_fast() -> None:
@@ -12,7 +12,7 @@ def test_generated_and_confirmation_preparation_stays_local_and_fast() -> None:
         RuntimeInputRequirement(
             name=f"resourceName{index}",
             source="generated",
-            value=f"ProofSignal QA {index}",
+            value=f"VerifySignal QA {index}",
             refreshOnRerunAfterCommit=True,
         )
         for index in range(20)

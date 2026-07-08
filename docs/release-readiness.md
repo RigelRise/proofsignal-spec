@@ -16,7 +16,7 @@ demo or ready to release.
   without manual restart.
 - Integration install prints next steps and writes local onboarding guidance.
 - First-time onboarding can ensure a compatible private runtime through the
-  public `proofsignal` command without a separate manual Core install.
+  public `verifysignal` command without a separate manual Core install.
 - Common blockers provide an exact next action instead of suggesting fake/demo
   fallbacks.
 - Workflow output uses clear pass/fail language and distinguishes skipped,
@@ -25,7 +25,7 @@ demo or ready to release.
 ## Ready To Release
 
 - Public CLI JSON contracts are covered by contract tests.
-- Workspace state inspect/reset preserves unrelated `.proofsignal/` artifacts.
+- Workspace state inspect/reset preserves unrelated `.verifysignal/` artifacts.
 - Repair autonomy preserves required gates and requires confirmation for intent
   changes.
 - Documentation explains Golden Path, troubleshooting, examples, and release
@@ -61,11 +61,11 @@ demo or ready to release.
 
 ## Moderated Dogfood Script
 
-1. Start from a representative repository with no `.proofsignal/product-context.yaml`.
+1. Start from a representative repository with no `.verifysignal/product-context.yaml`.
 2. Install Codex or Claude integration.
 3. Ask the participant what the next command is and what sensitive boundaries
    apply.
-4. Run `/proofsignal-specify` and observe whether safe understanding prepares
+4. Run `/verifysignal-specify` and observe whether safe understanding prepares
    and resumes without manual restart.
 5. Confirm the recommended first run is public/read-only/simple when such a
    candidate exists.

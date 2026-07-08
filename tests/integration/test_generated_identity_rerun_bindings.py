@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import RunHistoryEntry
-from proofsignal_spec.workspace.repository import load_document, load_use_case, record_run, resolve_named_output, save_use_case
+from verifysignal_spec.workspace.models import RunHistoryEntry
+from verifysignal_spec.workspace.repository import load_document, load_use_case, record_run, resolve_named_output, save_use_case
 
 from tests.fixtures.workflows.side_effect_contract_alignment import create_write_policy_workspace
 
 
 def test_committed_run_publishes_named_output_and_committed_binding(tmp_path) -> None:
     record = create_write_policy_workspace(tmp_path)
-    entry = _run_entry(post_commit=True, binding_status="committed", output_value="/project/proofsignal-a")
+    entry = _run_entry(post_commit=True, binding_status="committed", output_value="/project/verifysignal-a")
 
     record_run(tmp_path, entry)
 
     saved = load_use_case(tmp_path, "add-collaboration-project").lastRun
     assert saved["resolvedRuntimeInputs"][0]["status"] == "committed"
-    assert resolve_named_output(tmp_path, "createdProjectUrl")["value"] == "/project/proofsignal-a"
+    assert resolve_named_output(tmp_path, "createdProjectUrl")["value"] == "/project/verifysignal-a"
 
 
 def test_pre_commit_failure_discards_generated_binding_and_does_not_publish_named_output(tmp_path) -> None:
@@ -25,7 +25,7 @@ def test_pre_commit_failure_discards_generated_binding_and_does_not_publish_name
 
     saved = load_use_case(tmp_path, "add-collaboration-project").lastRun
     assert saved["resolvedRuntimeInputs"][0]["status"] == "discarded"
-    assert load_document(tmp_path / ".proofsignal/named-outputs.yaml", default={"outputs": []})["outputs"] == []
+    assert load_document(tmp_path / ".verifysignal/named-outputs.yaml", default={"outputs": []})["outputs"] == []
 
 
 def _run_entry(*, post_commit: bool, binding_status: str, output_value: str, status: str = "passed") -> RunHistoryEntry:
@@ -40,7 +40,7 @@ def _run_entry(*, post_commit: bool, binding_status: str, output_value: str, sta
         resolvedRuntimeInputs=[
             {
                 "name": "projectTitle",
-                "value": f"ProofSignal {binding_status}",
+                "value": f"VerifySignal {binding_status}",
                 "source": "generated",
                 "runId": f"run-{binding_status}",
                 "useCaseAlias": "add-collaboration-project",

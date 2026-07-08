@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.repository import create_default_use_case, init_workspace, load_use_case, save_use_case
-from proofsignal_spec.workflows.repository import import_legacy_use_case
-from proofsignal_spec.workflows.migration import apply_migration
+from verifysignal_spec.workspace.repository import create_default_use_case, init_workspace, load_use_case, save_use_case
+from verifysignal_spec.workflows.repository import import_legacy_use_case
+from verifysignal_spec.workflows.migration import apply_migration
 from tests.fixtures.workflows.guardrails import create_registry_missing_record_path
 
 

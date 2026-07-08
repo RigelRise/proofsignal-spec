@@ -11,7 +11,7 @@ class GoldenPathWorkspaceStateContractTests(CliTestCase):
         super().setUp()
         create_golden_path_workspace(self.project)
         self.cli(["workflow", "accept-first-run", PUBLIC_ALIAS, "--project", str(self.project), "--json"])
-        unrelated = self.project / ".proofsignal/use-cases/manual.yaml"
+        unrelated = self.project / ".verifysignal/use-cases/manual.yaml"
         unrelated.write_text('{"alias":"manual","title":"Manual","description":"Preserve me"}\n', encoding="utf-8")
 
     def test_inspect_workspace_state_json_contract(self) -> None:
@@ -19,10 +19,10 @@ class GoldenPathWorkspaceStateContractTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         payload = json.loads(out)
-        self.assertEqual(payload["schemaVersion"], "proofsignal-spec-golden-path-workspace-state/v1")
+        self.assertEqual(payload["schemaVersion"], "verifysignal-spec-golden-path-workspace-state/v1")
         self.assertEqual(payload["status"], "ready")
         self.assertEqual(payload["firstRunStatus"], "not-started")
-        self.assertEqual(payload["firstRunState"]["schemaVersion"], "proofsignal-spec-guided-first-run/v1")
+        self.assertEqual(payload["firstRunState"]["schemaVersion"], "verifysignal-spec-guided-first-run/v1")
         self.assertEqual(payload["firstRunState"]["stage"], "accepted")
         self.assertIn("resumeCommand", payload["firstRunState"])
         self.assertTrue(any("golden-path-state" in path for path in payload["ownedArtifacts"]))
@@ -31,8 +31,8 @@ class GoldenPathWorkspaceStateContractTests(CliTestCase):
         self.assertIn("nextAction", payload)
 
     def test_reset_preview_is_read_only_and_confirm_preserves_unrelated_artifacts(self) -> None:
-        state_path = self.project / ".proofsignal/workflows/golden-path-state.yaml"
-        unrelated = self.project / ".proofsignal/use-cases/manual.yaml"
+        state_path = self.project / ".verifysignal/workflows/golden-path-state.yaml"
+        unrelated = self.project / ".verifysignal/use-cases/manual.yaml"
 
         preview_code, preview_out, preview_err = self.cli(["workflow", "reset-golden-path-state", "--project", str(self.project), "--preview", "--json"])
         self.assertEqual(preview_code, 0, preview_err)

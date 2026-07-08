@@ -71,11 +71,11 @@ Use a sample target repository with:
 
 - at least one trivial public read-only page
 - at least one active-branch authenticated or setup-heavy feature
-- no existing `.proofsignal/product-context.yaml`
+- no existing `.verifysignal/product-context.yaml`
 
 Expected behavior:
 
-1. `/proofsignal-specify` explains safe understanding preparation and proceeds
+1. `/verifysignal-specify` explains safe understanding preparation and proceeds
    without asking the user to manually restart.
 2. First-run recommendation chooses the trivial public page.
 3. The branch-relevant feature remains visible as a secondary recommendation.

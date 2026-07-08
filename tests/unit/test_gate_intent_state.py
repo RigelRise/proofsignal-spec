@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.gates import gate_intent_from_plan, preserve_required_after_aborted_run, record_gate_intent_change
+from verifysignal_spec.workflows.gates import gate_intent_from_plan, preserve_required_after_aborted_run, record_gate_intent_change
 
 
 def test_gate_intent_state_lifecycle_preserves_required_after_aborted_run() -> None:

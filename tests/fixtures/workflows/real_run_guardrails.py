@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec.workspace.repository import init_workspace, save_use_case
-from proofsignal_spec.workspace.models import ArtifactReference, UseCaseRecord
-from proofsignal_spec.workflows.models import ArtifactPlan
-from proofsignal_spec.workflows.repository import save_artifact_plan
+from verifysignal_spec.workspace.repository import init_workspace, save_use_case
+from verifysignal_spec.workspace.models import ArtifactReference, UseCaseRecord
+from verifysignal_spec.workflows.models import ArtifactPlan
+from verifysignal_spec.workflows.repository import save_artifact_plan
 
 
 def create_real_run_guardrail_workspace(project: Path, alias: str = "profile-view-unauth") -> Path:
@@ -16,15 +16,15 @@ def create_real_run_guardrail_workspace(project: Path, alias: str = "profile-vie
         alias=alias,
         title="Profile View Unauth",
         description="Validate a public profile page.",
-        runRequest=ArtifactReference(path=f".proofsignal/run-requests/{alias}.yaml", kind="run-request", id=f"request.{alias}", version="1.0.0"),
+        runRequest=ArtifactReference(path=f".verifysignal/run-requests/{alias}.yaml", kind="run-request", id=f"request.{alias}", version="1.0.0"),
         mainSkill=ArtifactReference(
-            path=".proofsignal/skills/validate-profile-view-unauth-flow.browser.md",
+            path=".verifysignal/skills/validate-profile-view-unauth-flow.browser.md",
             kind="skill",
             id="skill.validate-profile-view-unauth-flow",
             version="1.0.0",
         ),
         skills=[
-            ArtifactReference(path=".proofsignal/skills/validate-profile-view-unauth-flow.browser.md", kind="skill", id="skill.validate-profile-view-unauth-flow", version="1.0.0")
+            ArtifactReference(path=".verifysignal/skills/validate-profile-view-unauth-flow.browser.md", kind="skill", id="skill.validate-profile-view-unauth-flow", version="1.0.0")
         ],
     )
     save_use_case(project, record)
@@ -32,9 +32,9 @@ def create_real_run_guardrail_workspace(project: Path, alias: str = "profile-vie
         project,
         ArtifactPlan(
             useCaseAlias=alias,
-            runRequest=f".proofsignal/run-requests/{alias}.yaml",
-            mainSkill=".proofsignal/skills/validate-profile-view-unauth-flow.browser.md",
-            supportingSkills=[".proofsignal/skills/navigate-to-profile.browser.md"],
+            runRequest=f".verifysignal/run-requests/{alias}.yaml",
+            mainSkill=".verifysignal/skills/validate-profile-view-unauth-flow.browser.md",
+            supportingSkills=[".verifysignal/skills/navigate-to-profile.browser.md"],
             runtimeInputs=[{"name": "baseUrl", "required": True, "default": "https://app.example.test"}],
             validationGates=profile_validation_gates(),
         ),
@@ -57,7 +57,7 @@ def profile_validation_gates() -> list[dict[str, Any]]:
     ]
 
 
-def coherent_profile_skill(path: str = ".proofsignal/skills/validate-profile-view-unauth-flow.browser.md") -> dict[str, Any]:
+def coherent_profile_skill(path: str = ".verifysignal/skills/validate-profile-view-unauth-flow.browser.md") -> dict[str, Any]:
     return {
         "path": path,
         "kind": "skill",
@@ -87,7 +87,7 @@ def coherent_profile_skill(path: str = ".proofsignal/skills/validate-profile-vie
     }
 
 
-def navigation_only_skill(path: str = ".proofsignal/skills/validate-profile-view-unauth-flow.browser.md") -> dict[str, Any]:
+def navigation_only_skill(path: str = ".verifysignal/skills/validate-profile-view-unauth-flow.browser.md") -> dict[str, Any]:
     return {
         "path": path,
         "kind": "skill",
@@ -105,7 +105,7 @@ def navigation_only_skill(path: str = ".proofsignal/skills/validate-profile-view
 def run_request_payload(alias: str = "profile-view-unauth", skills_first: list[str] | None = None) -> dict[str, Any]:
     skills = skills_first or ["skill.validate-profile-view-unauth-flow"]
     return {
-        "path": f".proofsignal/run-requests/{alias}.yaml",
+        "path": f".verifysignal/run-requests/{alias}.yaml",
         "kind": "run-request",
         "parameters": {"baseUrl": "https://app.example.test"},
         "content": json.dumps(

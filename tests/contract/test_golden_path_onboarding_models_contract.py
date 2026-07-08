@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.models import (
+from verifysignal_spec.workflows.models import (
     FirstRunIdealCriteria,
     FirstRunSuitabilityScore,
     GuidedFirstRunState,
@@ -36,24 +36,24 @@ def test_shared_onboarding_model_round_trips() -> None:
         selectedCandidate="home-page-unauth",
         stage="accepted",
         firstRunStatus="not-started",
-        resumeCommand="proofsignal validate home-page-unauth --runtime-readiness --json",
+        resumeCommand="verifysignal validate home-page-unauth --runtime-readiness --json",
     ).to_dict()
-    assert state["schemaVersion"] == "proofsignal-spec-guided-first-run/v1"
+    assert state["schemaVersion"] == "verifysignal-spec-guided-first-run/v1"
     assert state["stage"] == "accepted"
-    assert state["resumeCommand"].startswith("proofsignal validate")
+    assert state["resumeCommand"].startswith("verifysignal validate")
 
     guide = OnboardingGuidance(
         integrationKey="codex",
-        terminalTitle="ProofSignal Golden Path",
-        terminalSummary="Run /proofsignal-specify next.",
-        generatedGuidePath=".agents/PROOFSIGNAL_ONBOARDING.md",
+        terminalTitle="VerifySignal Golden Path",
+        terminalSummary="Run /verifysignal-specify next.",
+        generatedGuidePath=".agents/VERIFYSIGNAL_ONBOARDING.md",
         stageMarkers=["[RECOMMENDED]", "[PASS]"],
         safetyBoundaries=["Sensitive files require approval."],
         successSemantics=["repaired-passed counts as success"],
-        plainTextFallback="ProofSignal Golden Path: run /proofsignal-specify next.",
-        nextCommand="/proofsignal-specify",
+        plainTextFallback="VerifySignal Golden Path: run /verifysignal-specify next.",
+        nextCommand="/verifysignal-specify",
     ).to_dict()
-    assert guide["nextCommand"] == "/proofsignal-specify"
+    assert guide["nextCommand"] == "/verifysignal-specify"
     assert "repaired-passed" in " ".join(guide["successSemantics"])
 
     result = UnderstandingOnboardingResult(

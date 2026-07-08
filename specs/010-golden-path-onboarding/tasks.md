@@ -32,8 +32,8 @@
 
 - [X] T005 [P] Add failing model contract tests for FirstRunSuitabilityScore, FirstRunIdealCriteria, GuidedFirstRunState, OnboardingGuidance, and UnderstandingOnboardingResult in tests/contract/test_golden_path_onboarding_models_contract.py
 - [X] T006 [P] Add failing serialization/unit tests for the same shared onboarding models in tests/unit/test_golden_path_onboarding_models.py
-- [X] T007 Add shared dataclasses and schema constants for first-run suitability, ideal criteria, guided flow state, onboarding guidance, and understanding onboarding result in src/proofsignal_spec/workflows/models.py
-- [X] T008 Add to_dict/from_dict validation coverage for new onboarding models in src/proofsignal_spec/workflows/models.py
+- [X] T007 Add shared dataclasses and schema constants for first-run suitability, ideal criteria, guided flow state, onboarding guidance, and understanding onboarding result in src/verifysignal_spec/workflows/models.py
+- [X] T008 Add to_dict/from_dict validation coverage for new onboarding models in src/verifysignal_spec/workflows/models.py
 - [X] T009 Run the focused shared model tests from tests/contract/test_golden_path_onboarding_models_contract.py and tests/unit/test_golden_path_onboarding_models.py and confirm they pass
 
 **Checkpoint**: Shared onboarding data contracts are available for all stories.
@@ -58,15 +58,15 @@
 
 ### Implementation for User Story 1
 
-- [X] T017 [US1] Implement ideal criteria evaluation and suitability scoring fields in src/proofsignal_spec/workflows/first_run.py
-- [X] T018 [US1] Add branch-relevance detection and branchRelevantCandidates output without allowing branch relevance to outrank lower-risk candidates in src/proofsignal_spec/workflows/first_run.py
-- [X] T019 [US1] Implement no-ideal-candidate fallback with idealCriteriaMissing, requiresExplicitAcceptance, and explicitAcceptanceRequired in src/proofsignal_spec/workflows/first_run.py
-- [X] T020 [US1] Extend FirstRunRecommendation model output for idealCriteria, branchRelevantCandidates, and explicitAcceptanceRequired in src/proofsignal_spec/workflows/models.py
-- [X] T021 [US1] Update recommendation stage-card content to explain unmet ideal criteria and secondary branch-relevant candidates in src/proofsignal_spec/workflows/stage_cards.py
-- [X] T022 [US1] Implement GuidedFirstRunState persistence transitions for accepted, skipped, authoring, validating, running, repairing, passed, repaired-passed, failed, and blocked in src/proofsignal_spec/workflows/first_run.py
-- [X] T023 [US1] Update accept-first-run and skip-first-run command handlers to return guided first-run schema, stage, resumeCommand, and stageCards in src/proofsignal_spec/commands/workflow.py
-- [X] T024 [US1] Update CLI workflow dispatch and text output for guided first-run accept/skip/recommend responses in src/proofsignal_spec/cli.py
-- [X] T025 [US1] Update author, validate, run, and repair state integration so accepted first-run stages and strictPass/repaired-passed results write guided-flow state in src/proofsignal_spec/commands/author.py, src/proofsignal_spec/commands/validate.py, src/proofsignal_spec/commands/run.py, and src/proofsignal_spec/commands/repair.py
+- [X] T017 [US1] Implement ideal criteria evaluation and suitability scoring fields in src/verifysignal_spec/workflows/first_run.py
+- [X] T018 [US1] Add branch-relevance detection and branchRelevantCandidates output without allowing branch relevance to outrank lower-risk candidates in src/verifysignal_spec/workflows/first_run.py
+- [X] T019 [US1] Implement no-ideal-candidate fallback with idealCriteriaMissing, requiresExplicitAcceptance, and explicitAcceptanceRequired in src/verifysignal_spec/workflows/first_run.py
+- [X] T020 [US1] Extend FirstRunRecommendation model output for idealCriteria, branchRelevantCandidates, and explicitAcceptanceRequired in src/verifysignal_spec/workflows/models.py
+- [X] T021 [US1] Update recommendation stage-card content to explain unmet ideal criteria and secondary branch-relevant candidates in src/verifysignal_spec/workflows/stage_cards.py
+- [X] T022 [US1] Implement GuidedFirstRunState persistence transitions for accepted, skipped, authoring, validating, running, repairing, passed, repaired-passed, failed, and blocked in src/verifysignal_spec/workflows/first_run.py
+- [X] T023 [US1] Update accept-first-run and skip-first-run command handlers to return guided first-run schema, stage, resumeCommand, and stageCards in src/verifysignal_spec/commands/workflow.py
+- [X] T024 [US1] Update CLI workflow dispatch and text output for guided first-run accept/skip/recommend responses in src/verifysignal_spec/cli.py
+- [X] T025 [US1] Update author, validate, run, and repair state integration so accepted first-run stages and strictPass/repaired-passed results write guided-flow state in src/verifysignal_spec/commands/author.py, src/verifysignal_spec/commands/validate.py, src/verifysignal_spec/commands/run.py, and src/verifysignal_spec/commands/repair.py
 - [X] T026 [US1] Run focused US1 tests from tests/contract/test_first_run_suitability_contract.py, tests/unit/test_first_run_suitability.py, tests/contract/test_guided_first_run_flow_contract.py, and tests/integration/test_guided_first_run_flow.py
 
 **Checkpoint**: User Story 1 is independently functional and demonstrable as the MVP.
@@ -84,15 +84,15 @@
 - [X] T027 [P] [US2] Add failing contract tests for missing-understanding auto-prepare guidance and resume fields in tests/contract/test_understanding_onboarding_contract.py
 - [X] T028 [P] [US2] Add failing integration tests for clean-repository specify onboarding that prepares safe understanding and resumes recommendation in tests/integration/test_golden_path_onboarding_prepare.py
 - [X] T029 [US2] Add failing integration tests for host-permission or sensitive-boundary blockers that ask once and provide resume action in tests/integration/test_golden_path_onboarding_prepare.py
-- [X] T030 [P] [US2] Add failing template tests requiring /proofsignal-specify and /proofsignal-understand guidance to describe auto-prepare and no manual restart in tests/integration/test_agent_template_preservation.py
+- [X] T030 [P] [US2] Add failing template tests requiring /verifysignal-specify and /verifysignal-understand guidance to describe auto-prepare and no manual restart in tests/integration/test_agent_template_preservation.py
 
 ### Implementation for User Story 2
 
-- [X] T031 [US2] Add onboarding preparation result builder and resume metadata in src/proofsignal_spec/workflows/first_run.py
-- [X] T032 [US2] Update workflow prerequisite checks for specify to classify missing understanding as auto-preparable when safe and as approval-required only for host/sensitive boundaries in src/proofsignal_spec/workflows/prerequisites.py
-- [X] T033 [US2] Update workflow check output to include preparation status, resumeCommand, and stageCards for missing-understanding onboarding in src/proofsignal_spec/commands/workflow.py
-- [X] T034 [US2] Update /proofsignal-specify and /proofsignal-understand command templates to auto-prepare safe understanding and resume first-run recommendation in src/proofsignal_spec/templates/agent-commands/proofsignal.specify.md and src/proofsignal_spec/templates/agent-commands/proofsignal.understand.md
-- [X] T035 [US2] Update Codex and Claude generated skill guidance for missing-understanding auto-prepare behavior in src/proofsignal_spec/integrations/codex.py and src/proofsignal_spec/integrations/claude.py
+- [X] T031 [US2] Add onboarding preparation result builder and resume metadata in src/verifysignal_spec/workflows/first_run.py
+- [X] T032 [US2] Update workflow prerequisite checks for specify to classify missing understanding as auto-preparable when safe and as approval-required only for host/sensitive boundaries in src/verifysignal_spec/workflows/prerequisites.py
+- [X] T033 [US2] Update workflow check output to include preparation status, resumeCommand, and stageCards for missing-understanding onboarding in src/verifysignal_spec/commands/workflow.py
+- [X] T034 [US2] Update /verifysignal-specify and /verifysignal-understand command templates to auto-prepare safe understanding and resume first-run recommendation in src/verifysignal_spec/templates/agent-commands/verifysignal.specify.md and src/verifysignal_spec/templates/agent-commands/verifysignal.understand.md
+- [X] T035 [US2] Update Codex and Claude generated skill guidance for missing-understanding auto-prepare behavior in src/verifysignal_spec/integrations/codex.py and src/verifysignal_spec/integrations/claude.py
 - [X] T036 [US2] Run focused US2 tests from tests/contract/test_understanding_onboarding_contract.py, tests/integration/test_golden_path_onboarding_prepare.py, and tests/integration/test_agent_template_preservation.py
 
 **Checkpoint**: User Story 2 works independently on clean repositories and does not regress ordinary specify behavior.
@@ -114,12 +114,12 @@
 
 ### Implementation for User Story 3
 
-- [X] T041 [US3] Implement onboarding guidance data builder with terminal summary, stage markers, safety boundaries, success semantics, and plainTextFallback in src/proofsignal_spec/integrations/base.py
-- [X] T042 [US3] Update integration install and upgrade command results to include onboardingGuide in src/proofsignal_spec/commands/integration.py
-- [X] T043 [US3] Update CLI text emission for integration install/upgrade to render visually scannable sections, status markers, colors when available, and plain-text fallback in src/proofsignal_spec/cli.py
-- [X] T044 [US3] Add generated local onboarding guide file for Codex integration in src/proofsignal_spec/integrations/codex.py
-- [X] T045 [US3] Add generated local onboarding guide file for Claude integration in src/proofsignal_spec/integrations/claude.py
-- [X] T046 [US3] Add shared guidance copy constants for Golden Path next steps, safety boundaries, success, repaired-pass, skip, blocked, and failed semantics in src/proofsignal_spec/templates/agent_guidance.py
+- [X] T041 [US3] Implement onboarding guidance data builder with terminal summary, stage markers, safety boundaries, success semantics, and plainTextFallback in src/verifysignal_spec/integrations/base.py
+- [X] T042 [US3] Update integration install and upgrade command results to include onboardingGuide in src/verifysignal_spec/commands/integration.py
+- [X] T043 [US3] Update CLI text emission for integration install/upgrade to render visually scannable sections, status markers, colors when available, and plain-text fallback in src/verifysignal_spec/cli.py
+- [X] T044 [US3] Add generated local onboarding guide file for Codex integration in src/verifysignal_spec/integrations/codex.py
+- [X] T045 [US3] Add generated local onboarding guide file for Claude integration in src/verifysignal_spec/integrations/claude.py
+- [X] T046 [US3] Add shared guidance copy constants for Golden Path next steps, safety boundaries, success, repaired-pass, skip, blocked, and failed semantics in src/verifysignal_spec/templates/agent_guidance.py
 - [X] T047 [US3] Run focused US3 tests from tests/contract/test_integration_onboarding_guidance_contract.py, tests/integration/test_integration_onboarding_guidance.py, and tests/unit/test_integration_onboarding_guidance.py
 
 **Checkpoint**: User Story 3 is independently demonstrable by installing either integration in a temporary repository.
@@ -142,13 +142,13 @@
 
 ### Implementation for User Story 4
 
-- [X] T053 [US4] Update secret-safety allowlist for public metadata fields and normal commit identifiers in src/proofsignal_spec/workspace/validation.py
-- [X] T054 [US4] Improve coverage inventory normalization to infer sourceInventoryItems from candidate surface, route, path, source refs, and inventory item IDs in src/proofsignal_spec/workflows/coverage_inventory.py
-- [X] T055 [US4] Add partialInventoryReasons and sourceTraceabilityStatus normalization to understanding persistence in src/proofsignal_spec/workflows/stage_persistence.py
-- [X] T056 [US4] Improve persist understand blocker messages to name missing candidate traceability and recovery guidance in src/proofsignal_spec/workflows/stage_persistence.py
-- [X] T057 [US4] Ensure first-run recommendation labels partial or stale inventory using existing understanding freshness rules in src/proofsignal_spec/workflows/first_run.py
-- [X] T058 [US4] Update understanding markdown generation to report complete, partial, stale, and normalized traceability status in src/proofsignal_spec/workflows/stage_documents.py
-- [X] T059 [US4] Update /proofsignal-understand command guidance to attempt the full discoverable use-case inventory, enumerate trivial public/read-only candidates before branch-heavy flows, and label partial inventory in src/proofsignal_spec/templates/agent-commands/proofsignal.understand.md
+- [X] T053 [US4] Update secret-safety allowlist for public metadata fields and normal commit identifiers in src/verifysignal_spec/workspace/validation.py
+- [X] T054 [US4] Improve coverage inventory normalization to infer sourceInventoryItems from candidate surface, route, path, source refs, and inventory item IDs in src/verifysignal_spec/workflows/coverage_inventory.py
+- [X] T055 [US4] Add partialInventoryReasons and sourceTraceabilityStatus normalization to understanding persistence in src/verifysignal_spec/workflows/stage_persistence.py
+- [X] T056 [US4] Improve persist understand blocker messages to name missing candidate traceability and recovery guidance in src/verifysignal_spec/workflows/stage_persistence.py
+- [X] T057 [US4] Ensure first-run recommendation labels partial or stale inventory using existing understanding freshness rules in src/verifysignal_spec/workflows/first_run.py
+- [X] T058 [US4] Update understanding markdown generation to report complete, partial, stale, and normalized traceability status in src/verifysignal_spec/workflows/stage_documents.py
+- [X] T059 [US4] Update /verifysignal-understand command guidance to attempt the full discoverable use-case inventory, enumerate trivial public/read-only candidates before branch-heavy flows, and label partial inventory in src/verifysignal_spec/templates/agent-commands/verifysignal.understand.md
 - [X] T060 [US4] Run focused US4 tests from tests/contract/test_understanding_onboarding_contract.py, tests/unit/test_workflow_secret_safety.py, tests/unit/test_coverage_inventory_onboarding.py, and tests/integration/test_understanding_onboarding.py
 
 **Checkpoint**: User Story 4 is independently functional and removes schema-trial friction from understanding persistence.
@@ -169,8 +169,8 @@
 - [X] T068 Run adjacent Golden Path regression tests from tests/contract/test_first_run_recommendation_contract.py, tests/integration/test_golden_path_first_run.py, tests/integration/test_golden_path_repair.py, and tests/integration/test_golden_path_workspace_state.py
 - [X] T069 Run workflow/template regression tests from tests/integration/test_workflow_agent_public_guidance.py, tests/integration/test_agent_template_preservation.py, and tests/contract/test_agent_chat_stage_card_contract.py
 - [X] T070 Run full test suite with .venv/bin/pytest -q
-- [X] T071 Run git diff --check in the proofsignal-spec repository
-- [X] T072 Evaluate version impact in pyproject.toml and src/proofsignal_spec/__init__.py and apply a patch/minor bump if required by the completed behavior
+- [X] T071 Run git diff --check in the verifysignal-spec repository
+- [X] T072 Evaluate version impact in pyproject.toml and src/verifysignal_spec/__init__.py and apply a patch/minor bump if required by the completed behavior
 
 ---
 

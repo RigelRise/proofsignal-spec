@@ -3,14 +3,14 @@
 ## Purpose
 
 Define how users and agents inspect, resume, and reset project-local golden-path
-state without damaging unrelated `.proofsignal/` artifacts.
+state without damaging unrelated `.verifysignal/` artifacts.
 
 ## Proposed CLI surface
 
 ```text
-proofsignal-spec workflow inspect-golden-path-state --project <path> --json
-proofsignal-spec workflow reset-golden-path-state --project <path> --preview --json
-proofsignal-spec workflow reset-golden-path-state --project <path> --confirm --json
+verifysignal-spec workflow inspect-golden-path-state --project <path> --json
+verifysignal-spec workflow reset-golden-path-state --project <path> --preview --json
+verifysignal-spec workflow reset-golden-path-state --project <path> --confirm --json
 ```
 
 `inspect-golden-path-state` is read-only. `reset-golden-path-state --preview`
@@ -19,14 +19,14 @@ any cleanup that removes or rewrites golden-path-owned state.
 
 ## JSON schema
 
-`schemaVersion`: `proofsignal-spec-golden-path-workspace-state/v1`
+`schemaVersion`: `verifysignal-spec-golden-path-workspace-state/v1`
 
 Required fields:
 
 - `status`: `ready`, `blocked`, `empty`, or `reset`.
 - `firstRunStatus`: Current first-run status when present.
 - `ownedArtifacts`: Golden-path-owned paths that may be inspected or reset.
-- `preservedArtifacts`: Existing or unrelated `.proofsignal/` paths that must
+- `preservedArtifacts`: Existing or unrelated `.verifysignal/` paths that must
   be left untouched.
 - `resetPreview`: Ordered reset actions, empty when no reset is needed.
 - `resumeHint`: Next safe command when the journey can resume.

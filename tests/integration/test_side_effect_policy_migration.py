@@ -1,21 +1,21 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.repository import load_use_case
-from proofsignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workspace.repository import load_use_case
+from verifysignal_spec.workflows.stage_persistence import persist_stage
 
 from tests.fixtures.workflows.side_effect_contract_alignment import conflicting_policy, create_write_policy_workspace, legacy_rules_policy
 
 
 def _payload(side_effects: dict) -> dict:
     return {
-        "runRequest": {"path": ".proofsignal/run-requests/add-collaboration-project.yaml"},
+        "runRequest": {"path": ".verifysignal/run-requests/add-collaboration-project.yaml"},
         "runtimeInputs": [
             {"name": "baseUrl", "source": "default", "value": "https://example.test"},
-            {"name": "projectTitle", "source": "generated", "value": "ProofSignal collab seed", "refreshOnRerunAfterCommit": True},
+            {"name": "projectTitle", "source": "generated", "value": "VerifySignal collab seed", "refreshOnRerunAfterCommit": True},
         ],
         "skills": [
             {
-                "path": ".proofsignal/skills/add-collaboration-project.browser.md",
+                "path": ".verifysignal/skills/add-collaboration-project.browser.md",
                 "kind": "skill",
                 "intent": {"browser": {"targets": {"page": {"css": "body"}}, "steps": [], "assertions": []}},
             }
@@ -38,7 +38,7 @@ def _payload(side_effects: dict) -> dict:
 def test_implement_persist_migrates_unambiguous_legacy_rules(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     create_write_policy_workspace(tmp_path)
 
     result = persist_stage(tmp_path, "implement", alias="add-collaboration-project", payload=_payload(legacy_rules_policy(mode="observe")))
@@ -55,7 +55,7 @@ def test_implement_persist_migrates_unambiguous_legacy_rules(tmp_path, monkeypat
 def test_implement_persist_blocks_conflicting_legacy_and_canonical_policy(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     create_write_policy_workspace(tmp_path)
 
     result = persist_stage(tmp_path, "implement", alias="add-collaboration-project", payload=_payload(conflicting_policy()))

@@ -4,14 +4,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, save_use_case
+from verifysignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, save_use_case
 
 
 def write_minimal_artifacts(project: Path, alias: str, *, parameters: dict[str, str] | None = None) -> Path:
-    (project / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
-    (project / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
-    request_path = project / f".proofsignal/run-requests/{alias}.yaml"
+    (project / ".verifysignal/run-requests").mkdir(parents=True, exist_ok=True)
+    (project / ".verifysignal/skills").mkdir(parents=True, exist_ok=True)
+    request_path = project / f".verifysignal/run-requests/{alias}.yaml"
     request_path.write_text(
         json.dumps(
             {
@@ -25,7 +25,7 @@ def write_minimal_artifacts(project: Path, alias: str, *, parameters: dict[str, 
         ),
         encoding="utf-8",
     )
-    (project / f".proofsignal/skills/{alias}.browser.md").write_text(
+    (project / f".verifysignal/skills/{alias}.browser.md").write_text(
         f"""# {alias}
 
 ```yaml
@@ -57,23 +57,23 @@ def write_use_case_record(
     runtime_inputs: list[RuntimeInputRequirement] | None = None,
     resource_identity: dict[str, Any] | None = None,
 ) -> UseCaseRecord:
-    init_workspace(project, core_cmd="proofsignal-core")
+    init_workspace(project, core_cmd="verifysignal-core")
     write_minimal_artifacts(project, alias)
     record = UseCaseRecord(
         alias=alias,
         title="Add Collaboration Project",
         description="Publish a collaboration project.",
         targetSurface="/",
-        runRequest=ArtifactReference(path=f".proofsignal/run-requests/{alias}.yaml", kind="run-request", id=f"request.{alias}", version="1.0.0"),
-        mainSkill=ArtifactReference(path=f".proofsignal/skills/{alias}.browser.md", kind="skill", id=f"skill.{alias}", version="1.0.0"),
-        skills=[ArtifactReference(path=f".proofsignal/skills/{alias}.browser.md", kind="skill", id=f"skill.{alias}", version="1.0.0")],
+        runRequest=ArtifactReference(path=f".verifysignal/run-requests/{alias}.yaml", kind="run-request", id=f"request.{alias}", version="1.0.0"),
+        mainSkill=ArtifactReference(path=f".verifysignal/skills/{alias}.browser.md", kind="skill", id=f"skill.{alias}", version="1.0.0"),
+        skills=[ArtifactReference(path=f".verifysignal/skills/{alias}.browser.md", kind="skill", id=f"skill.{alias}", version="1.0.0")],
         runtimeInputs=runtime_inputs
         or [
             RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test"),
             RuntimeInputRequirement(
                 name="projectTitle",
                 source="generated",
-                value="ProofSignal collab seed",
+                value="VerifySignal collab seed",
                 refreshOnRerunAfterCommit=True,
             ),
         ],
@@ -100,7 +100,7 @@ def write_use_case_record(
     return record
 
 
-def committed_last_run(*, value: str = "ProofSignal collab seed", run_id: str = "previous-run") -> dict[str, Any]:
+def committed_last_run(*, value: str = "VerifySignal collab seed", run_id: str = "previous-run") -> dict[str, Any]:
     return {
         "runId": run_id,
         "status": "passed",
@@ -128,7 +128,7 @@ def committed_last_run(*, value: str = "ProofSignal collab seed", run_id: str = 
     }
 
 
-def discarded_last_run(*, value: str = "ProofSignal collab seed", run_id: str = "discarded-run") -> dict[str, Any]:
+def discarded_last_run(*, value: str = "VerifySignal collab seed", run_id: str = "discarded-run") -> dict[str, Any]:
     payload = committed_last_run(value=value, run_id=run_id)
     payload["status"] = "failed"
     payload["coreStatus"] = "failed"

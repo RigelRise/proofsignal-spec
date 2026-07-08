@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import SideEffectDeclaration, RerunPolicy
-from proofsignal_spec.workspace.validation import validate_side_effect_declaration
+from verifysignal_spec.workspace.models import SideEffectDeclaration, RerunPolicy
+from verifysignal_spec.workspace.validation import validate_side_effect_declaration
 
 
 def _supported_contract() -> dict:

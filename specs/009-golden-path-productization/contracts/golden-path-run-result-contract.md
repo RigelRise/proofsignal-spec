@@ -26,7 +26,7 @@ Define how the first golden-path run is classified and surfaced to users.
 - `specCoverageStatus: complete`
 - `missingRequiredGates: []`
 - all required gates mapped to rendered-result evidence
-- project-local run artifacts written under `.proofsignal/`
+- project-local run artifacts written under `.verifysignal/`
 - next action shown
 - repair feedback recorded when repair occurred
 

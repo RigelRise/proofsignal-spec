@@ -18,9 +18,9 @@ class IntegrationOnboardingGuidanceContractTests(CliTestCase):
         data = json.loads(out)
         guide = data["onboardingGuide"]
         assert_guidance_shape(guide)
-        self.assertEqual(guide["schemaVersion"], "proofsignal-spec-onboarding-guidance/v1")
+        self.assertEqual(guide["schemaVersion"], "verifysignal-spec-onboarding-guidance/v1")
         self.assertEqual(guide["integrationKey"], "codex")
-        self.assertEqual(guide["nextCommand"], "/proofsignal")
+        self.assertEqual(guide["nextCommand"], "/verifysignal")
         self.assertIn("[RECOMMENDED]", guide["stageMarkers"])
         self.assertIn("repaired", " ".join(guide["successSemantics"]).lower())
         self.assertIn("sensitive", " ".join(guide["safetyBoundaries"]).lower())
@@ -31,7 +31,7 @@ class IntegrationOnboardingGuidanceContractTests(CliTestCase):
         self.assertEqual(code, 0, err)
         data = json.loads(out)
         core = data["coreSetup"]
-        self.assertEqual(core["schemaVersion"], "proofsignal-spec-core-setup/v1")
+        self.assertEqual(core["schemaVersion"], "verifysignal-spec-core-setup/v1")
         self.assertEqual(core["status"], "ready")
         self.assertEqual(core["source"], "env")
         self.assertEqual(core["coreCommand"], str(FAKE_CORE))
@@ -41,7 +41,7 @@ class IntegrationOnboardingGuidanceContractTests(CliTestCase):
         self.assertEqual(data["onboardingGuide"]["coreStatus"]["source"], "env")
 
     def test_integration_install_json_includes_missing_core_status_contract(self) -> None:
-        os.environ["PROOFSIGNAL_CORE_CMD"] = "missing-proofsignal-core-for-install-contract"
+        os.environ["VERIFYSIGNAL_CORE_CMD"] = "missing-verifysignal-core-for-install-contract"
 
         code, out, err = self.cli(["integration", "install", "claude", "--project", str(self.project), "--json"])
 
@@ -49,10 +49,10 @@ class IntegrationOnboardingGuidanceContractTests(CliTestCase):
         data = json.loads(out)
         self.assertEqual(data["coreSetup"]["status"], "missing")
         self.assertEqual(data["onboardingGuide"]["coreStatus"]["statusMarker"], "[BLOCKED]")
-        self.assertEqual(data["onboardingGuide"]["coreStatus"]["nextAction"], "proofsignal core setup --json")
+        self.assertEqual(data["onboardingGuide"]["coreStatus"]["nextAction"], "verifysignal core setup --json")
 
     def test_integration_install_json_includes_incompatible_core_status_contract(self) -> None:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "incompatible-run-schema"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "incompatible-run-schema"
 
         code, out, err = self.cli(["integration", "install", "claude", "--project", str(self.project), "--json"])
 
@@ -75,7 +75,7 @@ class IntegrationOnboardingGuidanceContractTests(CliTestCase):
                 ]
             ),
         )
-        os.environ["PROOFSIGNAL_CORE_CMD"] = str(failing)
+        os.environ["VERIFYSIGNAL_CORE_CMD"] = str(failing)
 
         code, out, err = self.cli(["integration", "upgrade", "codex", "--project", str(self.project), "--json"])
 

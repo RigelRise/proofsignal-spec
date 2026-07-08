@@ -33,10 +33,10 @@ primitives exist with failing tests.
 - [X] T004 [P] Add failing unit tests for `AgentChatStageCard` validation in `tests/unit/test_stage_cards.py`
 - [X] T005 [P] Add failing unit tests for first-run state primitives in `tests/unit/test_first_run_state.py`
 - [X] T006 [P] Add failing performance tests for first-run candidate ranking under 1 second and stage-card generation under 100ms in `tests/unit/test_first_run_performance.py`
-- [X] T007 Add first-run data primitives for recommendation and run state in `src/proofsignal_spec/workflows/models.py`
-- [X] T008 Add reusable agent-chat stage-card builders in `src/proofsignal_spec/workflows/stage_cards.py`
-- [X] T009 Add first-run workflow module skeleton with state helpers in `src/proofsignal_spec/workflows/first_run.py`
-- [X] T010 Add secret-safe target and evidence summarization helpers for first-run output in `src/proofsignal_spec/workflows/first_run.py`
+- [X] T007 Add first-run data primitives for recommendation and run state in `src/verifysignal_spec/workflows/models.py`
+- [X] T008 Add reusable agent-chat stage-card builders in `src/verifysignal_spec/workflows/stage_cards.py`
+- [X] T009 Add first-run workflow module skeleton with state helpers in `src/verifysignal_spec/workflows/first_run.py`
+- [X] T010 Add secret-safe target and evidence summarization helpers for first-run output in `src/verifysignal_spec/workflows/first_run.py`
 
 **Checkpoint**: Stage-card and first-run primitives exist and can be used by
 recommendation, run, repair, and agent-template tasks.
@@ -65,16 +65,16 @@ output includes agent-chat stage-card data.
 
 ### Implementation for User Story 1
 
-- [X] T016 [US1] Implement candidate scoring and recommendation selection in `src/proofsignal_spec/workflows/first_run.py`
-- [X] T017 [US1] Implement `recommend-first-run`, `accept-first-run`, and `skip-first-run` workflow command handlers in `src/proofsignal_spec/commands/workflow.py`
-- [X] T018 [US1] Add `workflow recommend-first-run`, `workflow accept-first-run`, and `workflow skip-first-run` argparse subcommands in `src/proofsignal_spec/cli.py`
-- [X] T019 [US1] Persist accepted and skipped golden-path first-run state in `src/proofsignal_spec/workflows/repository.py`
-- [X] T020 [US1] Include first-run status, strict-pass flag, and stage cards in run output from `src/proofsignal_spec/commands/run.py`
-- [X] T021 [US1] Render first-run recommendation, acceptance, run progress, and pass result as stage cards in `src/proofsignal_spec/workflows/stage_cards.py`
-- [X] T022 [US1] Update Codex generated guidance with first-run stage-card instructions in `src/proofsignal_spec/integrations/codex.py`
-- [X] T023 [US1] Update Claude generated guidance with first-run stage-card instructions in `src/proofsignal_spec/integrations/claude.py`
-- [X] T024 [US1] Update shared generated agent guidance constants for real-target-first recommendation and stage-card presentation in `src/proofsignal_spec/templates/agent_guidance.py`
-- [X] T025 [US1] Update run and workflow command templates to instruct agents to use first-run stage cards in `src/proofsignal_spec/templates/agent-commands/proofsignal.run.md`
+- [X] T016 [US1] Implement candidate scoring and recommendation selection in `src/verifysignal_spec/workflows/first_run.py`
+- [X] T017 [US1] Implement `recommend-first-run`, `accept-first-run`, and `skip-first-run` workflow command handlers in `src/verifysignal_spec/commands/workflow.py`
+- [X] T018 [US1] Add `workflow recommend-first-run`, `workflow accept-first-run`, and `workflow skip-first-run` argparse subcommands in `src/verifysignal_spec/cli.py`
+- [X] T019 [US1] Persist accepted and skipped golden-path first-run state in `src/verifysignal_spec/workflows/repository.py`
+- [X] T020 [US1] Include first-run status, strict-pass flag, and stage cards in run output from `src/verifysignal_spec/commands/run.py`
+- [X] T021 [US1] Render first-run recommendation, acceptance, run progress, and pass result as stage cards in `src/verifysignal_spec/workflows/stage_cards.py`
+- [X] T022 [US1] Update Codex generated guidance with first-run stage-card instructions in `src/verifysignal_spec/integrations/codex.py`
+- [X] T023 [US1] Update Claude generated guidance with first-run stage-card instructions in `src/verifysignal_spec/integrations/claude.py`
+- [X] T024 [US1] Update shared generated agent guidance constants for real-target-first recommendation and stage-card presentation in `src/verifysignal_spec/templates/agent_guidance.py`
+- [X] T025 [US1] Update run and workflow command templates to instruct agents to use first-run stage cards in `src/verifysignal_spec/templates/agent-commands/verifysignal.run.md`
 - [X] T026 [US1] Verify User Story 1 focused tests from `specs/009-golden-path-productization/quickstart.md`
 
 **Checkpoint**: A user can complete the recommended first run on a real target
@@ -104,15 +104,15 @@ only after revalidation and rerun.
 
 ### Implementation for User Story 2
 
-- [X] T031 [US2] Update safe repair classification and autonomy flags in `src/proofsignal_spec/workflows/repair_recommendations.py`
-- [X] T032 [US2] Add repair feedback model conversion for before/after, autonomy, intent-preserved, revalidation, and rerun fields in `src/proofsignal_spec/workflows/models.py`
-- [X] T033 [US2] Emit repair stage cards and repair feedback from `src/proofsignal_spec/commands/repair.py`
-- [X] T034 [US2] Implement auto-application path for safe mechanical first-run repairs in `src/proofsignal_spec/commands/repair.py`
-- [X] T035 [US2] Preserve confirmation-required behavior for data, credential, gate, target, and expected-behavior changes in `src/proofsignal_spec/workflows/repair_recommendations.py`
-- [X] T036 [US2] Classify `repaired-passed` first-run status after revalidation and rerun in `src/proofsignal_spec/commands/run.py`
-- [X] T037 [US2] Update repair agent command guidance for auto-applied mechanical repair feedback in `src/proofsignal_spec/templates/agent-commands/proofsignal.repair.md`
-- [X] T038 [US2] Update generated Codex and Claude repair guidance to distinguish auto-applied safe repair from confirmation-required changes in `src/proofsignal_spec/integrations/codex.py`
-- [X] T039 [US2] Mirror generated Claude repair guidance updates in `src/proofsignal_spec/integrations/claude.py`
+- [X] T031 [US2] Update safe repair classification and autonomy flags in `src/verifysignal_spec/workflows/repair_recommendations.py`
+- [X] T032 [US2] Add repair feedback model conversion for before/after, autonomy, intent-preserved, revalidation, and rerun fields in `src/verifysignal_spec/workflows/models.py`
+- [X] T033 [US2] Emit repair stage cards and repair feedback from `src/verifysignal_spec/commands/repair.py`
+- [X] T034 [US2] Implement auto-application path for safe mechanical first-run repairs in `src/verifysignal_spec/commands/repair.py`
+- [X] T035 [US2] Preserve confirmation-required behavior for data, credential, gate, target, and expected-behavior changes in `src/verifysignal_spec/workflows/repair_recommendations.py`
+- [X] T036 [US2] Classify `repaired-passed` first-run status after revalidation and rerun in `src/verifysignal_spec/commands/run.py`
+- [X] T037 [US2] Update repair agent command guidance for auto-applied mechanical repair feedback in `src/verifysignal_spec/templates/agent-commands/verifysignal.repair.md`
+- [X] T038 [US2] Update generated Codex and Claude repair guidance to distinguish auto-applied safe repair from confirmation-required changes in `src/verifysignal_spec/integrations/codex.py`
+- [X] T039 [US2] Mirror generated Claude repair guidance updates in `src/verifysignal_spec/integrations/claude.py`
 - [X] T040 [US2] Verify User Story 2 focused tests from `specs/009-golden-path-productization/quickstart.md`
 
 **Checkpoint**: First-run repair can produce a transparent `repaired-passed`
@@ -144,8 +144,8 @@ interpretation.
 - [X] T046 [US3] Add public unauthenticated and authenticated secret-safe example guidance in `docs/golden-path.md`
 - [X] T047 [US3] Add repairable failure and conditional data example guidance with pass/fail/not-evaluated interpretation in `docs/golden-path.md`
 - [X] T048 [US3] Link golden-path examples from `README.md`
-- [X] T049 [US3] Update understand/specify agent command guidance so examples are optional learning aids after first-run recommendation in `src/proofsignal_spec/templates/agent-commands/proofsignal.understand.md`
-- [X] T050 [US3] Mirror specify-stage example guidance in `src/proofsignal_spec/templates/agent-commands/proofsignal.specify.md`
+- [X] T049 [US3] Update understand/specify agent command guidance so examples are optional learning aids after first-run recommendation in `src/verifysignal_spec/templates/agent-commands/verifysignal.understand.md`
+- [X] T050 [US3] Mirror specify-stage example guidance in `src/verifysignal_spec/templates/agent-commands/verifysignal.specify.md`
 - [X] T051 [US3] Verify User Story 3 documentation and repeatable example checks from `specs/009-golden-path-productization/quickstart.md`
 
 **Checkpoint**: Canonical examples teach product behavior without becoming the
@@ -167,19 +167,19 @@ summary with category, safe recovery action, and exact next command or decision.
 - [X] T052 [P] [US4] Add failing contract tests for blocked first-run prerequisite statuses in `tests/contract/test_golden_path_troubleshooting_contract.py`
 - [X] T053 [P] [US4] Add failing integration tests for missing Core, unreachable target, and stale guidance recovery in `tests/integration/test_golden_path_troubleshooting.py`
 - [X] T054 [P] [US4] Add failing contract tests for Golden Path Workspace State inspect/reset JSON in `tests/contract/test_golden_path_workspace_state_contract.py`
-- [X] T055 [P] [US4] Add failing integration tests for older `.proofsignal/` state, resume hints, inspect, reset preview, confirmed reset, and preservation of unrelated artifacts in `tests/integration/test_golden_path_workspace_state.py`
+- [X] T055 [P] [US4] Add failing integration tests for older `.verifysignal/` state, resume hints, inspect, reset preview, confirmed reset, and preservation of unrelated artifacts in `tests/integration/test_golden_path_workspace_state.py`
 
 ### Implementation for User Story 4
 
-- [X] T056 [US4] Add first-run blocker classification for missing target, unreachable target, unresolved credentials, stale inventory, stale workspace state, and incompatible Core in `src/proofsignal_spec/workflows/first_run.py`
-- [X] T057 [US4] Add blocker stage cards for check, validate, run, repair, and workspace-state failures in `src/proofsignal_spec/workflows/stage_cards.py`
-- [X] T058 [US4] Surface first-run blocker recovery commands from `src/proofsignal_spec/commands/validate.py`
-- [X] T059 [US4] Surface first-run blocker recovery commands from `src/proofsignal_spec/commands/run.py`
-- [X] T060 [US4] Add Golden Path Workspace State ownership classification and reset-preview helpers in `src/proofsignal_spec/workflows/repository.py`
-- [X] T061 [US4] Implement `workflow inspect-golden-path-state` and `workflow reset-golden-path-state` command handlers and argparse subcommands in `src/proofsignal_spec/commands/workflow.py` and `src/proofsignal_spec/cli.py`
+- [X] T056 [US4] Add first-run blocker classification for missing target, unreachable target, unresolved credentials, stale inventory, stale workspace state, and incompatible Core in `src/verifysignal_spec/workflows/first_run.py`
+- [X] T057 [US4] Add blocker stage cards for check, validate, run, repair, and workspace-state failures in `src/verifysignal_spec/workflows/stage_cards.py`
+- [X] T058 [US4] Surface first-run blocker recovery commands from `src/verifysignal_spec/commands/validate.py`
+- [X] T059 [US4] Surface first-run blocker recovery commands from `src/verifysignal_spec/commands/run.py`
+- [X] T060 [US4] Add Golden Path Workspace State ownership classification and reset-preview helpers in `src/verifysignal_spec/workflows/repository.py`
+- [X] T061 [US4] Implement `workflow inspect-golden-path-state` and `workflow reset-golden-path-state` command handlers and argparse subcommands in `src/verifysignal_spec/commands/workflow.py` and `src/verifysignal_spec/cli.py`
 - [X] T062 [US4] Document common golden-path recovery paths, including older workspace state and safe inspect/reset, in `docs/golden-path-troubleshooting.md`
-- [X] T063 [US4] Update check, validate, and run agent command templates with stage-card blocker guidance in `src/proofsignal_spec/templates/agent-commands/proofsignal.validate.md`
-- [X] T064 [US4] Mirror blocker and workspace-state guidance in run and repair templates in `src/proofsignal_spec/templates/agent-commands/proofsignal.run.md`
+- [X] T063 [US4] Update check, validate, and run agent command templates with stage-card blocker guidance in `src/verifysignal_spec/templates/agent-commands/verifysignal.validate.md`
+- [X] T064 [US4] Mirror blocker and workspace-state guidance in run and repair templates in `src/verifysignal_spec/templates/agent-commands/verifysignal.run.md`
 - [X] T065 [US4] Verify User Story 4 troubleshooting and workspace-state checks from `specs/009-golden-path-productization/quickstart.md`
 
 **Checkpoint**: Predictable first-run failures are recoverable and do not
@@ -218,8 +218,8 @@ less.
 **Purpose**: Regression coverage, version impact, and consistency checks across
 all delivered stories.
 
-- [X] T072 [P] Update generated template documentation index in `src/proofsignal_spec/templates/README.md`
-- [X] T073 [P] Review package version impact and update `pyproject.toml` and `src/proofsignal_spec/__init__.py` if the completed behavior requires a bump
+- [X] T072 [P] Update generated template documentation index in `src/verifysignal_spec/templates/README.md`
+- [X] T073 [P] Review package version impact and update `pyproject.toml` and `src/verifysignal_spec/__init__.py` if the completed behavior requires a bump
 - [X] T074 Run focused quickstart verification commands and record any deviations in `specs/009-golden-path-productization/quickstart.md`
 - [X] T075 Run full regression suite with `.venv/bin/pytest -q` using `specs/009-golden-path-productization/quickstart.md`
 - [X] T076 Run cross-artifact consistency review against `specs/009-golden-path-productization/spec.md`, `plan.md`, and `tasks.md`

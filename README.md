@@ -1,28 +1,28 @@
-# ProofSignal
+# VerifySignal
 
 **AI writes the validation. A deterministic runtime proves it.**
 
-ProofSignal turns product flows — login, checkout, onboarding — into approved,
+VerifySignal turns product flows — login, checkout, onboarding — into approved,
 repeatable browser validations with evidence, starting from your repository.
 Your coding agent (Claude Code or Codex) authors and repairs the validation;
-the ProofSignal runtime executes it deterministically and leaves an auditable
+the VerifySignal runtime executes it deterministically and leaves an auditable
 evidence trail. There is no AI at execution time: pass/fail comes only from
 validated, explicit instructions.
 
-This repository is the open-source half of ProofSignal (Apache-2.0): the
-`proofsignal` CLI, the project-local `.proofsignal/` workspace, and the agent
-skills. The execution engine (ProofSignal Core) is a signed package the CLI
+This repository is the open-source half of VerifySignal (Apache-2.0): the
+`verifysignal` CLI, the project-local `.verifysignal/` workspace, and the agent
+skills. The execution engine (VerifySignal Core) is a signed package the CLI
 downloads and caches automatically on first run — a free email unlock, no
 account and no separate install.
 
-## Why ProofSignal
+## Why VerifySignal
 
 AI-assisted development ships changes faster than anyone can manually recheck
 the flows they touch. The existing answers trade away either speed or trust:
 hand-written browser suites become a maintenance backlog, and an AI agent
 clicking around your app gives you speed without stable, reviewable proof.
 
-ProofSignal splits the work by what each side is good at:
+VerifySignal splits the work by what each side is good at:
 
 - **Agents author, humans approve.** Your coding agent drafts use cases,
   grounds selectors against the live DOM, and proposes repairs — through
@@ -35,7 +35,7 @@ ProofSignal splits the work by what each side is good at:
   are observed at runtime, and gate reruns on previous outcomes, so a
   validation never silently mutates data it should not.
 
-ProofSignal does not replace your test suite or CI. It turns manual product
+VerifySignal does not replace your test suite or CI. It turns manual product
 validation into repeatable proof.
 
 ## Quickstart
@@ -51,53 +51,53 @@ You will need:
 Install the CLI:
 
 ```sh
-uv tool install proofsignal-spec --from git+https://github.com/RigelRise/proofsignal-spec.git
-proofsignal --version
+uv tool install verifysignal-spec --from git+https://github.com/RigelRise/verifysignal-spec.git
+verifysignal --version
 ```
 
-(With pipx: `pipx install 'proofsignal-spec @ git+https://github.com/RigelRise/proofsignal-spec.git'`.)
+(With pipx: `pipx install 'verifysignal-spec @ git+https://github.com/RigelRise/verifysignal-spec.git'`.)
 
 Initialize a workspace in your project. `init` asks for your email, sends a
 free unlock code, then downloads the runtime once and caches it under
-`~/.cache/proofsignal/` — outside your project:
+`~/.cache/verifysignal/` — outside your project:
 
 ```sh
 cd your-project
-proofsignal init --here --integration claude   # or: --integration codex
-proofsignal check
+verifysignal init --here --integration claude   # or: --integration codex
+verifysignal check
 ```
 
-`init` also installs ProofSignal skills into your coding agent. In the agent,
+`init` also installs VerifySignal skills into your coding agent. In the agent,
 run the whole flow with one command:
 
 ```text
-/proofsignal "Validate that a user can sign in against https://staging.example.com"
+/verifysignal "Validate that a user can sign in against https://staging.example.com"
 ```
 
 The agent drafts the use case from your source, grounds its selectors against
 the live app, validates, runs, and repairs — stopping only for real unknowns,
 missing credentials, or write side-effects. If the flow needs credentials,
 export them as environment variables before the run (for example `QA_USER` /
-`QA_PASSWORD`); ProofSignal reads them at run time and never writes them to
+`QA_PASSWORD`); VerifySignal reads them at run time and never writes them to
 disk. You can also drive the stages yourself:
 
 ```text
-/proofsignal-understand
-/proofsignal-specify login "Validate that a QA user can sign in."
-/proofsignal-plan login
-/proofsignal-implement login
-/proofsignal-validate login
-/proofsignal-run login
-/proofsignal-repair login
+/verifysignal-understand
+/verifysignal-specify login "Validate that a QA user can sign in."
+/verifysignal-plan login
+/verifysignal-implement login
+/verifysignal-validate login
+/verifysignal-run login
+/verifysignal-repair login
 ```
 
-On a fresh workspace, ProofSignal first walks a *Golden Path*: it suggests the
+On a fresh workspace, VerifySignal first walks a *Golden Path*: it suggests the
 simplest stable flow in your repository and gets it to a green run before you
 add deeper coverage ([details](docs/golden-path.md)). When a run goes green,
-evidence lands in `.proofsignal/runs/<alias>/<run-id>/`:
+evidence lands in `.verifysignal/runs/<alias>/<run-id>/`:
 
 ```text
-.proofsignal/runs/login/request_login_1780303629096/
+.verifysignal/runs/login/request_login_1780303629096/
 ├── report.md            # human-readable result, step by step
 ├── report.json          # machine-readable result (qa-report/v1)
 ├── browser/screenshots/ # captured evidence per step
@@ -112,24 +112,24 @@ share, not just a green checkmark.
 
 ```
 your repository
-└── .proofsignal/            project-local workspace (use cases, skills, state)
+└── .verifysignal/            project-local workspace (use cases, skills, state)
       │
       ▼
-proofsignal CLI (this repo, Apache-2.0)
+verifysignal CLI (this repo, Apache-2.0)
   authoring · validation gates · workflow state · side-effect policy · repair
       │  versioned public JSON contract
       ▼
-ProofSignal Core runtime (signed managed download)
+VerifySignal Core runtime (signed managed download)
   deterministic browser execution · evidence capture · redaction
       │
       ▼
-.proofsignal/runs/<alias>/<run-id>/   report.md · report.json · screenshots · network log
+.verifysignal/runs/<alias>/<run-id>/   report.md · report.json · screenshots · network log
 ```
 
 - **This repo** owns authoring, guided workflows, use-case records, readiness
   checks, side-effect and credential guardrails, and repair orchestration. It
   talks to the runtime only through the versioned
-  `proofsignal-public-cli-json/v1` contract — never private internals.
+  `verifysignal-public-cli-json/v1` contract — never private internals.
 - **The Core runtime** owns execution: it validates artifacts, drives the
   browser through a fixed action set, enforces declared side-effect policies
   at runtime, and writes redacted evidence.
@@ -140,7 +140,7 @@ ProofSignal Core runtime (signed managed download)
 ## Safety guarantees
 
 - **Secret safety.** Credential values are resolved from your environment at
-  run time and are never persisted — not in `.proofsignal/`, reports, logs,
+  run time and are never persisted — not in `.verifysignal/`, reports, logs,
   guides, or cache metadata. Tokens, receipts, and signed URLs are redacted
   from all output.
 - **Write-flow guardrails.** Write and external-notification use cases declare
@@ -156,37 +156,37 @@ ProofSignal Core runtime (signed managed download)
 
 | Command | Purpose |
 | --- | --- |
-| `proofsignal init --here --integration claude\|codex` | Create `.proofsignal/` and install agent skills |
-| `proofsignal check` | Workspace, runtime, and entitlement readiness |
-| `proofsignal author <alias> "<description>"` | Register a use case |
-| `proofsignal list` | List use cases (metadata only, no network) |
-| `proofsignal validate <alias> [--runtime-readiness]` | Authoring gates; optional runtime readiness |
-| `proofsignal run <alias> [--profile <name>]` | Execute and capture evidence (default profiles: `normal`, `debug`, `browser`) |
-| `proofsignal repair <alias> [--from-report ...]` | Classify findings and propose repairs |
-| `proofsignal discover --url <url> --skill <path>` | Ground drafted selectors against the live DOM |
-| `proofsignal workflow ...` | Staged workflow engine (check/run/persist/status/...) |
-| `proofsignal core version\|setup` | Inspect or configure the Core runtime |
-| `proofsignal integration ...` | Manage installed agent integrations |
+| `verifysignal init --here --integration claude\|codex` | Create `.verifysignal/` and install agent skills |
+| `verifysignal check` | Workspace, runtime, and entitlement readiness |
+| `verifysignal author <alias> "<description>"` | Register a use case |
+| `verifysignal list` | List use cases (metadata only, no network) |
+| `verifysignal validate <alias> [--runtime-readiness]` | Authoring gates; optional runtime readiness |
+| `verifysignal run <alias> [--profile <name>]` | Execute and capture evidence (default profiles: `normal`, `debug`, `browser`) |
+| `verifysignal repair <alias> [--from-report ...]` | Classify findings and propose repairs |
+| `verifysignal discover --url <url> --skill <path>` | Ground drafted selectors against the live DOM |
+| `verifysignal workflow ...` | Staged workflow engine (check/run/persist/status/...) |
+| `verifysignal core version\|setup` | Inspect or configure the Core runtime |
+| `verifysignal integration ...` | Manage installed agent integrations |
 
 ## The managed runtime
 
 The happy path needs no separate Core install: the CLI downloads a signed
 runtime package after the email unlock and caches it per version and platform
-under `~/.cache/proofsignal/core/`. Unlock tokens are single-use and
+under `~/.cache/verifysignal/core/`. Unlock tokens are single-use and
 rate-limited; the raw email and token stay process-local and are never written
 into your project.
 
 The runtime can be overridden for development and CI (`--core-cmd`,
-`proofsignal core setup`, `PROOFSIGNAL_CORE_CMD`) — see the
+`verifysignal core setup`, `VERIFYSIGNAL_CORE_CMD`) — see the
 [installation reference](docs/installation.md) for the full resolution order.
 Custom runtimes still go through the same entitlement check; the CLI reuses
 your cached receipt automatically.
 
-Everything ProofSignal manages lives under `.proofsignal/`: use cases,
+Everything VerifySignal manages lives under `.verifysignal/`: use cases,
 generated run requests, reusable skills, guided workflow state, and run
 evidence. Linked external artifacts are marked `generated: false` and never
 overwritten, and agents write staged workflow artifacts only through
-`proofsignal workflow persist` — never by hand-editing managed files.
+`verifysignal workflow persist` — never by hand-editing managed files.
 
 ## Documentation
 
@@ -198,10 +198,10 @@ overwritten, and agents write staged workflow artifacts only through
 
 ## Getting help
 
-- Bugs and feature requests: [GitHub Issues](https://github.com/RigelRise/proofsignal-spec/issues)
+- Bugs and feature requests: [GitHub Issues](https://github.com/RigelRise/verifysignal-spec/issues)
 - First-run problems: start with [Golden Path troubleshooting](docs/golden-path-troubleshooting.md)
 - Security reports: please use
-  [GitHub private vulnerability reporting](https://github.com/RigelRise/proofsignal-spec/security/advisories/new)
+  [GitHub private vulnerability reporting](https://github.com/RigelRise/verifysignal-spec/security/advisories/new)
   instead of a public issue
 
 ## Development

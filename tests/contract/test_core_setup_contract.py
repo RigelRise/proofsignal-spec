@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 
 from helpers import CliTestCase, FAKE_CORE
-from proofsignal_spec.cli import main
-from proofsignal_spec.workspace.repository import load_document
+from verifysignal_spec.cli import main
+from verifysignal_spec.workspace.repository import load_document
 
 
 class CoreSetupContractTests(CliTestCase):
@@ -19,7 +19,7 @@ class CoreSetupContractTests(CliTestCase):
 
         self.assertEqual(code, 0, err)
         payload = json.loads(out)
-        self.assertEqual(payload["schemaVersion"], "proofsignal-spec-core-setup/v1")
+        self.assertEqual(payload["schemaVersion"], "verifysignal-spec-core-setup/v1")
         self.assertEqual(payload["status"], "ready")
         self.assertEqual(payload["source"], "env")
         self.assertEqual(payload["coreCommand"], str(FAKE_CORE))
@@ -31,7 +31,7 @@ class CoreSetupContractTests(CliTestCase):
         self.assertEqual(payload["incompatibleOperations"], [])
 
     def test_core_setup_json_missing_contract(self) -> None:
-        os.environ["PROOFSIGNAL_CORE_CMD"] = "missing-proofsignal-core-contract"
+        os.environ["VERIFYSIGNAL_CORE_CMD"] = "missing-verifysignal-core-contract"
 
         code, out, err = self.cli(["core", "setup", "--project", str(self.project), "--json"])
 
@@ -39,11 +39,11 @@ class CoreSetupContractTests(CliTestCase):
         payload = json.loads(out)
         self.assertEqual(payload["status"], "missing")
         self.assertIsNone(payload.get("selectedCandidate"))
-        self.assertEqual(payload["recoveryCommand"], "proofsignal core setup --json")
+        self.assertEqual(payload["recoveryCommand"], "verifysignal core setup --json")
         self.assertTrue(payload["attempts"])
 
     def test_core_setup_json_incompatible_contract(self) -> None:
-        os.environ["FAKE_PROOFSIGNAL_MODE"] = "incompatible-run-schema"
+        os.environ["FAKE_VERIFYSIGNAL_MODE"] = "incompatible-run-schema"
 
         code, out, err = self.cli(["core", "setup", "--project", str(self.project), "--json"])
 
@@ -57,7 +57,7 @@ class CoreSetupContractTests(CliTestCase):
     def test_core_setup_json_error_contract(self) -> None:
         failing = self.project / "bad-core"
         _write_executable(failing, f"#!{sys.executable}\nimport sys\nsys.exit(9)\n")
-        os.environ["PROOFSIGNAL_CORE_CMD"] = str(failing)
+        os.environ["VERIFYSIGNAL_CORE_CMD"] = str(failing)
 
         code, out, err = self.cli(["core", "setup", "--project", str(self.project), "--json"])
 
@@ -65,7 +65,7 @@ class CoreSetupContractTests(CliTestCase):
         payload = json.loads(out)
         self.assertEqual(payload["status"], "error")
         self.assertEqual(payload["source"], "env")
-        self.assertEqual(payload["recoveryCommand"], "proofsignal core setup --json")
+        self.assertEqual(payload["recoveryCommand"], "verifysignal core setup --json")
 
     def test_core_setup_one_time_override_contract(self) -> None:
         code, out, err = self.cli([
@@ -85,7 +85,7 @@ class CoreSetupContractTests(CliTestCase):
         self.assertEqual(payload["source"], "explicit")
         self.assertTrue(payload["oneTime"])
         self.assertFalse(payload["persisted"])
-        workspace = load_document(self.project / ".proofsignal/workspace.yaml")
+        workspace = load_document(self.project / ".verifysignal/workspace.yaml")
         self.assertNotIn("coreCommand", workspace)
 
 
@@ -103,7 +103,7 @@ def test_core_setup_help_lists_public_options() -> None:
             assert exc.code == 0
 
     help_text = stdout.getvalue()
-    assert "Discover, verify, and persist an existing ProofSignal Core command" in help_text
+    assert "Discover, verify, and persist an existing VerifySignal Core command" in help_text
     assert "--core-cmd" in help_text
     assert "--no-persist" in help_text
     assert "--project" in help_text

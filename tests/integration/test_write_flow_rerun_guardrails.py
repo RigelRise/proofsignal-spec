@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from proofsignal_spec.commands import run as run_command
-from proofsignal_spec.workspace import layout
-from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, load_supersede_reviews, load_use_case, save_use_case
+from verifysignal_spec.commands import run as run_command
+from verifysignal_spec.workspace import layout
+from verifysignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, load_supersede_reviews, load_use_case, save_use_case
 from tests.fixtures.workflows.prerequisites import create_current_understanding_workspace
 from tests.integration.test_workflow_run import _current_write_capabilities, _manual_cleanup_lifecycle, _write_minimal_artifacts
-from proofsignal_spec.workflows.prerequisites import check_prerequisites
+from verifysignal_spec.workflows.prerequisites import check_prerequisites
 
 
 def test_rerun_after_post_commit_write_blocks_when_policy_blocks(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     create_current_understanding_workspace(tmp_path)
     _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
@@ -27,7 +27,7 @@ def test_rerun_after_post_commit_write_blocks_when_policy_blocks(tmp_path, monke
 def test_rerun_after_post_commit_write_refreshes_declared_generated_inputs(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
     save_use_case(tmp_path, _write_record(after_commit="allowed-with-new-inputs", refresh_inputs=["resourceName"], core_risk="safe-with-new-inputs"))
@@ -44,7 +44,7 @@ def test_rerun_after_post_commit_write_refreshes_declared_generated_inputs(tmp_p
 def test_confirm_risk_approves_confirmable_write_rerun_and_continues(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     create_current_understanding_workspace(tmp_path)
     _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
@@ -72,7 +72,7 @@ def test_confirm_risk_approves_confirmable_write_rerun_and_continues(tmp_path, m
 def test_confirm_risk_with_wrong_id_keeps_confirmable_rerun_blocked(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     init_workspace(tmp_path, core_cmd=str(FAKE_CORE))
     _write_minimal_artifacts(tmp_path, "create-resource", parameters={"baseUrl": "https://example.test"})
     save_use_case(tmp_path, _write_record(after_commit="allowed-with-new-inputs", refresh_inputs=["resourceName"], core_risk="requires-confirmation"))
@@ -89,7 +89,7 @@ def test_confirm_risk_with_wrong_id_keeps_confirmable_rerun_blocked(tmp_path, mo
     assert result["rerunDecision"]["decision"] == "requires-confirmation"
     assert result["rerunDecision"]["confirmationId"] == "confirm.create-resource.rerun-after-commit.previous-run"
     assert result["blockers"][0]["code"] == "runtime.rerun-confirmation-required"
-    assert result["nextAction"] == "proofsignal workflow approve-rerun --alias create-resource --confirm-risk confirm.create-resource.rerun-after-commit.previous-run --json"
+    assert result["nextAction"] == "verifysignal workflow approve-rerun --alias create-resource --confirm-risk confirm.create-resource.rerun-after-commit.previous-run --json"
     assert load_supersede_reviews(tmp_path, "create-resource") == []
 
 
@@ -98,12 +98,12 @@ def _write_record(*, after_commit: str, refresh_inputs: list[str] | None = None,
         alias="create-resource",
         title="Create Resource",
         description="Create resource.",
-        runRequest=ArtifactReference(path=".proofsignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
-        mainSkill=ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
-        skills=[ArtifactReference(path=".proofsignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
+        runRequest=ArtifactReference(path=".verifysignal/run-requests/create-resource.yaml", kind="run-request", id="request.create-resource", version="1.0.0"),
+        mainSkill=ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0"),
+        skills=[ArtifactReference(path=".verifysignal/skills/create-resource.browser.md", kind="skill", id="skill.create-resource", version="1.0.0")],
         runtimeInputs=[
             RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test"),
-            RuntimeInputRequirement(name="resourceName", source="generated", template="ProofSignal {{run.shortId}}", refreshOnRerunAfterCommit=True),
+            RuntimeInputRequirement(name="resourceName", source="generated", template="VerifySignal {{run.shortId}}", refreshOnRerunAfterCommit=True),
         ],
         sideEffects={
             "class": "write",

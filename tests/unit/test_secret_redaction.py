@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from helpers import SRC  # noqa: F401
-from proofsignal_spec.workspace.validation import looks_secret, validate_no_secret_values
+from verifysignal_spec.workspace.validation import looks_secret, validate_no_secret_values
 
 
 class SecretRedactionTests(unittest.TestCase):

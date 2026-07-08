@@ -13,38 +13,38 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-FAKE_CORE = ROOT / "tests" / "fixtures" / "proofsignal-core" / "fake_proofsignal.py"
-TEMPLATE_DIR = ROOT / "src" / "proofsignal_spec" / "templates" / "agent-commands"
+FAKE_CORE = ROOT / "tests" / "fixtures" / "verifysignal-core" / "fake_verifysignal.py"
+TEMPLATE_DIR = ROOT / "src" / "verifysignal_spec" / "templates" / "agent-commands"
 
 
 class CliTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.project = Path(self.tmp.name)
-        self.old_core = os.environ.get("PROOFSIGNAL_CORE_CMD")
-        self.old_mode = os.environ.get("FAKE_PROOFSIGNAL_MODE")
-        self.old_runtime_cache = os.environ.get("PROOFSIGNAL_RUNTIME_CACHE_DIR")
-        os.environ["PROOFSIGNAL_CORE_CMD"] = str(FAKE_CORE)
-        os.environ["PROOFSIGNAL_RUNTIME_CACHE_DIR"] = str(self.project / "runtime-cache")
-        os.environ.pop("FAKE_PROOFSIGNAL_MODE", None)
+        self.old_core = os.environ.get("VERIFYSIGNAL_CORE_CMD")
+        self.old_mode = os.environ.get("FAKE_VERIFYSIGNAL_MODE")
+        self.old_runtime_cache = os.environ.get("VERIFYSIGNAL_RUNTIME_CACHE_DIR")
+        os.environ["VERIFYSIGNAL_CORE_CMD"] = str(FAKE_CORE)
+        os.environ["VERIFYSIGNAL_RUNTIME_CACHE_DIR"] = str(self.project / "runtime-cache")
+        os.environ.pop("FAKE_VERIFYSIGNAL_MODE", None)
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
         if self.old_core is None:
-            os.environ.pop("PROOFSIGNAL_CORE_CMD", None)
+            os.environ.pop("VERIFYSIGNAL_CORE_CMD", None)
         else:
-            os.environ["PROOFSIGNAL_CORE_CMD"] = self.old_core
+            os.environ["VERIFYSIGNAL_CORE_CMD"] = self.old_core
         if self.old_mode is None:
-            os.environ.pop("FAKE_PROOFSIGNAL_MODE", None)
+            os.environ.pop("FAKE_VERIFYSIGNAL_MODE", None)
         else:
-            os.environ["FAKE_PROOFSIGNAL_MODE"] = self.old_mode
+            os.environ["FAKE_VERIFYSIGNAL_MODE"] = self.old_mode
         if self.old_runtime_cache is None:
-            os.environ.pop("PROOFSIGNAL_RUNTIME_CACHE_DIR", None)
+            os.environ.pop("VERIFYSIGNAL_RUNTIME_CACHE_DIR", None)
         else:
-            os.environ["PROOFSIGNAL_RUNTIME_CACHE_DIR"] = self.old_runtime_cache
+            os.environ["VERIFYSIGNAL_RUNTIME_CACHE_DIR"] = self.old_runtime_cache
 
     def cli(self, args: list[str]) -> tuple[int, str, str]:
-        from proofsignal_spec.cli import main
+        from verifysignal_spec.cli import main
 
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -54,19 +54,19 @@ class CliTestCase(unittest.TestCase):
 
 
 def agent_template(stage: str) -> str:
-    return (TEMPLATE_DIR / f"proofsignal.{stage}.md").read_text(encoding="utf-8")
+    return (TEMPLATE_DIR / f"verifysignal.{stage}.md").read_text(encoding="utf-8")
 
 
 def assert_guardrail_template(content: str, stage: str) -> None:
-    assert f"proofsignal workflow check {stage}" in content
+    assert f"verifysignal workflow check {stage}" in content
     assert "workflow.guardrails/v1" in content
     assert "Do not use `npx` or package-runner wrappers" in content
-    assert "proofsignal-spec-fe" not in content
-    assert "Do not write managed `.proofsignal/` artifacts directly" in content
+    assert "verifysignal-spec-fe" not in content
+    assert "Do not write managed `.verifysignal/` artifacts directly" in content
 
 
 def assert_public_workflow_contract_guidance(content: str) -> None:
-    assert "workflow info proofsignal-use-case --json" in content
+    assert "workflow info verifysignal-use-case --json" in content
     assert "stagePayloadContracts" in content
     assert "public workflow contract" in content.lower()
     assert "stage_persistence.py" not in content
@@ -74,7 +74,7 @@ def assert_public_workflow_contract_guidance(content: str) -> None:
 
 
 def assert_no_core_contract_snapshots(project: Path) -> None:
-    forbidden_roots = [project / ".proofsignal", project / "runtime-cache", project / "user-cache"]
+    forbidden_roots = [project / ".verifysignal", project / "runtime-cache", project / "user-cache"]
     suspicious_names = {
         "core-contract.json",
         "core-contract.yaml",

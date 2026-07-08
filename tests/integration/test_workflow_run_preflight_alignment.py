@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from proofsignal_spec.commands import validate as validate_command
-from proofsignal_spec.workspace import layout
-from proofsignal_spec.workflows.prerequisites import check_prerequisites
-from proofsignal_spec.workspace.repository import save_use_case
+from verifysignal_spec.commands import validate as validate_command
+from verifysignal_spec.workspace import layout
+from verifysignal_spec.workflows.prerequisites import check_prerequisites
+from verifysignal_spec.workspace.repository import save_use_case
 
 from tests.fixtures.workflows.side_effect_contract_alignment import (
     blocked_write_last_run,
@@ -17,7 +17,7 @@ from tests.fixtures.workflows.prerequisites import create_current_understanding_
 def test_validate_blocks_runtime_unsupported_confirmation_signal(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     record = create_write_policy_workspace(
         tmp_path,
         side_effects={
@@ -74,7 +74,7 @@ def test_workflow_check_run_blocks_confirmable_write_rerun_with_guided_approval(
     assert result["rerunDecision"]["confirmationId"] == "confirm.add-collaboration-project.rerun-after-commit.committed-run"
     assert result["confirmation"]["id"] == result["rerunDecision"]["confirmationId"]
     assert result["blockers"][0]["code"] == "runtime.rerun-confirmation-required"
-    assert "proofsignal workflow approve-rerun --alias add-collaboration-project" in result["nextCommand"]
+    assert "verifysignal workflow approve-rerun --alias add-collaboration-project" in result["nextCommand"]
     assert result["rerunDecision"]["confirmationId"] in result["nextCommand"]
 
 

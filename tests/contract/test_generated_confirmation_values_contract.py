@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
-from proofsignal_spec.commands.run import _prepared_run_request_path
-from proofsignal_spec.workspace.validation import validate_side_effect_declaration
+from verifysignal_spec.commands.run import _prepared_run_request_path
+from verifysignal_spec.workspace.validation import validate_side_effect_declaration
 
 from tests.fixtures.workflows.side_effect_contract_alignment import templated_confirmation_policy
 from tests.helpers import assert_placeholder_finding, assert_prepared_confirmation_value
@@ -26,7 +26,7 @@ def test_prepared_run_request_contains_concrete_confirmation_expected_value(tmp_
         request,
         tmp_path / "runs",
         "add-collaboration-project-20260619T174233Z",
-        {"projectTitle": "ProofSignal QA 20260619"},
+        {"projectTitle": "VerifySignal QA 20260619"},
     )
 
     document = json.loads(prepared.read_text(encoding="utf-8"))
@@ -34,7 +34,7 @@ def test_prepared_run_request_contains_concrete_confirmation_expected_value(tmp_
         document,
         "published-title-confirmed",
         "expectedContains",
-        "ProofSignal QA 20260619",
+        "VerifySignal QA 20260619",
     )
     assert_prepared_confirmation_value(document, "created-project-url-confirmed", "expectedContains", "/project/")
 
@@ -44,10 +44,10 @@ def test_unresolved_confirmation_placeholder_finding_shape_is_guided() -> None:
         templated_confirmation_policy(placeholder="{{parameters.missingTitle}}"),
         rerun_policy={"afterNoCommit": "allowed", "afterCommit": "allowed-with-new-inputs", "refreshRuntimeInputs": ["projectTitle"]},
         runtime_outputs=[{"name": "publishedProjectTitleText", "source": "dom", "target": "publishedProjectTitle", "extract": "textContent"}],
-        runtime_inputs=[{"name": "projectTitle", "source": "generated", "value": "ProofSignal QA", "refreshOnRerunAfterCommit": True}],
+        runtime_inputs=[{"name": "projectTitle", "source": "generated", "value": "VerifySignal QA", "refreshOnRerunAfterCommit": True}],
     )
 
     finding = next(item for item in findings if item["code"] == "confirmation-placeholder-unresolved")
     assert_placeholder_finding(finding, code="confirmation-placeholder-unresolved", placeholder="{{parameters.missingTitle}}")
     assert finding["signalId"] == "published-title-confirmed"
-    assert finding["recoveryCommand"].startswith("proofsignal workflow")
+    assert finding["recoveryCommand"].startswith("verifysignal workflow")

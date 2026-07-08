@@ -1,41 +1,41 @@
 from __future__ import annotations
 
-from proofsignal_spec.integrations.claude import ClaudeIntegration
-from proofsignal_spec.integrations.codex import CodexIntegration
+from verifysignal_spec.integrations.claude import ClaudeIntegration
+from verifysignal_spec.integrations.codex import CodexIntegration
 
 
 def test_guidance_points_at_policy_set_for_policy_only_changes(tmp_path) -> None:
-    # The agent must reach for `proofsignal policy set` to change ONLY the side-effect policy,
+    # The agent must reach for `verifysignal policy set` to change ONLY the side-effect policy,
     # instead of re-authoring the whole implement payload (the ceremony policy set removes).
     claude = {item.path: item.content for item in ClaudeIntegration().render_files(tmp_path)}
     codex = {item.path: item.content for item in CodexIntegration().render_files(tmp_path)}
-    assert "proofsignal policy set" in claude["CLAUDE.md"]
-    assert "proofsignal policy set" in codex["AGENTS.md"]
+    assert "verifysignal policy set" in claude["CLAUDE.md"]
+    assert "verifysignal policy set" in codex["AGENTS.md"]
 
 
-def test_codex_renders_proofsignal_workflow_skills(tmp_path) -> None:
+def test_codex_renders_verifysignal_workflow_skills(tmp_path) -> None:
     files = {item.path: item.content for item in CodexIntegration().render_files(tmp_path)}
-    assert ".agents/skills/proofsignal-understand/SKILL.md" in files
-    assert ".agents/skills/proofsignal-run/SKILL.md" in files
-    assert "proofsignal.understand" in files[".agents/skills/proofsignal-understand/SKILL.md"]
-    assert ".agents/skills/proofsignal-spec-author/SKILL.md" not in files
+    assert ".agents/skills/verifysignal-understand/SKILL.md" in files
+    assert ".agents/skills/verifysignal-run/SKILL.md" in files
+    assert "verifysignal.understand" in files[".agents/skills/verifysignal-understand/SKILL.md"]
+    assert ".agents/skills/verifysignal-spec-author/SKILL.md" not in files
 
 
 def test_claude_renders_argument_hints_for_workflow_skills(tmp_path) -> None:
     files = {item.path: item.content for item in ClaudeIntegration().render_files(tmp_path)}
-    content = files[".claude/skills/proofsignal-specify/SKILL.md"]
+    content = files[".claude/skills/verifysignal-specify/SKILL.md"]
     assert "argument-hint:" in content
     assert "<alias>" in content
     assert "<behavior>" in content
-    assert "Invoke this command as `/proofsignal-specify`" in content
+    assert "Invoke this command as `/verifysignal-specify`" in content
 
 
 def test_codex_and_claude_validation_guidance_share_live_readiness_facts(tmp_path) -> None:
     codex = {item.path: item.content for item in CodexIntegration().render_files(tmp_path)}
     claude = {item.path: item.content for item in ClaudeIntegration().render_files(tmp_path)}
 
-    codex_content = codex[".agents/skills/proofsignal-validate/SKILL.md"]
-    claude_content = claude[".claude/skills/proofsignal-validate/SKILL.md"]
+    codex_content = codex[".agents/skills/verifysignal-validate/SKILL.md"]
+    claude_content = claude[".claude/skills/verifysignal-validate/SKILL.md"]
     for phrase in [
         "shared CLI JSON",
         "credential readiness hints",
@@ -64,7 +64,7 @@ def test_onboarding_guide_advertises_auto_enabled_playwright_mcp(tmp_path) -> No
     # Live authoring is auto-enabled on install (the MCP is written into .mcp.json), and Claude Code
     # prompts the user to approve it — the onboarding must say so and keep the manual fallback command.
     claude = {item.path: item.content for item in ClaudeIntegration().render_files(tmp_path)}
-    guide = claude[".claude/PROOFSIGNAL_ONBOARDING.md"]
+    guide = claude[".claude/VERIFYSIGNAL_ONBOARDING.md"]
     assert "Playwright MCP" in guide
     assert ".mcp.json" in guide
     assert "approve" in guide.lower()  # Claude Code's approval gate

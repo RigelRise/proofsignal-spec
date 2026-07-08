@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from proofsignal_spec.commands.list import run as list_run
+from verifysignal_spec.commands.list import run as list_run
 from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace
 
 

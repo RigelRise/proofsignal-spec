@@ -31,7 +31,7 @@ def write_use_case_payload(alias: str = "create-resource") -> dict[str, Any]:
             {
                 "name": "resourceName",
                 "source": "generated",
-                "template": "ProofSignal {{run.shortId}}",
+                "template": "VerifySignal {{run.shortId}}",
                 "refreshOnRerunAfterCommit": True,
             }
         ],

@@ -9,11 +9,11 @@ from helpers import CliTestCase
 class ManagedRuntimeReadinessTests(CliTestCase):
     def setUp(self) -> None:
         super().setUp()
-        os.environ.pop("PROOFSIGNAL_CORE_CMD", None)
-        os.environ["PROOFSIGNAL_RUNTIME_CACHE_DIR"] = str(self.project / "user-cache")
+        os.environ.pop("VERIFYSIGNAL_CORE_CMD", None)
+        os.environ["VERIFYSIGNAL_RUNTIME_CACHE_DIR"] = str(self.project / "user-cache")
 
     def tearDown(self) -> None:
-        os.environ.pop("PROOFSIGNAL_RUNTIME_CACHE_DIR", None)
+        os.environ.pop("VERIFYSIGNAL_RUNTIME_CACHE_DIR", None)
         super().tearDown()
 
     def test_check_returns_structured_runtime_setup_blocker_when_runtime_missing(self) -> None:

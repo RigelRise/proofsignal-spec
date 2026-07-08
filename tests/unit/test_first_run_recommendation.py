@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.first_run import build_first_run_recommendation, score_first_run_candidates
-from proofsignal_spec.workflows.models import CandidateValidationUseCase
+from verifysignal_spec.workflows.first_run import build_first_run_recommendation, score_first_run_candidates
+from verifysignal_spec.workflows.models import CandidateValidationUseCase
 from tests.fixtures.workflows.golden_path_productization import AUTH_ALIAS, PUBLIC_ALIAS, create_golden_path_workspace
 
 

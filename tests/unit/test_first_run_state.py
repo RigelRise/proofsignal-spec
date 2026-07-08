@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.first_run import classify_first_run_status
-from proofsignal_spec.workflows.models import (
+from verifysignal_spec.workflows.first_run import classify_first_run_status
+from verifysignal_spec.workflows.models import (
     FirstRunCandidate,
     FirstRunCandidateScore,
     FirstRunRecommendation,
@@ -57,12 +57,12 @@ def test_first_run_recommendation_schema_and_stage_cards() -> None:
                 "nextAction": "Accept or skip.",
             }
         ],
-        nextAction="proofsignal workflow accept-first-run home-page-unauth --json",
+        nextAction="verifysignal workflow accept-first-run home-page-unauth --json",
     )
 
     data = recommendation.to_dict()
 
-    assert data["schemaVersion"] == "proofsignal-spec-first-run-recommendation/v1"
+    assert data["schemaVersion"] == "verifysignal-spec-first-run-recommendation/v1"
     assert data["status"] == "ready"
     assert data["stageCards"][0]["statusMarker"] == "[RECOMMENDED]"
 

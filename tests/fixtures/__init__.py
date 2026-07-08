@@ -1,1 +1,1 @@
-"""Test fixtures for ProofSignal Spec."""
+"""Test fixtures for VerifySignal Spec."""

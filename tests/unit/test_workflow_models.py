@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.models import (
+from verifysignal_spec.workflows.models import (
     ArtifactPlan,
     BrowserTargetEnvironment,
     CorePublicContract,
@@ -17,14 +17,14 @@ from proofsignal_spec.workflows.models import (
 def test_workflow_run_round_trips_structured_state() -> None:
     run = WorkflowRun(runId="wf-1", useCaseAlias="login", stageStates=[WorkflowStageState(stage="understand", status="completed")])
     data = run.to_dict()
-    assert data["schemaVersion"] == "proofsignal-spec-workflow-run/v1"
+    assert data["schemaVersion"] == "verifysignal-spec-workflow-run/v1"
     assert WorkflowRun.from_dict(data).stageStates[0].status == "completed"
 
 
 def test_artifact_plan_requires_single_run_request_reference() -> None:
-    plan = ArtifactPlan(useCaseAlias="login", runRequest=".proofsignal/run-requests/login.yaml", mainSkill=".proofsignal/skills/login.browser.md")
-    assert plan.to_dict()["runRequest"] == ".proofsignal/run-requests/login.yaml"
-    assert native_invocation("plan") == "/proofsignal-plan"
+    plan = ArtifactPlan(useCaseAlias="login", runRequest=".verifysignal/run-requests/login.yaml", mainSkill=".verifysignal/skills/login.browser.md")
+    assert plan.to_dict()["runRequest"] == ".verifysignal/run-requests/login.yaml"
+    assert native_invocation("plan") == "/verifysignal-plan"
 
 
 def test_browser_runtime_readiness_models_round_trip_without_secret_values() -> None:
@@ -54,7 +54,7 @@ def test_browser_runtime_readiness_models_round_trip_without_secret_values() -> 
         sourceStage="clarify",
         appliesTo="profile-view-unauth",
     )
-    contract = CorePublicContract.compatible(proofsignalVersion="0.1.0")
+    contract = CorePublicContract.compatible(verifysignalVersion="0.1.0")
 
     assert target.to_dict()["locator"] == "https://app.example.test"
     assert prerequisite.to_dict()["status"] == "resolved"

@@ -5,7 +5,7 @@
 **Status**: Draft  
 **Input**: User description: "Objetivo: transformar o que ja foi construido em uma experiencia demonstravel, documentada e confiavel para um usuario novo. Golden Path Productization"
 
-**Scope Decision**: The MVP golden path combines adoption plus differentiated repair value on a real target selected or confirmed by the user: a new user should initialize or use a clean target project, accept a product-recommended first validation candidate that is simple, existing, and expected to be stable, complete a first browser validation journey against a reachable application they care about, and get a clear repair experience only if that journey fails. The first run counts as successful when it reaches a strict validated pass either directly or after a repair cycle that classifies the failure, explains the repair, applies the fix, revalidates, reruns, and then passes. Because this is the user's first ProofSignal experience, the first-run UX must be presentation-quality: visually clear, confidence-building, easy to explain, and explicit about status, evidence, repair, and next action. If the user declines the recommended first run, the golden path is recorded as skipped rather than successful or failed. Fake or bundled demo targets are not part of the user-facing golden path or fallback story; deterministic fixtures may only be used internally for automated regression tests. Release/demo readiness remains supporting scope, not the primary MVP.
+**Scope Decision**: The MVP golden path combines adoption plus differentiated repair value on a real target selected or confirmed by the user: a new user should initialize or use a clean target project, accept a product-recommended first validation candidate that is simple, existing, and expected to be stable, complete a first browser validation journey against a reachable application they care about, and get a clear repair experience only if that journey fails. The first run counts as successful when it reaches a strict validated pass either directly or after a repair cycle that classifies the failure, explains the repair, applies the fix, revalidates, reruns, and then passes. Because this is the user's first VerifySignal experience, the first-run UX must be presentation-quality: visually clear, confidence-building, easy to explain, and explicit about status, evidence, repair, and next action. If the user declines the recommended first run, the golden path is recorded as skipped rather than successful or failed. Fake or bundled demo targets are not part of the user-facing golden path or fallback story; deterministic fixtures may only be used internally for automated regression tests. Release/demo readiness remains supporting scope, not the primary MVP.
 
 ## Clarifications
 
@@ -21,9 +21,9 @@
 
 ## Constitution Alignment *(mandatory)*
 
-- **Public Core boundary**: The golden path must demonstrate ProofSignal Spec through public CLI/workflow contracts and documented Core compatibility behavior only. It must not require reading private Core packages, installed package source files, or undocumented report internals to understand or complete the journey.
+- **Public Core boundary**: The golden path must demonstrate VerifySignal Spec through public CLI/workflow contracts and documented Core compatibility behavior only. It must not require reading private Core packages, installed package source files, or undocumented report internals to understand or complete the journey.
 - **Real-target-first experience**: The first user-facing journey must require an explicit, reachable target chosen or confirmed by the user. Local fixtures may support automated regression coverage, but they must not be presented as the user's fallback path or primary product value.
-- **Project-local workspace portability**: All golden-path state, generated use cases, run requests, skills, reports, and repair records must remain reviewable and portable under the target project's `.proofsignal/` workspace.
+- **Project-local workspace portability**: All golden-path state, generated use cases, run requests, skills, reports, and repair records must remain reviewable and portable under the target project's `.verifysignal/` workspace.
 - **Secret safety**: The experience must use non-secret real targets, dummy values, or credential references. It must never ask a new user to paste real secrets into specs, run requests, skills, logs, or public summaries.
 - **Agent-chat-first interface**: Codex and Claude conversations are the primary first-run surface. Deterministic non-AI CLI users must still receive equivalent semantics, but the most polished guided experience is delivered in chat.
 - **First-run UX quality**: The first-run experience must be clear enough for a new user and polished enough for a product demo, with strong chat-native visual hierarchy for recommendation, progress, evidence, repair feedback, final status, and next action.
@@ -33,7 +33,7 @@
 
 ### User Story 1 - Complete First Golden Path (Priority: P1)
 
-A new user evaluating ProofSignal Spec wants one reliable path from installation or initialization to a meaningful browser validation result, without needing maintainer guidance or implementation knowledge.
+A new user evaluating VerifySignal Spec wants one reliable path from installation or initialization to a meaningful browser validation result, without needing maintainer guidance or implementation knowledge.
 
 **Why this priority**: The product becomes trustworthy when a first-time user can see the full value loop quickly: set up, choose a scenario, author artifacts, validate readiness, execute a run, and understand the result.
 
@@ -48,14 +48,14 @@ A new user evaluating ProofSignal Spec wants one reliable path from installation
 5. **Given** the proposed repair would change validation intent, required gates, data assumptions, credentials, or expected product behavior, **When** the repair flow reaches that decision, **Then** the product must request and record user confirmation before changing artifacts.
 6. **Given** the user declines the recommended first-run candidate, **When** the workflow records the outcome, **Then** the golden path is marked as skipped rather than successful or failed.
 7. **Given** the user reaches each workflow stage, **When** the stage completes or blocks, **Then** the output explains what happened, what it means, and the next recommended action.
-8. **Given** the user has no prior ProofSignal context, **When** they inspect the generated artifacts, **Then** they can identify the use case, target environment, run request, skill, validation gates, and evidence expectations.
+8. **Given** the user has no prior VerifySignal context, **When** they inspect the generated artifacts, **Then** they can identify the use case, target environment, run request, skill, validation gates, and evidence expectations.
 9. **Given** this is the user's first run, **When** the recommendation, run progress, repair feedback, or final result is displayed, **Then** the agent chat presents each stage as a standardized stage card with title, status marker, one-line summary, why it matters, primary evidence, repair/change details when present, and next action.
 
 ---
 
 ### User Story 2 - Experience Repair Value Loop (Priority: P1)
 
-A new user whose accepted first-run candidate fails wants ProofSignal Spec to do more than generate artifacts: it should explain the failed browser run, preserve validation intent, present clear repair feedback, repair the artifact when appropriate, revalidate, rerun, and only count success after the repaired run passes.
+A new user whose accepted first-run candidate fails wants VerifySignal Spec to do more than generate artifacts: it should explain the failed browser run, preserve validation intent, present clear repair feedback, repair the artifact when appropriate, revalidate, rerun, and only count success after the repaired run passes.
 
 **Why this priority**: The repair loop is the product's clearest differentiated value. It proves that the workflow can handle realistic browser instability without weakening required validation gates.
 
@@ -73,7 +73,7 @@ A new user whose accepted first-run candidate fails wants ProofSignal Spec to do
 
 ### User Story 3 - Learn From Canonical Examples (Priority: P2)
 
-A prospective user wants representative examples that show how ProofSignal Spec behaves across the common cases they will encounter: simple public pages, authenticated flows, repairable browser failures, and conditional product data.
+A prospective user wants representative examples that show how VerifySignal Spec behaves across the common cases they will encounter: simple public pages, authenticated flows, repairable browser failures, and conditional product data.
 
 **Why this priority**: Examples turn the product from a flexible toolkit into a learnable workflow. The public-page and repairable-failure examples explain behavior around the MVP; authenticated and conditional examples broaden confidence after the first value loop is proven.
 
@@ -98,7 +98,7 @@ A new user who hits a predictable setup, target, or workflow problem needs a con
 
 **Acceptance Scenarios**:
 
-1. **Given** ProofSignal Core is missing or incompatible, **When** the user runs the golden path, **Then** the product stops before execution and shows setup or compatibility recovery guidance.
+1. **Given** VerifySignal Core is missing or incompatible, **When** the user runs the golden path, **Then** the product stops before execution and shows setup or compatibility recovery guidance.
 2. **Given** the target application is unavailable or redirects unexpectedly, **When** the run readiness or run stage detects it, **Then** the output distinguishes environment recovery from artifact repair.
 3. **Given** a workflow payload is malformed or missing required fields, **When** the user persists or validates it, **Then** the error points to the public contract field and a corrective action.
 
@@ -119,7 +119,7 @@ A maintainer preparing a release wants a short, repeatable readiness checklist s
 
 ### Edge Cases
 
-- A user starts from a repository that already contains `.proofsignal/` artifacts from an older version.
+- A user starts from a repository that already contains `.verifysignal/` artifacts from an older version.
 - The selected real target is temporarily unavailable or returns empty data.
 - The user has an agent integration installed but wants to complete the same flow without an agent.
 - A repairable example produces a different failure category than expected.
@@ -145,14 +145,14 @@ A maintainer preparing a release wants a short, repeatable readiness checklist s
 - **FR-012**: Codex and Claude agent chats MUST be the primary first-run UX surfaces, while non-AI CLI users MUST still be able to complete an equivalent journey and understand equivalent result semantics.
 - **FR-013**: The product MUST include a release-readiness checklist that verifies documentation, examples, workflow outputs, troubleshooting, secret safety, compatibility, and regression coverage.
 - **FR-014**: The product MUST define what counts as "ready to demo" and "ready to release" for the golden path.
-- **FR-015**: The product MUST provide a way for users to inspect or reset Golden Path Workspace State without losing unrelated user-authored artifacts or unrelated `.proofsignal/` use cases, run requests, skills, reports, and repair records.
+- **FR-015**: The product MUST provide a way for users to inspect or reset Golden Path Workspace State without losing unrelated user-authored artifacts or unrelated `.verifysignal/` use cases, run requests, skills, reports, and repair records.
 - **FR-016**: The product MUST include repeatable validation coverage for the golden path and its representative failure/recovery scenarios.
 - **FR-017**: Before the first run, the product MUST inventory candidate validations in the user's project, rank them by low setup risk, reachable real target, no unresolved credentials, simple rendered evidence, and low data dependency, then recommend the top candidate.
-- **FR-018**: The first-run success metric MUST require a strict validated pass, either directly or after repair: Core/browser execution passed, Spec coverage complete, all required gates mapped to rendered-result evidence, run artifacts written under `.proofsignal/`, repair feedback recorded when repair occurred, and a clear next action shown.
+- **FR-018**: The first-run success metric MUST require a strict validated pass, either directly or after repair: Core/browser execution passed, Spec coverage complete, all required gates mapped to rendered-result evidence, run artifacts written under `.verifysignal/`, repair feedback recorded when repair occurred, and a clear next action shown.
 - **FR-019**: If the user declines the recommended first-run candidate, the product MUST record the golden path as skipped and MUST NOT count it as successful, failed, or inconclusive.
 - **FR-020**: The repair flow MAY auto-apply safe mechanical repairs, including selector, wait, ordering, target-specificity, and equivalent flow fixes, when the repair preserves validation intent and includes clear before/after feedback.
 - **FR-021**: The repair flow MUST require and record user confirmation before applying changes that affect validation intent, required gates, data assumptions, credentials, or expected product behavior.
-- **FR-022**: The first-run recommendation MUST explicitly state that accepting the top candidate is highly recommended as the best first test to see ProofSignal Spec work, while making clear that the user can choose other validations after completing or skipping the first golden-path run.
+- **FR-022**: The first-run recommendation MUST explicitly state that accepting the top candidate is highly recommended as the best first test to see VerifySignal Spec work, while making clear that the user can choose other validations after completing or skipping the first golden-path run.
 - **FR-023**: The first-run agent-chat UX MUST present recommendation, progress, evidence, repair feedback, final status, and next action as standardized stage cards with title, status marker, one-line summary, why it matters, primary evidence, repair/change details when present, and next action.
 - **FR-024**: The first-run UX MUST avoid dumping raw logs as the primary experience; raw details may remain available, but the agent-chat primary view must summarize status, confidence, evidence, and actionability first.
 - **FR-025**: Reports, Markdown, HTML, JSON, and workspace artifacts MAY support inspection and sharing, but they MUST NOT replace the agent chat as the primary first-run experience.
@@ -190,5 +190,5 @@ A maintainer preparing a release wants a short, repeatable readiness checklist s
 - The MVP golden path relies on a reachable real application target selected or confirmed by the user; local or bundled fixtures are limited to internal automated regression coverage.
 - Existing workflow guardrails, public Core boundary, secret-safety behavior, and repair semantics remain in force.
 - Documentation, examples, generated guidance, and release-readiness artifacts are part of the product experience, not separate marketing material.
-- The first-user audience includes maintainers evaluating the product locally and agent users invoking generated ProofSignal workflow commands.
+- The first-user audience includes maintainers evaluating the product locally and agent users invoking generated VerifySignal workflow commands.
 - Release readiness focuses on local package quality and demoability; publishing automation can be planned separately if needed.

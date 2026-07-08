@@ -26,8 +26,8 @@ class WorkflowCanonicalPersistenceIntegrationTests(CliTestCase):
             },
             "plan": {
                 "alias": "login",
-                "runRequest": ".proofsignal/run-requests/login.yaml",
-                "reusableSkills": [".proofsignal/skills/login.browser.md"],
+                "runRequest": ".verifysignal/run-requests/login.yaml",
+                "reusableSkills": [".verifysignal/skills/login.browser.md"],
                 "runtimeInputs": [{"name": "BASE_URL", "source": "environment"}],
                 "unresolvedBlockingClarifications": [],
             },
@@ -40,12 +40,12 @@ class WorkflowCanonicalPersistenceIntegrationTests(CliTestCase):
             "implement": {
                 "alias": "login",
                 "runRequest": {
-                    "path": ".proofsignal/run-requests/login.yaml",
+                    "path": ".verifysignal/run-requests/login.yaml",
                     "content": '{"schemaVersion":"qa-run-request/v1","request":{"id":"request.login"}}',
                 },
                 "skills": [
                     {
-                        "path": ".proofsignal/skills/login.browser.md",
+                        "path": ".verifysignal/skills/login.browser.md",
                         "content": "---\nschemaVersion: qa-skill/v1\n---\n# Login\n",
                     }
                 ],
@@ -72,5 +72,5 @@ class WorkflowCanonicalPersistenceIntegrationTests(CliTestCase):
         self.assertEqual(code, 0, err)
         use_cases = json.loads(out)["useCases"]
         self.assertEqual(use_cases[0]["alias"], "login")
-        self.assertTrue((self.project / ".proofsignal/skills/login.browser.md").exists())
-        self.assertTrue((self.project / ".proofsignal/use-cases/login.yaml").exists())
+        self.assertTrue((self.project / ".verifysignal/skills/login.browser.md").exists())
+        self.assertTrue((self.project / ".verifysignal/use-cases/login.yaml").exists())

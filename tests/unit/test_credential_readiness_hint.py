@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import CredentialReadinessHint
-from proofsignal_spec.workspace.repository import load_credential_readiness_hint, save_credential_readiness_hint
-from proofsignal_spec.workspace.validation import validate_credential_readiness_hint
+from verifysignal_spec.workspace.models import CredentialReadinessHint
+from verifysignal_spec.workspace.repository import load_credential_readiness_hint, save_credential_readiness_hint
+from verifysignal_spec.workspace.validation import validate_credential_readiness_hint
 
 
 def test_credential_readiness_hint_serializes_names_without_values(tmp_path) -> None:
@@ -10,7 +10,7 @@ def test_credential_readiness_hint_serializes_names_without_values(tmp_path) -> 
         credentialGroup="app",
         expectedSource="environment",
         requiredRuntimeNames=["APP_TEST_EMAIL", "APP_TEST_PASSWORD"],
-        preparationHint="Load credentials with your approved local wrapper before running ProofSignal.",
+        preparationHint="Load credentials with your approved local wrapper before running VerifySignal.",
     )
 
     save_credential_readiness_hint(tmp_path, hint)

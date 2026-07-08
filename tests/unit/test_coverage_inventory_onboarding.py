@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from proofsignal_spec.workflows.coverage_inventory import normalize_inventory
+from verifysignal_spec.workflows.coverage_inventory import normalize_inventory
 
 
 def test_candidate_sources_normalize_from_item_id_source_ref_and_surface_path() -> None:

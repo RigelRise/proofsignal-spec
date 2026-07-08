@@ -5,24 +5,24 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec import __version__ as SPEC_VERSION
-from proofsignal_spec.workspace.models import (
+from verifysignal_spec import __version__ as SPEC_VERSION
+from verifysignal_spec.workspace.models import (
     ArtifactReference,
     ReadinessSnapshot,
     RuntimeInputRequirement,
     UseCaseRecord,
 )
-from proofsignal_spec.workspace.repository import (
+from verifysignal_spec.workspace.repository import (
     artifact_fingerprints,
     init_workspace,
     save_readiness_snapshot,
     save_use_case,
 )
-from proofsignal_spec.workspace import layout
+from verifysignal_spec.workspace import layout
 
 
 def create_live_write_readiness_workspace(project: Path) -> None:
-    init_workspace(project, core_cmd="proofsignal-core")
+    init_workspace(project, core_cmd="verifysignal-core")
     _write_artifacts(project, "about-page-unauth", {"baseUrl": "https://example.test"})
     _write_artifacts(project, "brands-search-authenticated", {"baseUrl": "https://example.test"})
     _write_artifacts(project, "add-collaboration-project", {"baseUrl": "https://example.test"})
@@ -33,9 +33,9 @@ def create_live_write_readiness_workspace(project: Path) -> None:
             title="About Page",
             description="Validate the public about page.",
             targetSurface="/about",
-            runRequest=ArtifactReference(path=".proofsignal/run-requests/about-page-unauth.yaml", kind="run-request", id="request.about-page-unauth", version="1.0.0"),
-            mainSkill=ArtifactReference(path=".proofsignal/skills/about-page-unauth.browser.md", kind="skill", id="skill.about-page-unauth", version="1.0.0"),
-            skills=[ArtifactReference(path=".proofsignal/skills/about-page-unauth.browser.md", kind="skill", id="skill.about-page-unauth", version="1.0.0")],
+            runRequest=ArtifactReference(path=".verifysignal/run-requests/about-page-unauth.yaml", kind="run-request", id="request.about-page-unauth", version="1.0.0"),
+            mainSkill=ArtifactReference(path=".verifysignal/skills/about-page-unauth.browser.md", kind="skill", id="skill.about-page-unauth", version="1.0.0"),
+            skills=[ArtifactReference(path=".verifysignal/skills/about-page-unauth.browser.md", kind="skill", id="skill.about-page-unauth", version="1.0.0")],
             runtimeInputs=[RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test")],
             sideEffects={"class": "none"},
             lastRun=_last_run("about-run"),
@@ -50,9 +50,9 @@ def create_live_write_readiness_workspace(project: Path) -> None:
             title="Brands Search",
             description="Validate authenticated brands search.",
             targetSurface="/search/brands",
-            runRequest=ArtifactReference(path=".proofsignal/run-requests/brands-search-authenticated.yaml", kind="run-request", id="request.brands-search-authenticated", version="1.0.0"),
-            mainSkill=ArtifactReference(path=".proofsignal/skills/brands-search-authenticated.browser.md", kind="skill", id="skill.brands-search-authenticated", version="1.0.0"),
-            skills=[ArtifactReference(path=".proofsignal/skills/brands-search-authenticated.browser.md", kind="skill", id="skill.brands-search-authenticated", version="1.0.0")],
+            runRequest=ArtifactReference(path=".verifysignal/run-requests/brands-search-authenticated.yaml", kind="run-request", id="request.brands-search-authenticated", version="1.0.0"),
+            mainSkill=ArtifactReference(path=".verifysignal/skills/brands-search-authenticated.browser.md", kind="skill", id="skill.brands-search-authenticated", version="1.0.0"),
+            skills=[ArtifactReference(path=".verifysignal/skills/brands-search-authenticated.browser.md", kind="skill", id="skill.brands-search-authenticated", version="1.0.0")],
             runtimeInputs=[RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test")],
             credentialRefs={"app": {"source": "environment", "keys": {"email": "APP_TEST_EMAIL", "password": "APP_TEST_PASSWORD"}}},
             credentialGroups=[{"name": "app"}],
@@ -67,9 +67,9 @@ def create_live_write_readiness_workspace(project: Path) -> None:
             title="Add Collaboration Project",
             description="Publish a collaboration project.",
             targetSurface="/",
-            runRequest=ArtifactReference(path=".proofsignal/run-requests/add-collaboration-project.yaml", kind="run-request", id="request.add-collaboration-project", version="1.0.0"),
-            mainSkill=ArtifactReference(path=".proofsignal/skills/add-collaboration-project.browser.md", kind="skill", id="skill.add-collaboration-project", version="1.0.0"),
-            skills=[ArtifactReference(path=".proofsignal/skills/add-collaboration-project.browser.md", kind="skill", id="skill.add-collaboration-project", version="1.0.0")],
+            runRequest=ArtifactReference(path=".verifysignal/run-requests/add-collaboration-project.yaml", kind="run-request", id="request.add-collaboration-project", version="1.0.0"),
+            mainSkill=ArtifactReference(path=".verifysignal/skills/add-collaboration-project.browser.md", kind="skill", id="skill.add-collaboration-project", version="1.0.0"),
+            skills=[ArtifactReference(path=".verifysignal/skills/add-collaboration-project.browser.md", kind="skill", id="skill.add-collaboration-project", version="1.0.0")],
             runtimeInputs=[
                 RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test"),
                 RuntimeInputRequirement(name="resourceName", source="generated", template="validation-resource-{{run.shortId}}", refreshOnRerunAfterCommit=True),
@@ -88,7 +88,7 @@ def create_live_write_readiness_workspace(project: Path) -> None:
 
 
 def save_ready_snapshot(project: Path, alias: str, *, checked_at: str | None = None, side_effect_class: str = "none") -> None:
-    from proofsignal_spec.workspace.repository import load_use_case
+    from verifysignal_spec.workspace.repository import load_use_case
 
     record = load_use_case(project, alias)
     save_readiness_snapshot(
@@ -99,7 +99,7 @@ def save_ready_snapshot(project: Path, alias: str, *, checked_at: str | None = N
             checkedAt=checked_at or datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
             artifactFingerprints=artifact_fingerprints(project, record),
             specVersion=SPEC_VERSION,
-            artifactContractVersion="proofsignal-spec-use-case/v1",
+            artifactContractVersion="verifysignal-spec-use-case/v1",
             targetProjectRevision=None,
             testedCodeScopeStatus="unknown",
             environmentBoundCredentialGroups=["app"] if record.credentialRefs else [],
@@ -123,9 +123,9 @@ def _last_run(run_id: str) -> dict[str, Any]:
 
 
 def _write_artifacts(project: Path, alias: str, parameters: dict[str, str]) -> None:
-    (project / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
-    (project / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
-    (project / f".proofsignal/run-requests/{alias}.yaml").write_text(
+    (project / ".verifysignal/run-requests").mkdir(parents=True, exist_ok=True)
+    (project / ".verifysignal/skills").mkdir(parents=True, exist_ok=True)
+    (project / f".verifysignal/run-requests/{alias}.yaml").write_text(
         json.dumps(
             {
                 "schemaVersion": "qa-run-request/v1",
@@ -152,7 +152,7 @@ def _write_workflow_stage_artifacts(project: Path, alias: str) -> None:
         "handoff.md": f"# Handoff\n\n{alias}\n",
     }.items():
         (root / stage).write_text(content, encoding="utf-8")
-    (project / f".proofsignal/skills/{alias}.browser.md").write_text(
+    (project / f".verifysignal/skills/{alias}.browser.md").write_text(
         f"""# {alias}
 
 ```yaml

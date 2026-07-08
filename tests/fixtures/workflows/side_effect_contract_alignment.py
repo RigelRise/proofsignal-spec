@@ -4,8 +4,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, save_use_case
+from verifysignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, save_use_case
 
 from .write_rerun_identity import write_minimal_artifacts
 
@@ -141,7 +141,7 @@ def supersede_review_payload(source_run_id: str = "violated-run") -> dict[str, A
 
 
 def create_write_policy_workspace(project: Path, *, side_effects: dict[str, Any] | None = None, last_run: dict[str, Any] | None = None) -> UseCaseRecord:
-    init_workspace(project, core_cmd=os.environ.get("PROOFSIGNAL_CORE_CMD", "proofsignal-core"))
+    init_workspace(project, core_cmd=os.environ.get("VERIFYSIGNAL_CORE_CMD", "verifysignal-core"))
     write_minimal_artifacts(project, "add-collaboration-project", parameters={"baseUrl": "https://example.test"})
     record = UseCaseRecord(
         alias="add-collaboration-project",
@@ -149,20 +149,20 @@ def create_write_policy_workspace(project: Path, *, side_effects: dict[str, Any]
         description="Publish a collaboration project.",
         targetSurface="/",
         runRequest=ArtifactReference(
-            path=".proofsignal/run-requests/add-collaboration-project.yaml",
+            path=".verifysignal/run-requests/add-collaboration-project.yaml",
             kind="run-request",
             id="request.add-collaboration-project",
             version="1.0.0",
         ),
         mainSkill=ArtifactReference(
-            path=".proofsignal/skills/add-collaboration-project.browser.md",
+            path=".verifysignal/skills/add-collaboration-project.browser.md",
             kind="skill",
             id="skill.add-collaboration-project",
             version="1.0.0",
         ),
         skills=[
             ArtifactReference(
-                path=".proofsignal/skills/add-collaboration-project.browser.md",
+                path=".verifysignal/skills/add-collaboration-project.browser.md",
                 kind="skill",
                 id="skill.add-collaboration-project",
                 version="1.0.0",
@@ -170,7 +170,7 @@ def create_write_policy_workspace(project: Path, *, side_effects: dict[str, Any]
         ],
         runtimeInputs=[
             RuntimeInputRequirement(name="baseUrl", source="default", value="https://example.test"),
-            RuntimeInputRequirement(name="projectTitle", source="generated", value="ProofSignal collab seed", refreshOnRerunAfterCommit=True),
+            RuntimeInputRequirement(name="projectTitle", source="generated", value="VerifySignal collab seed", refreshOnRerunAfterCommit=True),
         ],
         sideEffects=side_effects
         or {

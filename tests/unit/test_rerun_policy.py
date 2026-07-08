@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import RerunPolicy
-from proofsignal_spec.workflows.repair_recommendations import combine_rerun_decision
+from verifysignal_spec.workspace.models import RerunPolicy
+from verifysignal_spec.workflows.repair_recommendations import combine_rerun_decision
 
 
 def test_rerun_policy_requires_refreshable_inputs_for_allowed_with_new_inputs() -> None:

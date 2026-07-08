@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.repository import init_workspace, load_use_case
-from proofsignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, validate_stage
-from proofsignal_spec.workflows.models import ArtifactPlan
-from proofsignal_spec.workflows.repository import save_artifact_plan
-from proofsignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workspace.repository import init_workspace, load_use_case
+from verifysignal_spec.workflows.engine import create_workflow_run, generate_tasks, implement_artifacts, plan_artifacts, validate_stage
+from verifysignal_spec.workflows.models import ArtifactPlan
+from verifysignal_spec.workflows.repository import save_artifact_plan
+from verifysignal_spec.workflows.stage_persistence import persist_stage
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 
 
@@ -15,14 +15,14 @@ def test_implement_creates_draft_artifacts(tmp_path) -> None:
     generate_tasks(tmp_path, "login")
     result = implement_artifacts(tmp_path, "login")
     assert result["status"] == "draft"
-    assert (tmp_path / ".proofsignal" / "run-requests" / "login.yaml").exists()
+    assert (tmp_path / ".verifysignal" / "run-requests" / "login.yaml").exists()
     assert load_use_case(tmp_path, "login").status == "draft"
 
 
 def test_implemented_browser_artifacts_require_runtime_readiness_validation(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
     create_main_skill_coverage_workspace(tmp_path)
 
     result = validate_stage(tmp_path, "profile-view-unauth", core_cmd=str(FAKE_CORE))
@@ -80,8 +80,8 @@ def test_repersist_implement_preserves_parameter_values(tmp_path) -> None:
         tmp_path,
         ArtifactPlan(
             useCaseAlias="labelled-page",
-            runRequest=".proofsignal/run-requests/labelled-page.yaml",
-            mainSkill=".proofsignal/skills/labelled-page.browser.md",
+            runRequest=".verifysignal/run-requests/labelled-page.yaml",
+            mainSkill=".verifysignal/skills/labelled-page.browser.md",
             runtimeInputs=[
                 {"name": "baseUrl", "source": "default", "value": "https://example.test"},
                 {"name": "label", "source": "prompt"},
@@ -95,14 +95,14 @@ def test_repersist_implement_preserves_parameter_values(tmp_path) -> None:
         if with_value:
             label_input["value"] = "Hello Label"
         return {
-            "runRequest": {"path": ".proofsignal/run-requests/labelled-page.yaml"},
+            "runRequest": {"path": ".verifysignal/run-requests/labelled-page.yaml"},
             "runtimeInputs": [
                 {"name": "baseUrl", "source": "default", "value": "https://example.test"},
                 label_input,
             ],
             "skills": [
                 {
-                    "path": ".proofsignal/skills/labelled-page.browser.md",
+                    "path": ".verifysignal/skills/labelled-page.browser.md",
                     "kind": "skill",
                     "intent": {
                         "browser": {
@@ -118,7 +118,7 @@ def test_repersist_implement_preserves_parameter_values(tmp_path) -> None:
 
     first = persist_stage(tmp_path, "implement", alias="labelled-page", payload=_payload(with_value=True))
     assert first["status"] == "persisted", first
-    run_request_path = tmp_path / ".proofsignal" / "run-requests" / "labelled-page.yaml"
+    run_request_path = tmp_path / ".verifysignal" / "run-requests" / "labelled-page.yaml"
     assert "Hello Label" in run_request_path.read_text()
 
     second = persist_stage(tmp_path, "implement", alias="labelled-page", payload=_payload(with_value=False))
@@ -131,8 +131,8 @@ def _save_create_resource_plan(tmp_path) -> None:
         tmp_path,
         ArtifactPlan(
             useCaseAlias="create-resource",
-            runRequest=".proofsignal/run-requests/create-resource.yaml",
-            mainSkill=".proofsignal/skills/create-resource.browser.md",
+            runRequest=".verifysignal/run-requests/create-resource.yaml",
+            mainSkill=".verifysignal/skills/create-resource.browser.md",
             runtimeInputs=[
                 {"name": "baseUrl", "source": "default", "value": "https://example.test"},
                 {"name": "resourceName", "source": "generated", "template": "resource-{{run.shortId}}", "refreshOnRerunAfterCommit": True},
@@ -147,11 +147,11 @@ def _write_implement_payload(*, include_identity: bool, generated_identity: bool
     if generated_identity:
         runtime_inputs.append({"name": "resourceName", "source": "generated", "template": "resource-{{run.shortId}}", "refreshOnRerunAfterCommit": True})
     payload = {
-        "runRequest": {"path": ".proofsignal/run-requests/create-resource.yaml"},
+        "runRequest": {"path": ".verifysignal/run-requests/create-resource.yaml"},
         "runtimeInputs": runtime_inputs,
         "skills": [
             {
-                "path": ".proofsignal/skills/create-resource.browser.md",
+                "path": ".verifysignal/skills/create-resource.browser.md",
                 "kind": "skill",
                 "intent": {
                     "browser": {

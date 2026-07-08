@@ -6,22 +6,22 @@ import json
 from unittest.mock import patch
 
 from helpers import FAKE_CORE
-from proofsignal_spec.runtime.distribution import load_verification_keys, save_verification_keys
-from proofsignal_spec.runtime.entitlement import load_receipt, receipt_path
-from proofsignal_spec.runtime.resolver import normalize_platform
-from proofsignal_spec.runtime.resolver import ensure_core_runtime
-from proofsignal_spec.workspace.repository import load_document
+from verifysignal_spec.runtime.distribution import load_verification_keys, save_verification_keys
+from verifysignal_spec.runtime.entitlement import load_receipt, receipt_path
+from verifysignal_spec.runtime.resolver import normalize_platform
+from verifysignal_spec.runtime.resolver import ensure_core_runtime
+from verifysignal_spec.workspace.repository import load_document
 from tests.fixtures.managed_runtime import build_managed_runtime_distribution, serve_fake_entitlement_backend, write_fake_core_executable
 from tests.fixtures.workflows.main_skill_run_coverage import create_main_skill_coverage_workspace
 
 
 def test_override_core_is_ready_but_not_managed_entitlement_success(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.delenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
-    monkeypatch.delenv("FAKE_PROOFSIGNAL_MODE", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.delenv("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
+    monkeypatch.delenv("FAKE_VERIFYSIGNAL_MODE", raising=False)
 
     result = ensure_core_runtime(tmp_path, explicit_core_cmd=str(FAKE_CORE))
     payload = result.to_dict()
@@ -33,18 +33,18 @@ def test_override_core_is_ready_but_not_managed_entitlement_success(tmp_path, mo
 
 
 def test_override_core_init_exchanges_token_for_protected_operations(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "requires-entitlement")
-    monkeypatch.delenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "requires-entitlement")
+    monkeypatch.delenv("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
 
     with serve_fake_entitlement_backend() as (api_base_url, state):
         result = ensure_core_runtime(
             tmp_path,
             explicit_core_cmd=str(FAKE_CORE),
             api_base_url=api_base_url,
-            token="ps_valid",
+            token="vs_valid",
             integration="claude",
             context="init",
         )
@@ -62,18 +62,18 @@ def test_override_core_init_exchanges_token_for_protected_operations(tmp_path, m
     cached = load_verification_keys()
     assert cached is not None
     assert cached["sourceApiBaseUrl"] == api_base_url
-    assert cached["issuer"] == "https://proofsignal.io"
+    assert cached["issuer"] == "https://verifysignal.io"
     assert cached["retrievedAt"]
     assert cached["keys"][0]["keyId"] == "ps-entitlement-2026-06"
 
 
 def test_init_cli_with_override_core_exchanges_interactive_token(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "requires-entitlement")
-    monkeypatch.delenv("PROOFSIGNAL_EMAIL", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "requires-entitlement")
+    monkeypatch.delenv("VERIFYSIGNAL_EMAIL", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
 
     with serve_fake_entitlement_backend() as (api_base_url, state):
         code, out, err = _cli(
@@ -103,15 +103,15 @@ def test_init_cli_with_override_core_exchanges_interactive_token(tmp_path, monke
         "/entitlements/keys",
     ]
     assert "qa@example.com" not in out
-    assert "ps_valid" not in out
+    assert "vs_valid" not in out
 
 
 def test_validate_cli_with_override_core_uses_cached_entitlement_receipt(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "requires-entitlement")
-    monkeypatch.delenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "requires-entitlement")
+    monkeypatch.delenv("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
     create_main_skill_coverage_workspace(tmp_path)
 
     with serve_fake_entitlement_backend() as (api_base_url, _state):
@@ -119,7 +119,7 @@ def test_validate_cli_with_override_core_uses_cached_entitlement_receipt(tmp_pat
             tmp_path,
             explicit_core_cmd=str(FAKE_CORE),
             api_base_url=api_base_url,
-            token="ps_valid",
+            token="vs_valid",
             integration="claude",
             context="init",
         )
@@ -154,20 +154,20 @@ def test_validate_cli_with_override_core_uses_cached_entitlement_receipt(tmp_pat
 def test_validate_cli_with_ancestor_sibling_core_reports_cached_entitlement(tmp_path, monkeypatch) -> None:
     project = tmp_path / "Demo" / "web-app"
     project.mkdir(parents=True)
-    write_fake_core_executable(project.parent / "proofsignal", mode="requires-entitlement")
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "requires-entitlement")
-    monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    write_fake_core_executable(project.parent / "verifysignal", mode="requires-entitlement")
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "requires-entitlement")
+    monkeypatch.delenv("VERIFYSIGNAL_CORE_CMD", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
     create_main_skill_coverage_workspace(project)
 
     with serve_fake_entitlement_backend() as (api_base_url, _state):
         unlocked = ensure_core_runtime(
             project,
             api_base_url=api_base_url,
-            token="ps_valid",
+            token="vs_valid",
             integration="claude",
             context="init",
         )
@@ -197,11 +197,11 @@ def test_validate_cli_with_ancestor_sibling_core_reports_cached_entitlement(tmp_
 
 
 def test_validate_cli_with_override_core_blocks_expired_receipt_before_core_missing(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "requires-entitlement")
-    monkeypatch.delenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "requires-entitlement")
+    monkeypatch.delenv("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
     create_main_skill_coverage_workspace(tmp_path)
     path = receipt_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -240,12 +240,12 @@ def test_validate_cli_with_override_core_blocks_expired_receipt_before_core_miss
 
 
 def test_init_api_base_url_persists_for_later_validate(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", "ps_valid")
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "requires-entitlement")
-    monkeypatch.delenv("PROOFSIGNAL_API_BASE_URL", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN", "vs_valid")
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "requires-entitlement")
+    monkeypatch.delenv("VERIFYSIGNAL_API_BASE_URL", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
     create_main_skill_coverage_workspace(tmp_path)
 
     with serve_fake_entitlement_backend() as (api_base_url, state):
@@ -263,7 +263,7 @@ def test_init_api_base_url_persists_for_later_validate(tmp_path, monkeypatch) ->
             ]
         )
         assert init_code == 0, init_err
-        workspace = load_document(tmp_path / ".proofsignal" / "workspace.yaml")
+        workspace = load_document(tmp_path / ".verifysignal" / "workspace.yaml")
         assert workspace["entitlementApiBaseUrl"] == api_base_url
 
         receipt = receipt_path()
@@ -296,19 +296,19 @@ def test_init_api_base_url_persists_for_later_validate(tmp_path, monkeypatch) ->
 def test_managed_runtime_sources_prepare_verification_keys(tmp_path, monkeypatch) -> None:
     platform = normalize_platform()
     assert platform is not None
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("PROOFSIGNAL_CORE_VERSION", "0.5.1")
-    monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_VERSION", "0.5.1")
+    monkeypatch.delenv("VERIFYSIGNAL_CORE_CMD", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
     distribution = build_managed_runtime_distribution(tmp_path / "distribution", platform=platform, mode="requires-entitlement")
 
     with serve_fake_entitlement_backend(distribution) as (api_base_url, state):
         downloaded = ensure_core_runtime(
             tmp_path,
             api_base_url=api_base_url,
-            token="ps_valid",
+            token="vs_valid",
             integration="claude",
             context="init",
         )
@@ -332,12 +332,12 @@ def test_managed_runtime_sources_prepare_verification_keys(tmp_path, monkeypatch
 
 
 def test_init_blocks_when_verification_keys_are_unavailable_after_exchange(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("PROOFSIGNAL_EMAIL_UNLOCK_TOKEN", "ps_valid")
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "requires-entitlement")
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN", "vs_valid")
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "requires-entitlement")
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
 
     with serve_fake_entitlement_backend() as (api_base_url, state):
         state.keys_status = "unavailable"
@@ -364,11 +364,11 @@ def test_init_blocks_when_verification_keys_are_unavailable_after_exchange(tmp_p
 
 
 def test_runtime_readiness_reports_key_unknown_when_fetched_keys_omit_receipt_key(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "requires-entitlement")
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "requires-entitlement")
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
 
     with serve_fake_entitlement_backend() as (api_base_url, state):
         state.keys_status = "mismatched"
@@ -376,7 +376,7 @@ def test_runtime_readiness_reports_key_unknown_when_fetched_keys_omit_receipt_ke
             tmp_path,
             explicit_core_cmd=str(FAKE_CORE),
             api_base_url=api_base_url,
-            token="ps_valid",
+            token="vs_valid",
             integration="claude",
             context="init",
         )
@@ -389,18 +389,18 @@ def test_runtime_readiness_reports_key_unknown_when_fetched_keys_omit_receipt_ke
 
 
 def test_cached_matching_verification_keys_are_reused_when_key_service_is_unavailable(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "requires-entitlement")
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "requires-entitlement")
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
 
     with serve_fake_entitlement_backend() as (api_base_url, state):
         unlocked = ensure_core_runtime(
             tmp_path,
             explicit_core_cmd=str(FAKE_CORE),
             api_base_url=api_base_url,
-            token="ps_valid",
+            token="vs_valid",
             integration="claude",
             context="init",
         )
@@ -420,17 +420,17 @@ def test_cached_matching_verification_keys_are_reused_when_key_service_is_unavai
 
 
 def test_cache_binding_mismatch_refreshes_verification_keys_before_readiness(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("PROOFSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
-    monkeypatch.setenv("FAKE_PROOFSIGNAL_MODE", "requires-entitlement")
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
-    monkeypatch.delenv("PROOFSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_MODE", "requires-entitlement")
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_ENTITLEMENT_RECEIPT_PATH", raising=False)
     save_verification_keys(
         {
-            "schema": "proofsignal.entitlement-keys/v1",
+            "schema": "verifysignal.entitlement-keys/v1",
             "schemaVersion": 1,
             "sourceApiBaseUrl": "http://old.example/api",
-            "issuer": "https://proofsignal.io",
+            "issuer": "https://verifysignal.io",
             "keys": [{"keyId": "ps-entitlement-2026-06", "algorithm": "ed25519", "publicKeyPem": "public", "status": "active"}],
         }
     )
@@ -440,7 +440,7 @@ def test_cache_binding_mismatch_refreshes_verification_keys_before_readiness(tmp
             tmp_path,
             explicit_core_cmd=str(FAKE_CORE),
             api_base_url=api_base_url,
-            token="ps_valid",
+            token="vs_valid",
             integration="claude",
             context="init",
         )
@@ -455,7 +455,7 @@ def test_cache_binding_mismatch_refreshes_verification_keys_before_readiness(tmp
 
 
 def _cli(args: list[str], *, stdin: str = "") -> tuple[int, str, str]:
-    from proofsignal_spec.cli import main
+    from verifysignal_spec.cli import main
 
     stdout = io.StringIO()
     stderr = io.StringIO()

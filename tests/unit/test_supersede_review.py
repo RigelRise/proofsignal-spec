@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import SupersedeReview
-from proofsignal_spec.workflows.write_safety import evaluate_rerun_decision
+from verifysignal_spec.workspace.models import SupersedeReview
+from verifysignal_spec.workflows.write_safety import evaluate_rerun_decision
 
 from tests.fixtures.workflows.side_effect_contract_alignment import blocked_write_last_run, create_write_policy_workspace, supersede_review_payload
 

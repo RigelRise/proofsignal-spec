@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from tests.fixtures.managed_runtime import current_core_contract_fixture_payload
-from proofsignal_spec.core.executable_contract import project_core_contract, side_effect_guardrails_projection
+from verifysignal_spec.core.executable_contract import project_core_contract, side_effect_guardrails_projection
 
 
 def test_core_projection_exposes_side_effect_guardrails() -> None:

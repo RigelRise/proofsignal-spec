@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import ResourceIdentity, RuntimeInputRequirement
+from verifysignal_spec.workspace.models import ResourceIdentity, RuntimeInputRequirement
 
 
 def test_resource_identity_allows_read_only_absence() -> None:

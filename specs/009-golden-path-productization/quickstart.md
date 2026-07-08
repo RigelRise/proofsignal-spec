@@ -1,16 +1,16 @@
 # Quickstart: Golden Path Productization
 
-This guide verifies the planned feature without relying on private ProofSignal
+This guide verifies the planned feature without relying on private VerifySignal
 Core internals.
 
 ## 1. Verify local package version
 
 ```bash
-PYTHONPATH=src python3 -m proofsignal_spec --version
+PYTHONPATH=src python3 -m verifysignal_spec --version
 ```
 
 Expected: the local package version is used. If a globally installed
-`proofsignal-spec` is older, use `PYTHONPATH=src python3 -m proofsignal_spec`
+`verifysignal-spec` is older, use `PYTHONPATH=src python3 -m verifysignal_spec`
 for development checks or reinstall the local package.
 
 ## 2. Run focused tests during implementation
@@ -49,8 +49,8 @@ Planned focused tests:
 Use the configured public Core command only:
 
 ```bash
-PROOFSIGNAL_CORE_CMD=/path/to/proofsignal \
-  PYTHONPATH=src python3 -m proofsignal_spec core version --json
+VERIFYSIGNAL_CORE_CMD=/path/to/verifysignal \
+  PYTHONPATH=src python3 -m verifysignal_spec core version --json
 ```
 
 Expected: output uses the public Core version schema. Do not import private Core
@@ -62,12 +62,12 @@ After implementation, initialize or prepare a target workspace with safe
 coverage inventory and a confirmed real target:
 
 ```bash
-PYTHONPATH=src python3 -m proofsignal_spec workflow recommend-first-run --project <target-project> --json
+PYTHONPATH=src python3 -m verifysignal_spec workflow recommend-first-run --project <target-project> --json
 ```
 
 Expected:
 
-- `schemaVersion` is `proofsignal-spec-first-run-recommendation/v1`.
+- `schemaVersion` is `verifysignal-spec-first-run-recommendation/v1`.
 - `status` is `ready` when a first-run candidate exists.
 - The top candidate includes ranking rationale and a strong acceptance prompt.
 - The output includes an agent-chat stage card.
@@ -80,8 +80,8 @@ Regenerate Codex and Claude integrations in a temporary project and inspect the
 generated guidance:
 
 ```bash
-PYTHONPATH=src python3 -m proofsignal_spec init <tmp-project> --integration codex --json
-PYTHONPATH=src python3 -m proofsignal_spec integration install claude --project <tmp-project> --json
+PYTHONPATH=src python3 -m verifysignal_spec init <tmp-project> --integration codex --json
+PYTHONPATH=src python3 -m verifysignal_spec integration install claude --project <tmp-project> --json
 ```
 
 Expected generated guidance describes the required stage-card fields:
@@ -117,12 +117,12 @@ Expected:
 ## 9. Verify Golden Path Workspace State inspect/reset
 
 Prepare a temporary target project with golden-path state and unrelated
-`.proofsignal/` artifacts:
+`.verifysignal/` artifacts:
 
 ```bash
-PYTHONPATH=src python3 -m proofsignal_spec workflow inspect-golden-path-state --project <target-project> --json
-PYTHONPATH=src python3 -m proofsignal_spec workflow reset-golden-path-state --project <target-project> --preview --json
-PYTHONPATH=src python3 -m proofsignal_spec workflow reset-golden-path-state --project <target-project> --confirm --json
+PYTHONPATH=src python3 -m verifysignal_spec workflow inspect-golden-path-state --project <target-project> --json
+PYTHONPATH=src python3 -m verifysignal_spec workflow reset-golden-path-state --project <target-project> --preview --json
+PYTHONPATH=src python3 -m verifysignal_spec workflow reset-golden-path-state --project <target-project> --confirm --json
 ```
 
 Expected:

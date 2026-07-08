@@ -2,22 +2,22 @@ from __future__ import annotations
 
 import pytest
 
-from proofsignal_spec.workspace.repository import init_workspace
-from proofsignal_spec.workspace.repository import load_document
-from proofsignal_spec.workspace.validation import validate_use_case
-from proofsignal_spec.workspace.validation import validate_no_secret_values
-from proofsignal_spec.workflows.core_setup import run_core_setup
-from proofsignal_spec.workflows.stage_persistence import persist_stage
-from proofsignal_spec.workflows.repository import save_workflow_state
-from proofsignal_spec.workspace.models import RunProfile
-from proofsignal_spec.workflows.models import RepairRecommendation, RuntimeEvidence, UseCaseValidationResult
+from verifysignal_spec.workspace.repository import init_workspace
+from verifysignal_spec.workspace.repository import load_document
+from verifysignal_spec.workspace.validation import validate_use_case
+from verifysignal_spec.workspace.validation import validate_no_secret_values
+from verifysignal_spec.workflows.core_setup import run_core_setup
+from verifysignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workflows.repository import save_workflow_state
+from verifysignal_spec.workspace.models import RunProfile
+from verifysignal_spec.workflows.models import RepairRecommendation, RuntimeEvidence, UseCaseValidationResult
 from tests.fixtures.workflows.real_run_guardrails import coherent_profile_skill, create_real_run_guardrail_workspace, run_request_payload
 
 
 def test_workflow_state_rejects_secret_values(tmp_path) -> None:
     init_workspace(tmp_path)
     with pytest.raises(ValueError):
-        save_workflow_state(tmp_path, "login", {"schemaVersion": "proofsignal-spec-workflow-state/v1", "password": "real-secret-value"})
+        save_workflow_state(tmp_path, "login", {"schemaVersion": "verifysignal-spec-workflow-state/v1", "password": "real-secret-value"})
 
 
 def test_stage_persistence_rejects_secret_values(tmp_path) -> None:
@@ -52,7 +52,7 @@ def test_profile_and_gate_metadata_secret_safety(tmp_path) -> None:
     )
     assert result["status"] == "persisted"
 
-    from proofsignal_spec.workspace.repository import load_use_case
+    from verifysignal_spec.workspace.repository import load_use_case
 
     record = load_use_case(tmp_path, "profile-view-unauth")
     assert validate_use_case(tmp_path, record) == []
@@ -68,7 +68,7 @@ def test_runtime_evidence_and_repair_recommendations_do_not_persist_secret_paylo
         gateId="overview-data-card",
         status="passed",
         specificity="rendered-result",
-        artifactRef=".proofsignal/runs/profile-view-unauth/evidence/overview.png",
+        artifactRef=".verifysignal/runs/profile-view-unauth/evidence/overview.png",
         redactionStatus="not-sensitive",
     )
     recommendation = RepairRecommendation(
@@ -77,7 +77,7 @@ def test_runtime_evidence_and_repair_recommendations_do_not_persist_secret_paylo
         safeCategory="selector-ambiguity",
         summary="Profile link locator matched multiple elements.",
         action="Narrow selector to a stable, unique target.",
-        affectedArtifacts=[".proofsignal/skills/validate-profile-view-unauth-flow.browser.md"],
+        affectedArtifacts=[".verifysignal/skills/validate-profile-view-unauth-flow.browser.md"],
         sourceFeedback=["strict-mode-violation"],
     )
     result = UseCaseValidationResult(
@@ -86,8 +86,8 @@ def test_runtime_evidence_and_repair_recommendations_do_not_persist_secret_paylo
         coreStatus="passed",
         coverageStatus="incomplete",
         repairRecommendations=[recommendation],
-        reportPath=".proofsignal/runs/profile-view-unauth/report.json",
-        evidenceDir=".proofsignal/runs/profile-view-unauth/evidence",
+        reportPath=".verifysignal/runs/profile-view-unauth/report.json",
+        evidenceDir=".verifysignal/runs/profile-view-unauth/evidence",
         exitCode=2,
     )
 
@@ -142,13 +142,13 @@ def test_target_locator_allows_safe_staging_and_local_urls() -> None:
 def test_artifact_fingerprints_allow_public_sha256_digests_only() -> None:
     safe = {
         "artifactFingerprints": {
-            ".proofsignal/run-requests/add-collaboration-project.yaml": "a" * 64,
-            ".proofsignal/skills/add-flow.browser.md": "sha256:" + "b" * 64,
+            ".verifysignal/run-requests/add-collaboration-project.yaml": "a" * 64,
+            ".verifysignal/skills/add-flow.browser.md": "sha256:" + "b" * 64,
         }
     }
     unsafe = {
         "artifactFingerprints": {
-            ".proofsignal/run-requests/add-collaboration-project.yaml": "Bearer abcdefghijklmnopqrstuvwxyz123456"
+            ".verifysignal/run-requests/add-collaboration-project.yaml": "Bearer abcdefghijklmnopqrstuvwxyz123456"
         }
     }
 
@@ -220,8 +220,8 @@ def test_core_setup_does_not_read_env_files(tmp_path, monkeypatch) -> None:
     from tests.helpers import FAKE_CORE
 
     init_workspace(tmp_path)
-    (tmp_path / ".env.local").write_text(f"PROOFSIGNAL_CORE_CMD={FAKE_CORE}\n", encoding="utf-8")
-    monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
+    (tmp_path / ".env.local").write_text(f"VERIFYSIGNAL_CORE_CMD={FAKE_CORE}\n", encoding="utf-8")
+    monkeypatch.delenv("VERIFYSIGNAL_CORE_CMD", raising=False)
     monkeypatch.setenv("PATH", "")
 
     result = run_core_setup(tmp_path)
@@ -229,7 +229,7 @@ def test_core_setup_does_not_read_env_files(tmp_path, monkeypatch) -> None:
     payload = result.to_dict()
     assert payload["status"] == "missing"
     assert str(FAKE_CORE) not in str(payload)
-    workspace = load_document(tmp_path / ".proofsignal/workspace.yaml")
+    workspace = load_document(tmp_path / ".verifysignal/workspace.yaml")
     assert "coreCommand" not in workspace
 
 
@@ -245,19 +245,19 @@ def test_core_setup_does_not_persist_or_echo_credential_looking_command(tmp_path
     assert result.status == "error"
     assert "super-secret-token-value" not in serialized
     assert "[redacted]" in serialized
-    workspace = load_document(tmp_path / ".proofsignal/workspace.yaml")
+    workspace = load_document(tmp_path / ".verifysignal/workspace.yaml")
     assert "coreCommand" not in workspace
 
 
 def test_verification_key_readiness_status_contains_only_public_metadata() -> None:
-    from proofsignal_spec.runtime.models import RuntimeVerificationKeyStatus
+    from verifysignal_spec.runtime.models import RuntimeVerificationKeyStatus
 
     status = RuntimeVerificationKeyStatus(
         status="ready",
         source="fetched",
         matchedKeyId="ps-entitlement-local",
         sourceApiBaseUrl="http://localhost:3000/api",
-        issuer="https://proofsignal.io",
+        issuer="https://verifysignal.io",
         message="Public verification keys are ready.",
     )
 

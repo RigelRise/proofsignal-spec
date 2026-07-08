@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.prerequisites import check_prerequisites
-from proofsignal_spec.workspace.repository import load_use_case, save_use_case
+from verifysignal_spec.workflows.prerequisites import check_prerequisites
+from verifysignal_spec.workspace.repository import load_use_case, save_use_case
 from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace
 from tests.fixtures.workflows.prerequisites import create_current_understanding_workspace
 

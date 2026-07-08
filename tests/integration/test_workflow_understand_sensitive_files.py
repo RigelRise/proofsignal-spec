@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.repository import init_workspace
-from proofsignal_spec.workflows.repository_context import collect_safe_repository_context
+from verifysignal_spec.workspace.repository import init_workspace
+from verifysignal_spec.workflows.repository_context import collect_safe_repository_context
 
 
 def test_understand_avoids_sensitive_files(tmp_path) -> None:

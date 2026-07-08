@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workspace.models import ResourceIdentity, RuntimeInputRequirement
+from verifysignal_spec.workspace.models import ResourceIdentity, RuntimeInputRequirement
 
 
 def test_write_use_case_requires_resource_identity_before_implementation() -> None:
@@ -31,7 +31,7 @@ def test_generated_identity_input_must_reference_generated_runtime_input() -> No
 
     findings = identity.validate(
         side_effect_class="write",
-        runtime_inputs=[RuntimeInputRequirement(name="projectTitle", source="default", value="ProofSignal collab seed")],
+        runtime_inputs=[RuntimeInputRequirement(name="projectTitle", source="default", value="VerifySignal collab seed")],
     )
 
     assert any(item["code"] == "resource-identity-input-not-generated" for item in findings)

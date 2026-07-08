@@ -1,0 +1,16 @@
+{
+  "workspaceVersion": "verifysignal-spec-workspace/v1",
+  "productContextPath": ".verifysignal/product-context.yaml",
+  "registryPath": ".verifysignal/registry.yaml",
+  "useCasesDir": ".verifysignal/use-cases",
+  "runRequestsDir": ".verifysignal/run-requests",
+  "skillsDir": ".verifysignal/skills",
+  "runsDir": ".verifysignal/runs",
+  "repairsDir": ".verifysignal/repairs",
+  "readinessDir": ".verifysignal/readiness",
+  "credentialHintsDir": ".verifysignal/credential-hints",
+  "confirmationsDir": ".verifysignal/confirmations",
+  "refreshImpactDir": ".verifysignal/refresh-impact",
+  "capabilityPoliciesDir": ".verifysignal/capability-policies",
+  "integrationsDir": ".verifysignal/integrations"
+}

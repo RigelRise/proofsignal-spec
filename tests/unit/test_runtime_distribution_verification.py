@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from proofsignal_spec.runtime.distribution import (
+from verifysignal_spec.runtime.distribution import (
     manifest_entries,
     normalize_platform,
     select_manifest_entry,
@@ -24,7 +24,7 @@ def test_manifest_selection_requires_platform_contract_and_signature() -> None:
         "entries": [
             {
                 "coreVersion": "0.5.1",
-                "contractVersion": "proofsignal-public-cli-json/v1",
+                "contractVersion": "verifysignal-public-cli-json/v1",
                 "platform": "darwin-arm64",
                 "url": "file:///tmp/runtime.tar.gz",
                 "sha256": "a" * 64,
@@ -34,7 +34,7 @@ def test_manifest_selection_requires_platform_contract_and_signature() -> None:
     }
 
     entries = manifest_entries(manifest)
-    selected = select_manifest_entry(entries, platform="darwin-arm64", contract_version="proofsignal-public-cli-json/v1")
+    selected = select_manifest_entry(entries, platform="darwin-arm64", contract_version="verifysignal-public-cli-json/v1")
 
     assert selected["coreVersion"] == "0.5.1"
     assert signature_contract_available(selected)

@@ -66,5 +66,5 @@ class WorkflowCoverageInventoryIntegrationTests(CliTestCase):
         ])
         self.assertEqual(code, 0, err)
         self.assertEqual(json.loads(out)["status"], "persisted")
-        context = json.loads((self.project / ".proofsignal/product-context.yaml").read_text())
+        context = json.loads((self.project / ".verifysignal/product-context.yaml").read_text())
         self.assertEqual({item["id"] for item in context["coverageInventory"]["items"]}, {"route-a", "route-b"})

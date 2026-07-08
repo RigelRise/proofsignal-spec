@@ -58,7 +58,7 @@ Tracks the accepted Golden Path from recommendation through final outcome.
 
 **Fields**
 
-- `schemaVersion`: `proofsignal-spec-guided-first-run/v1`.
+- `schemaVersion`: `verifysignal-spec-guided-first-run/v1`.
 - `selectedCandidate`: Accepted alias.
 - `stage`: `recommended`, `accepted`, `authoring`, `validating`, `running`,
   `repairing`, `passed`, `repaired-passed`, `failed`, `blocked`, or `skipped`.

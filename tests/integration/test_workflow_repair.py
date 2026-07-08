@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.engine import classify_repair_stage
+from verifysignal_spec.workflows.engine import classify_repair_stage
 
 
 def test_repair_classification_matrix() -> None:

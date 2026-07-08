@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
-from proofsignal_spec.workspace.models import CredentialReadinessHint
-from proofsignal_spec.workspace.repository import save_credential_readiness_hint
+from verifysignal_spec.workflows.runtime_readiness import evaluate_runtime_readiness
+from verifysignal_spec.workspace.models import CredentialReadinessHint
+from verifysignal_spec.workspace.repository import save_credential_readiness_hint
 from tests.fixtures.workflows.live_write_readiness import create_live_write_readiness_workspace
 
 

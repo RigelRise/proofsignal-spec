@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proofsignal_spec.core.executable_contract import project_core_contract
-from proofsignal_spec.workflows.evidence import extract_browser_evidence, extract_core_runtime_evidence
+from verifysignal_spec.core.executable_contract import project_core_contract
+from verifysignal_spec.workflows.evidence import extract_browser_evidence, extract_core_runtime_evidence
 from tests.fixtures.managed_runtime import core_contract_fixture_payload, current_core_contract_fixture_payload
 
 

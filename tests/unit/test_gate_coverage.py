@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from proofsignal_spec.workflows.evidence import extract_browser_evidence, extract_core_runtime_evidence, normalize_planned_gates
-from proofsignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
-from proofsignal_spec.workflows.models import (
+from verifysignal_spec.workflows.evidence import extract_browser_evidence, extract_core_runtime_evidence, normalize_planned_gates
+from verifysignal_spec.workflows.gate_coverage import calculate_gate_coverage, coverage_status
+from verifysignal_spec.workflows.models import (
     EvidenceInventory,
     GateCoverageResult,
     PlannedValidationGate,
@@ -87,12 +87,12 @@ def test_workflow_validation_models_serialize_without_empty_fields() -> None:
         safeCategory="main-skill-ordering",
         summary="Core executed helper skill before main skill.",
         action="Pass planned main skill first to Core.",
-        affectedArtifacts=[".proofsignal/run-requests/profile-view-unauth.yaml"],
+        affectedArtifacts=[".verifysignal/run-requests/profile-view-unauth.yaml"],
     )
     application = SafeRepairApplication(
         recommendationId="repair-main-skill",
         applied=True,
-        changedArtifacts=[".proofsignal/run-requests/profile-view-unauth.yaml"],
+        changedArtifacts=[".verifysignal/run-requests/profile-view-unauth.yaml"],
         validationStatus="passed",
     )
     runtime_evidence = RuntimeEvidence(

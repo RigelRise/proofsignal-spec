@@ -14,7 +14,7 @@ class WorkflowCoreContractGuidanceTests(CliTestCase):
         self.assertEqual(code, 0, err)
         payload = json.loads(out)
         self.assertEqual(payload["coreExecutableContract"]["source"], "core-public-contract")
-        self.assertEqual(payload["specWorkflowPolicy"]["source"], "proofsignal-spec")
+        self.assertEqual(payload["specWorkflowPolicy"]["source"], "verifysignal-spec")
         self.assertIn("gate-adequacy", {item["name"] for item in payload["specWorkflowPolicy"]["policies"]})
         self.assertNotIn("validActions", json.dumps(payload["specWorkflowPolicy"]))
         self.assertEqual(payload["coreExecutableContract"]["runtimeIdentity"], "[redacted]")

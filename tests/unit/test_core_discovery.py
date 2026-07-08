@@ -10,9 +10,9 @@ import pytest
 
 from helpers import FAKE_CORE
 
-from proofsignal_spec.workspace.repository import init_workspace, load_document
-from proofsignal_spec.workflows.core_setup import discover_candidates, run_core_setup, verify_candidate
-from proofsignal_spec.workflows.models import CORE_SETUP_SCHEMA, CoreCandidateAttempt, CoreSetupResult
+from verifysignal_spec.workspace.repository import init_workspace, load_document
+from verifysignal_spec.workflows.core_setup import discover_candidates, run_core_setup, verify_candidate
+from verifysignal_spec.workflows.models import CORE_SETUP_SCHEMA, CoreCandidateAttempt, CoreSetupResult
 
 
 def _write_executable(path: Path, content: str) -> None:
@@ -27,7 +27,7 @@ def _write_fake_core_script(path: Path, *, mode: str = "ok") -> None:
             [
                 f"#!{sys.executable}",
                 "import os, runpy, sys",
-                f"os.environ['FAKE_PROOFSIGNAL_MODE'] = {mode!r}",
+                f"os.environ['FAKE_VERIFYSIGNAL_MODE'] = {mode!r}",
                 f"sys.argv = [{str(FAKE_CORE)!r}, *sys.argv[1:]]",
                 f"runpy.run_path({str(FAKE_CORE)!r}, run_name='__main__')",
                 "",
@@ -42,7 +42,7 @@ def _write_dev_core_dir(path: Path, *, mode: str = "ok") -> None:
         json.dumps(
             {
                 "scripts": {
-                    "proofsignal:dev": f"FAKE_PROOFSIGNAL_MODE={mode} {FAKE_CORE}",
+                    "verifysignal:dev": f"FAKE_VERIFYSIGNAL_MODE={mode} {FAKE_CORE}",
                 }
             }
         ),
@@ -75,13 +75,13 @@ def test_core_setup_result_serializes_contract_fields() -> None:
     assert payload["status"] == "ready"
     assert payload["selectedCandidate"]["source"] == "env"
     assert payload["selectedCandidate"]["status"] == "compatible"
-    assert payload["requiredOperationsByName"]["report.inspect"]["schemaName"] == "proofsignal.report-inspection/v1"
+    assert payload["requiredOperationsByName"]["report.inspect"]["schemaName"] == "verifysignal.report-inspection/v1"
     assert payload["missingOperations"] == []
     assert payload["incompatibleOperations"] == []
 
 
 def test_verify_candidate_uses_core_adapter_and_directory_command_behavior(tmp_path: Path) -> None:
-    core_repo = tmp_path / "proofsignal"
+    core_repo = tmp_path / "verifysignal"
     _write_dev_core_dir(core_repo)
 
     attempt, compatibility = verify_candidate(tmp_path, source="ancestor-sibling", command=str(core_repo))
@@ -94,11 +94,11 @@ def test_verify_candidate_uses_core_adapter_and_directory_command_behavior(tmp_p
 
 
 def test_discovery_prefers_explicit_before_workspace_env_path_and_local_dev(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    init_workspace(tmp_path, core_cmd="workspace-proofsignal")
-    monkeypatch.setenv("PROOFSIGNAL_CORE_CMD", "env-proofsignal")
+    init_workspace(tmp_path, core_cmd="workspace-verifysignal")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", "env-verifysignal")
     path_bin = tmp_path / "bin"
     path_bin.mkdir()
-    _write_fake_core_script(path_bin / "proofsignal")
+    _write_fake_core_script(path_bin / "verifysignal")
     monkeypatch.setenv("PATH", f"{path_bin}{os.pathsep}{os.environ.get('PATH', '')}")
 
     candidates = discover_candidates(tmp_path, explicit_core_cmd=str(FAKE_CORE))
@@ -111,9 +111,9 @@ def test_path_candidate_can_be_selected_and_persisted(tmp_path: Path, monkeypatc
     init_workspace(tmp_path)
     path_bin = tmp_path / "bin"
     path_bin.mkdir()
-    core_path = path_bin / "proofsignal"
+    core_path = path_bin / "verifysignal"
     _write_fake_core_script(core_path)
-    monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
+    monkeypatch.delenv("VERIFYSIGNAL_CORE_CMD", raising=False)
     monkeypatch.setenv("PATH", f"{path_bin}{os.pathsep}{os.environ.get('PATH', '')}")
 
     result = run_core_setup(tmp_path)
@@ -122,7 +122,7 @@ def test_path_candidate_can_be_selected_and_persisted(tmp_path: Path, monkeypatc
     assert result.source == "path"
     assert result.coreCommand == str(core_path)
     assert result.persisted is True
-    workspace = load_document(tmp_path / ".proofsignal/workspace.yaml")
+    workspace = load_document(tmp_path / ".verifysignal/workspace.yaml")
     assert workspace["coreCommand"] == str(core_path)
     assert workspace["coreCommandSource"] == "path"
     assert workspace["coreVersion"] == "0.1.0"
@@ -132,7 +132,7 @@ def test_explicit_incompatible_candidate_is_terminal(tmp_path: Path, monkeypatch
     init_workspace(tmp_path)
     path_bin = tmp_path / "bin"
     path_bin.mkdir()
-    _write_fake_core_script(path_bin / "proofsignal", mode="ok")
+    _write_fake_core_script(path_bin / "verifysignal", mode="ok")
     bad_core = tmp_path / "bad-core"
     _write_fake_core_script(bad_core, mode="incompatible-run-schema")
     monkeypatch.setenv("PATH", f"{path_bin}{os.pathsep}{os.environ.get('PATH', '')}")
@@ -154,9 +154,9 @@ def test_path_incompatible_candidate_continues_to_ancestor_sibling(tmp_path: Pat
     init_workspace(project)
     path_bin = tmp_path / "bin"
     path_bin.mkdir()
-    _write_fake_core_script(path_bin / "proofsignal", mode="incompatible-run-schema")
-    _write_dev_core_dir(parent / "proofsignal", mode="ok")
-    monkeypatch.delenv("PROOFSIGNAL_CORE_CMD", raising=False)
+    _write_fake_core_script(path_bin / "verifysignal", mode="incompatible-run-schema")
+    _write_dev_core_dir(parent / "verifysignal", mode="ok")
+    monkeypatch.delenv("VERIFYSIGNAL_CORE_CMD", raising=False)
     monkeypatch.setenv("PATH", f"{path_bin}{os.pathsep}{os.environ.get('PATH', '')}")
 
     result = run_core_setup(project)

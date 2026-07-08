@@ -4,7 +4,7 @@ import json
 
 from helpers import CliTestCase
 from tests.integration.test_understanding_onboarding import representative_understanding_payload
-from proofsignal_spec.workflows.stage_persistence import persist_stage
+from verifysignal_spec.workflows.stage_persistence import persist_stage
 
 
 class UnderstandingOnboardingContractTests(CliTestCase):
@@ -19,8 +19,8 @@ class UnderstandingOnboardingContractTests(CliTestCase):
         self.assertEqual(data["recommendedAction"], "auto-prepare-understanding")
         self.assertEqual(data["onboardingPreparation"]["status"], "auto-preparable")
         self.assertFalse(data["onboardingPreparation"]["approvalRequired"])
-        self.assertIn("proofsignal-understand", data["onboardingPreparation"]["nextCommand"])
-        self.assertIn("proofsignal-specify", data["resumeCommand"])
+        self.assertIn("verifysignal-understand", data["onboardingPreparation"]["nextCommand"])
+        self.assertIn("verifysignal-specify", data["resumeCommand"])
         self.assertEqual(data["stageCards"][0]["statusMarker"], "[RUNNING]")
 
     def test_missing_understanding_guidance_has_single_resume_action(self) -> None:

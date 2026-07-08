@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from proofsignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
-from proofsignal_spec.workspace.repository import init_workspace, load_document, save_document, save_use_case
-from proofsignal_spec.workflows.models import ArtifactPlan
-from proofsignal_spec.workflows.repository import save_artifact_plan
+from verifysignal_spec.workspace.models import ArtifactReference, RuntimeInputRequirement, UseCaseRecord
+from verifysignal_spec.workspace.repository import init_workspace, load_document, save_document, save_use_case
+from verifysignal_spec.workflows.models import ArtifactPlan
+from verifysignal_spec.workflows.repository import save_artifact_plan
 
 
 PUBLIC_ALIAS = "home-page-unauth"
@@ -100,7 +100,7 @@ def inventory_with_public_and_branch_candidates() -> dict[str, Any]:
 
 def create_onboarding_product_context(project: Path, *, target: str = REAL_TARGET, inventory: dict[str, Any] | None = None) -> Path:
     init_workspace(project)
-    context = load_document(project / ".proofsignal/product-context.yaml", default={}) or {}
+    context = load_document(project / ".verifysignal/product-context.yaml", default={}) or {}
     context.update(
         {
             "repositorySummary": "Fixture app with a trivial public flow and a complex branch-relevant flow.",
@@ -116,9 +116,9 @@ def create_onboarding_product_context(project: Path, *, target: str = REAL_TARGE
         "gitAvailable": True,
         "inventoryStatus": context["coverageInventory"].get("status", "partial"),
     }
-    save_document(project / ".proofsignal/product-context.yaml", context)
-    (project / ".proofsignal/workflows").mkdir(parents=True, exist_ok=True)
-    (project / ".proofsignal/workflows/understanding.md").write_text("# Understanding\n", encoding="utf-8")
+    save_document(project / ".verifysignal/product-context.yaml", context)
+    (project / ".verifysignal/workflows").mkdir(parents=True, exist_ok=True)
+    (project / ".verifysignal/workflows/understanding.md").write_text("# Understanding\n", encoding="utf-8")
     return project
 
 
@@ -137,10 +137,10 @@ def create_onboarding_repository(
 
 
 def create_use_case(project: Path, alias: str, *, target: str = REAL_TARGET, credential: bool = False) -> None:
-    run_request = f".proofsignal/run-requests/{alias}.yaml"
-    skill = f".proofsignal/skills/{alias}.browser.md"
-    (project / ".proofsignal/run-requests").mkdir(parents=True, exist_ok=True)
-    (project / ".proofsignal/skills").mkdir(parents=True, exist_ok=True)
+    run_request = f".verifysignal/run-requests/{alias}.yaml"
+    skill = f".verifysignal/skills/{alias}.browser.md"
+    (project / ".verifysignal/run-requests").mkdir(parents=True, exist_ok=True)
+    (project / ".verifysignal/skills").mkdir(parents=True, exist_ok=True)
     (project / run_request).write_text(json.dumps({"parameters": {"baseUrl": target}}, indent=2), encoding="utf-8")
     (project / skill).write_text("# Browser skill\n\nValidate the fixture page.\n", encoding="utf-8")
     credential_groups = [{"name": "qa-user", "description": "Runtime-only credential reference"}] if credential else []
@@ -217,7 +217,7 @@ def assert_guidance_shape(guide: dict[str, Any]) -> None:
 
 
 def assert_no_secret_findings(data: dict[str, Any]) -> None:
-    from proofsignal_spec.workspace.validation import validate_no_secret_values
+    from verifysignal_spec.workspace.validation import validate_no_secret_values
 
     findings = validate_no_secret_values(data)
     assert findings == []
