@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import io
 import json
@@ -40,6 +41,78 @@ FIELD_RULINGS: dict[str, str] = {
     "signature": "allowlisted: the detached signature over releaseMetadataBytes, verified against the "
     "trusted release keys. Its own wrapper fields are attacker-mutable by design.",
 }
+
+
+# THE OTHER HALF OF THE SAME CLASS. The table above rules every field the untrusted SERVER sends.
+# This one rules every field CORE SIGNS — because a signed field that no consumer compares is inert:
+# the signature then proves only that some document was signed, not that this install matches it.
+#
+# Enumerated from the real Core-signed golden, so a field Core starts signing shows up here with no
+# ruling and fails, rather than being quietly ignored for a release cycle.
+METADATA_RULINGS: dict[str, str] = {
+    "schema": "bound",  # verify_release_authenticity refuses anything that is not a runtime-release/v1
+    "coreVersion": "bound",  # vs entry.coreVersion
+    "publicContractVersion": "bound",  # vs entry.contractVersion
+    "packages[].sha256": "bound",  # vs entry.sha256, both required 64-hex
+    "packages[].filename": "bound",  # vs entry.artifactName
+    "packages[].platform": "bound",  # selects WHICH signed package the bindings above compare against
+    "schemaVersion": "allowlisted: `schema` already pins the document kind; the version is advisory "
+    "and Core has never emitted anything but 1. Bind it the moment a v2 exists.",
+    "releaseId": "allowlisted: a display label. coreVersion is the identity the install binds.",
+    "generatedAt": "allowlisted: provenance metadata. Nothing schedules or expires on it, and binding "
+    "a timestamp would make a signed release expire for reasons the signature cannot express.",
+    "signing": "allowlisted: describes the signature we ALREADY verified to get here — mode, algorithm "
+    "and keyId. Trusting it to decide how to verify would be circular.",
+    "contractExamples": "allowlisted: documentation pointers into the Core repo. Not consulted by the "
+    "installer, and they name paths that do not exist in an installed runtime.",
+    "packages[].packageId": "allowlisted: derived from coreVersion+platform, both of which are bound.",
+    "packages[].coreVersion": "allowlisted: duplicates the top-level coreVersion, which is bound.",
+    "packages[].publicContractVersion": "allowlisted: duplicates the top-level one, which is bound.",
+    "packages[].byteSize": "allowlisted: sha256 binds the bytes far more tightly than their count — a "
+    "size match cannot make a wrong archive right, and a size mismatch cannot make a right one wrong.",
+    "packages[].executable": "allowlisted: the installer reads the executable path from the extracted "
+    "manifest.json, whose own bytes are bound by packages[].manifestSha256.",
+    "packages[].manifestSha256": "allowlisted: the archive sha256 already covers the manifest inside it.",
+    "packages[].signingKeyId": "allowlisted: duplicates the detached signature's keyId, which is the one "
+    "actually used to verify. Reading it from the payload to choose a key would be circular.",
+    "channel": "allowlisted: there is nothing to bind it TO. The installer has no channel expectation "
+    "to be incompatible with — it installs the coreVersion it was asked for, and WHICH channels are "
+    "discoverable is decided server-side by findLatestRuntimeRelease. Trust comes from the KEY: a "
+    "dev-channel artifact is signed by the test key, which trusted_release_keys() admits only under "
+    "VERIFYSIGNAL_ALLOW_TEST_RELEASE_KEYS=1. Bind this the day the installer takes a --channel.",
+    "issuer": "allowlisted: release trust is keyId-based, so a field inside the payload cannot add to "
+    "it — a forged issuer alongside a valid signature proves the key, not the claim. (The ENTITLEMENT "
+    "issuer is a different domain and IS bound, in the receipt verifier.)",
+}
+
+
+def _signed_metadata_fields() -> set[str]:
+    """Every field the REAL Core-signed golden carries, top-level and per package entry."""
+    golden = json.loads(Path("tests/fixtures/cross_repo_release_golden.json").read_text(encoding="utf-8"))
+    metadata = json.loads(base64.b64decode(golden["releaseMetadataBytes"]).decode("utf-8"))
+    fields = {key for key in metadata if key != "packages"}
+    for package in metadata["packages"]:
+        fields |= {f"packages[].{key}" for key in package}
+    return fields
+
+
+def test_every_signed_metadata_field_carries_a_binding_ruling() -> None:
+    fields = _signed_metadata_fields()
+
+    # Guard the guard. The golden was hand-built until this round and omitted byteSize entirely, so a
+    # ruling table built against it described a document Core does not emit. If this enumerator ever
+    # reads a stub again, the subset check below becomes a rubber stamp.
+    assert fields >= {"schema", "coreVersion", "channel", "issuer", "packages[].sha256", "packages[].byteSize"}, (
+        f"the signed-metadata enumerator found {sorted(fields)} — the golden is not a real Core "
+        f"artifact, so this ratchet would pass vacuously. Regenerate it with "
+        f"scripts/tools/emit-release-golden.mjs in the Core repo."
+    )
+
+    unruled = fields - set(METADATA_RULINGS)
+    assert unruled == set(), (
+        f"signed metadata fields with no binding ruling: {sorted(unruled)}. Core signs them, so either "
+        f"bind them at install, or allowlist them with the reason they cannot influence anything."
+    )
 
 
 def _installer_entry_fields() -> set[str]:
