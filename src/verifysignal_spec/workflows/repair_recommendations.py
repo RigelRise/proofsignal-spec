@@ -5,6 +5,20 @@ from .models import GateCoverageResult, PlannedValidationGate, RepairRecommendat
 from .repair_classification import classify_runtime_feedback
 
 
+# SINGLE SOURCE OF TRUTH for "can this category actually be applied automatically?".
+# `commands.repair._apply_safe_artifact_repair` dispatches its real on-disk mutator off this SAME set,
+# so a category can never be LABELED `auto-applied` without a mutator existing, and adding a future
+# mutator flips its label automatically — the label and the mechanism cannot drift apart.
+# (Bug this closes: selector-ambiguity/wait-strategy/run-profile-defaults were labeled `auto-applied`
+# while their mutator returns None — claiming an automation that does not exist.)
+MUTABLE_SAFE_CATEGORIES = frozenset({"main-skill-ordering"})
+
+
+def safe_repair_autonomy(safe_category: str) -> str:
+    """Autonomy describes the available MECHANISM, not an aspiration."""
+    return "auto-applied" if safe_category in MUTABLE_SAFE_CATEGORIES else "propose-only"
+
+
 _RERUN_RESTRICTIVENESS = {
     "allowed": 0,
     "allowed-with-new-inputs": 1,
@@ -107,6 +121,9 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
 
         classified = classify_runtime_feedback(finding)
         if classified.category == "wait-flow-issue":
+            # One local for both the prose and the field: they are rendered from the same value, so
+            # they cannot drift the way the old hand-written sentence did.
+            autonomy = safe_repair_autonomy("wait-strategy")
             recommendations.append(
                 RepairRecommendation(
                     id=f"repair-{index}-wait-strategy",
@@ -114,17 +131,18 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     runtimeCategory=classified.category,
                     safeCategory="wait-strategy",
                     summary=classified.summary,
-                    action=_safe_action("wait-strategy"),
+                    action=_safe_action("wait-strategy", autonomy),
                     affectedArtifacts=affected,
                     requiresUserDecision=False,
                     sourceFeedback=[*source_feedback, *classified.evidence],
-                    autonomy="auto-applied",
+                    autonomy=autonomy,
                     safeMechanical=True,
                     intentPreserved=True,
                 )
             )
             continue
         if classified.category == "selector-issue":
+            autonomy = safe_repair_autonomy("selector-ambiguity")
             recommendations.append(
                 RepairRecommendation(
                     id=f"repair-{index}-selector-ambiguity",
@@ -132,11 +150,11 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     runtimeCategory=classified.category,
                     safeCategory="selector-ambiguity",
                     summary=classified.summary,
-                    action=_safe_action("selector-ambiguity"),
+                    action=_safe_action("selector-ambiguity", autonomy),
                     affectedArtifacts=affected,
                     requiresUserDecision=False,
                     sourceFeedback=[*source_feedback, *classified.evidence],
-                    autonomy="auto-applied",
+                    autonomy=autonomy,
                     safeMechanical=True,
                     intentPreserved=True,
                 )
@@ -150,7 +168,9 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     runtimeCategory=classified.category,
                     safeCategory="gateid-mapping",
                     summary=classified.summary,
-                    action=_safe_action("gateid-mapping"),
+                    # Not derived from safe_repair_autonomy: coverage mapping can alter validation
+                    # intent, so it is confirmation-gated regardless of any mutator.
+                    action=_safe_action("gateid-mapping", "confirmation-required"),
                     affectedArtifacts=affected,
                     blockedReason=_confirmation_reason("gateid-mapping"),
                     requiresUserDecision=True,
@@ -162,6 +182,7 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
             )
             continue
         if classified.category == "execution-boundary-issue":
+            autonomy = safe_repair_autonomy("main-skill-ordering")
             recommendations.append(
                 RepairRecommendation(
                     id=f"repair-{index}-skill-execution-boundary",
@@ -169,11 +190,13 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     runtimeCategory=classified.category,
                     safeCategory="main-skill-ordering",
                     summary=classified.summary,
-                    action="Compose required helper behavior into the main skill or reclassify helper skills as source-only metadata; do not weaken required gates.",
+                    # This used to be a literal, divergent from _safe_action's own main-skill-ordering
+                    # entry — one category, two different sentences, the dict's one unreachable.
+                    action=_safe_action("main-skill-ordering", autonomy),
                     affectedArtifacts=affected,
                     requiresUserDecision=False,
                     sourceFeedback=[*source_feedback, *classified.evidence],
-                    autonomy="auto-applied",
+                    autonomy=autonomy,
                     safeMechanical=True,
                     intentPreserved=True,
                 )
@@ -219,6 +242,7 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
         safe_category = _safe_category(text)
         if safe_category:
             requires_confirmation = safe_category in {"gateid-mapping"}
+            autonomy = "confirmation-required" if requires_confirmation else safe_repair_autonomy(safe_category)
             recommendations.append(
                 RepairRecommendation(
                     id=f"repair-{index}-{safe_category}",
@@ -226,12 +250,12 @@ def classify_repair_findings(findings: list[dict[str, object]]) -> list[RepairRe
                     runtimeCategory=classified.category if classified.category != "unsupported-feedback" else None,
                     safeCategory=safe_category,  # type: ignore[arg-type]
                     summary=message or f"Runtime feedback indicates {safe_category}.",
-                    action=_safe_action(safe_category),
+                    action=_safe_action(safe_category, autonomy),
                     affectedArtifacts=affected,
                     blockedReason=_confirmation_reason(safe_category) if requires_confirmation else None,
                     requiresUserDecision=requires_confirmation,
                     sourceFeedback=source_feedback,
-                    autonomy="confirmation-required" if requires_confirmation else "auto-applied",
+                    autonomy=autonomy,
                     safeMechanical=not requires_confirmation,
                     intentPreserved=not requires_confirmation,
                 )
@@ -313,15 +337,35 @@ def _write_rerun_risk(finding: dict[str, object], text: str) -> str | None:
     return None
 
 
-def _safe_action(safe_category: str) -> str:
-    actions = {
-        "selector-ambiguity": "Auto-apply a stable selector specificity fix that preserves the same product behavior, then revalidate and rerun.",
-        "wait-strategy": "Auto-apply a wait strategy adjustment that waits for rendered evidence, then revalidate and rerun.",
-        "main-skill-ordering": "Pass and persist the planned main skill before helper skills.",
-        "run-profile-defaults": "Apply observable debug/browser profile defaults without overriding user-specified pacing.",
-        "gateid-mapping": "Ask for confirmation before changing coverage mapping, then map existing rendered-result evidence to the planned gateId if confirmed.",
-    }
-    return actions.get(safe_category, "Apply the safe mechanical repair and revalidate.")
+# WHAT each repair changes — the noun phrase only. The VERB ("auto-apply" vs "propose") is derived
+# from the autonomy the recommendation actually ships with, never written here. This split is the fix:
+# these two used to be one hand-written sentence per category, and selector-ambiguity/wait-strategy
+# opened with "Auto-apply" while their autonomy said `propose-only` — set on the ADJACENT line at the
+# call site. main-skill-ordering, the only category with a mutator, promised nothing at all.
+_SAFE_REPAIR_BODY = {
+    "selector-ambiguity": "a stable selector specificity fix that preserves the same product behavior",
+    "wait-strategy": "a wait strategy adjustment that waits for rendered evidence",
+    "main-skill-ordering": (
+        "composition of required helper behavior into the main skill (or reclassification of helper "
+        "skills as source-only metadata) that does not weaken required gates"
+    ),
+    "run-profile-defaults": "observable debug/browser profile defaults that do not override user-specified pacing",
+    "gateid-mapping": "a mapping from existing rendered-result evidence to the planned gateId",
+}
+
+
+def _safe_action(safe_category: str, autonomy: str) -> str:
+    """Render the action prose FROM the autonomy the caller is about to ship, so the sentence and the
+    field cannot contradict each other. Callers must pass the same value they set on ``autonomy``."""
+    body = _SAFE_REPAIR_BODY.get(safe_category, "the safe mechanical repair")
+    if autonomy == "auto-applied":
+        return f"Auto-apply {body}, then revalidate and rerun."
+    if autonomy == "confirmation-required":
+        return f"Ask for confirmation before applying {body}; apply it only if confirmed, then revalidate and rerun."
+    if autonomy == "blocked":
+        return f"Do not apply {body} until the blocking condition is resolved."
+    # propose-only: there is no mutator, so say so plainly rather than implying the fix lands itself.
+    return f"Propose {body} for the developer to apply — VerifySignal will not edit the artifact — then revalidate and rerun."
 
 
 def _confirmation_reason(safe_category: str) -> str:

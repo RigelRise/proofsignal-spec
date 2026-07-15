@@ -6,7 +6,8 @@ generated guidance.
 
 ## Persistent Installation
 
-Install a tagged release:
+Install a tagged release (replace `vX.Y.Z` with a real tag — the `@vX.Y.Z` forms below only resolve
+once a release has been tagged on the repository; until then use the default-branch form):
 
 ```sh
 uv tool install verifysignal-spec --from git+https://github.com/RigelRise/verifysignal-spec.git@vX.Y.Z
@@ -123,8 +124,8 @@ receipt through `https://verifysignal.io/api`, requests authorized runtime
 metadata/download from the backend, verifies the package, and stores the runtime
 in the user cache. The backend owns email delivery, token expiry, exchange
 limits, refresh policy, throttling, receipt signing, and runtime download
-authorization. The current public/free token policy allows up to 3 exchanges,
-at most 3 exchanges per hour, with a 30-day default token TTL. The target
+authorization. The current public/free token policy allows 1 exchange,
+at most 1 exchange per hour, with a 30-day default token TTL. The target
 project's `.verifysignal/` workspace stays portable and does not store raw
 emails, raw tokens, receipt payloads, signed URLs, credentials, screenshots,
 browser storage, or private runtime contents.

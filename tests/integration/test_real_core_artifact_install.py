@@ -22,6 +22,8 @@ from verifysignal_spec.core.adapter import CoreAdapter
 from verifysignal_spec.core.contracts import PUBLIC_CONTRACT_VERSION
 from verifysignal_spec.runtime.distribution import install_from_manifest, normalize_platform
 
+from tests.fixtures.release_signing import signed_manifest_entry
+
 
 def _discover_real_artifact() -> Path | None:
     override = os.environ.get("VERIFYSIGNAL_REAL_CORE_ARTIFACT")
@@ -61,16 +63,18 @@ def test_real_core_artifact_installs_and_serves_the_public_contract(
     assert REAL_ARTIFACT is not None
     monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
     platform = normalize_platform()
+    assert platform is not None
     core_version = _artifact_version(REAL_ARTIFACT)
-    entry = {
-        "coreVersion": core_version,
-        "contractVersion": PUBLIC_CONTRACT_VERSION,
-        "platform": platform,
-        "artifactName": REAL_ARTIFACT.name,
-        "url": REAL_ARTIFACT.as_uri(),
-        "sha256": hashlib.sha256(REAL_ARTIFACT.read_bytes()).hexdigest(),
-        "signature": {"algorithm": "ed25519", "keyId": "local-real-artifact", "value": "local"},
-    }
+    # Sign the real artifact's release metadata with the TEST release key so the managed
+    # installer verifies a genuine detached Ed25519 signature over the real archive sha256.
+    entry = signed_manifest_entry(
+        platform=platform,
+        sha256=hashlib.sha256(REAL_ARTIFACT.read_bytes()).hexdigest(),
+        contract=PUBLIC_CONTRACT_VERSION,
+        coreVersion=core_version,
+        artifactName=REAL_ARTIFACT.name,
+        url=REAL_ARTIFACT.as_uri(),
+    )
 
     command, blocker = install_from_manifest(entry)
 

@@ -31,7 +31,7 @@ def test_weakened_gate_repairs_are_replan_required() -> None:
     assert all(item.blockedReason for item in recommendations)
 
 
-def test_selector_and_wait_auto_apply_but_coverage_mapping_requires_confirmation() -> None:
+def test_selector_and_wait_are_propose_only_and_coverage_mapping_requires_confirmation() -> None:
     recommendations = classify_repair_findings(
         [
             {"code": "strict-mode-violation", "message": "locator resolved to multiple elements"},
@@ -42,7 +42,9 @@ def test_selector_and_wait_auto_apply_but_coverage_mapping_requires_confirmation
 
     assert [item.safeCategory for item in recommendations] == ["selector-ambiguity", "wait-strategy", "gateid-mapping"]
     assert [item.requiresUserDecision for item in recommendations] == [False, False, True]
-    assert [item.autonomy for item in recommendations] == ["auto-applied", "auto-applied", "confirmation-required"]
+    # selector-ambiguity/wait-strategy have no on-disk mutator (they need live page/DOM context), so
+    # they are `propose-only` — labeling them auto-applied claimed automation that does not exist.
+    assert [item.autonomy for item in recommendations] == ["propose-only", "propose-only", "confirmation-required"]
     assert recommendations[-1].blockedReason
 
 

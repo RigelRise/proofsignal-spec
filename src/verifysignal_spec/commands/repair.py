@@ -4,11 +4,16 @@ from pathlib import Path
 from typing import Any
 
 from verifysignal_spec.core.adapter import CoreAdapter
+from verifysignal_spec.integrations.manifests import sha256_text
 from verifysignal_spec.runtime.entitlement import load_receipt, receipt_status
 from verifysignal_spec.runtime.resolver import ensure_core_runtime
 from verifysignal_spec.workflows.first_run import advance_guided_first_run_state
 from verifysignal_spec.workflows.models import RepairConfirmation, RepairFeedback, SafeRepairApplication
-from verifysignal_spec.workflows.repair_recommendations import classify_repair_findings, proposals_from_contradictions
+from verifysignal_spec.workflows.repair_recommendations import (
+    MUTABLE_SAFE_CATEGORIES,
+    classify_repair_findings,
+    proposals_from_contradictions,
+)
 from verifysignal_spec.workflows.repository import load_golden_path_state, save_golden_path_state
 from verifysignal_spec.workflows.stage_cards import repair_stage_card
 from verifysignal_spec.workspace import layout
@@ -109,13 +114,39 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
         if item.category in {"clarification-required", "replan-required", "unsupported"}
         or item.requiresUserDecision
     ]
+    # Attempt the actual artifact mutation for each auto-applicable safe repair. A repair is
+    # reported as `applied` ONLY when a deterministic re-render produced a verified byte
+    # change (proven by before/after SHA-256); otherwise it is `proposed` — the described
+    # fix must still be applied by the caller. This closes the P0 where repair claimed
+    # `applied` without ever changing an artifact.
+    # The mutation actually writes the artifact, so it requires explicit --approve. Without it an
+    # auto-applicable safe repair stays `proposed` (exit 4): the caller must approve before repair
+    # rewrites a run-request/skill on disk. (P0: an un-approved repair silently rewrote artifacts.)
+    mutations: dict[str, dict[str, Any]] = {}
+    if not blocked and approve:
+        for item in auto_applicable:
+            mutation = _apply_safe_artifact_repair(project, record, item)
+            if mutation:
+                mutations[item.id] = mutation
+    any_applied = bool(mutations)
+    revalidation = _revalidate_after_mutation(project, alias, core_cmd, api_base_url) if any_applied else None
+    applied_validation_status = revalidation.get("status", "not-run") if revalidation else "not-run"
+    # Success is a POSITIVE predicate: only a revalidation that actually PASSED proves the mutation
+    # closed the gap. Every other outcome is non-success BY CONSTRUCTION — including "not-run", which
+    # is what _revalidate_after_mutation returns when it swallows a CRASH. The previous
+    # `== "failed"` check enumerated failure instead, so a crash (and any future status) fell through
+    # to a clean `applied`/remainingGaps:[]/exit-0 — the same fail-open class it was meant to seal.
+    revalidation_succeeded = bool(revalidation and revalidation.get("status") == "passed")
+    revalidation_failed = bool(revalidation and revalidation.get("status") == "failed")
     applications = [
         SafeRepairApplication(
             recommendationId=item.id,
-            applied=item in auto_applicable and not blocked,
-            changedArtifacts=item.affectedArtifacts,
-            validationStatus="not-run",
-            remainingGaps=[] if item in auto_applicable and not blocked else [item.id],
+            applied=item.id in mutations,
+            changedArtifacts=mutations[item.id]["changed"] if item.id in mutations else [],
+            validationStatus=applied_validation_status if item.id in mutations else "not-run",
+            beforeSha256=mutations[item.id]["before"] if item.id in mutations else None,
+            afterSha256=mutations[item.id]["after"] if item.id in mutations else None,
+            remainingGaps=[] if (item.id in mutations and revalidation_succeeded) else [item.id],
         ).to_dict()
         for item in recommendations
         if item.category == "safe-artifact-repair"
@@ -160,7 +191,9 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
             next_action=f"Run `verifysignal validate {alias} --runtime-readiness --json`, then rerun.",
         )
         for item in recommendations
-        if item.autonomy == "auto-applied"
+        # `propose-only` still gets a card (the fix is real and worth showing) — but the card's own
+        # summary renders "<category> repair is propose-only", so it describes rather than claims done.
+        if item.autonomy in {"auto-applied", "propose-only"}
     ]
     session = RepairSession(
         repairId=f"{alias}-{now_iso().replace(':', '').replace('-', '')}",
@@ -173,16 +206,35 @@ def run(project: Path, alias: str, from_report: str | None = None, approve: bool
         applications=applications,
         repairFeedback=repair_feedback,
         stageCards=stage_cards,
-        approvalStatus="applied" if auto_applicable and not blocked else ("conflict" if approve and blocked else ("approved" if approve else "pending")),
+        approvalStatus=(
+            "revalidation-failed"
+            if any_applied and revalidation_failed
+            # Applied, but revalidation could not run (crash → "not-run") — we cannot claim the gap
+            # closed, so report it honestly rather than as a clean `applied`.
+            else "revalidation-unavailable"
+            if any_applied and not revalidation_succeeded
+            else "applied"
+            if any_applied
+            else "conflict"
+            if approve and blocked
+            else "proposed"
+            if auto_applicable and not blocked
+            else "approved"
+            if approve
+            else "pending"
+        ),
         nextAction=f"Run `verifysignal validate {alias} --runtime-readiness --json`, then rerun.",
     )
-    if auto_applicable and not blocked:
+    if any_applied:
         session.appliedAt = now_iso()
+        session.revalidation = revalidation
+        session.readyForRun = False
+    elif auto_applicable and not blocked:
+        session.readyForRun = False
         session.revalidation = {
             "status": "not-run",
-            "message": "Safe mechanical repair was auto-applied; revalidation and rerun are required before reporting success.",
+            "message": "Safe mechanical repair could not be applied deterministically; apply the described change, then revalidate and rerun.",
         }
-        session.readyForRun = False
     elif blocked:
         session.readyForRun = False
         session.revalidation = {
@@ -240,3 +292,87 @@ def _valid_receipt_path() -> str | None:
         return None
     status = receipt_status(receipt)
     return status.receiptPath if status.status == "valid" else None
+
+
+def _apply_safe_artifact_repair(project: Path, record: Any, recommendation: Any) -> dict[str, Any] | None:
+    """Deterministically apply a safe-artifact-repair, returning the before/after SHA-256 of
+    every artifact whose bytes changed, or None when no verified mutation was produced (the fix
+    is then reported as ``proposed``).
+
+    ``main-skill-ordering`` is a run-request *ordering* fix: the planned main skill must lead the
+    executable skill list. The fix SURGICALLY reorders only the on-disk run-request's ``skills``
+    array, preserving the exact skill set and every other authored field (``parameters`` values,
+    ``mainSkill``, ``target``, ``validationScope``, ``schemaVersion``, ...). It does NOT
+    regenerate the run-request from the record — the ``UseCaseRecord`` does not hold authored
+    parameter VALUES (e.g. ``baseUrl``), so a from-scratch re-render would wipe them (the same
+    data-loss class this repair must avoid). Skill ``.browser.md`` bodies are likewise never
+    rewritten (they carry authored ``targets``/``steps``/``assertions``/``gateId`` the record
+    does not hold). ``selector-ambiguity``/``wait-strategy`` need live page/DOM context and
+    ``run-profile-defaults`` does not render into an artifact, so those return None.
+    """
+    # Dispatch off the SAME set that drives the `auto-applied` label (see MUTABLE_SAFE_CATEGORIES), so a
+    # category can never be labeled auto-applied without a real mutator here, and vice versa.
+    if recommendation.safeCategory not in MUTABLE_SAFE_CATEGORIES:
+        return None
+    if not record.mainSkill or not (record.runRequest and record.runRequest.generated):
+        return None
+    path = record.runRequest.path
+    run_path = layout.project_relative_path(project, path)
+    if not run_path.exists():
+        return None
+    before_text = run_path.read_text(encoding="utf-8")
+    # Parse as JSON — the canonical generated run-request format. A run-request that is not JSON
+    # (e.g. a hand-authored YAML file) is left untouched (reported `proposed`) rather than risking
+    # a lossy or crashing round-trip. Parsing as JSON also guarantees only JSON-serializable
+    # types, so the re-serialization below can never raise on a YAML-native scalar (e.g. a date).
+    import json
+
+    try:
+        parsed = json.loads(before_text)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("skills"), list):
+        return None
+    main_id = record.mainSkill.id
+    if not main_id:
+        return None  # No stable identity to reorder against — an id-less ref must not match None.
+    skills = parsed["skills"]
+    main_refs = [ref for ref in skills if isinstance(ref, dict) and ref.get("id") == main_id]
+    if not main_refs:
+        # The main skill is not an executable participant here; there is no safe, lossless
+        # ordering edit to make (removing/adding executable skills is not mechanical). Propose.
+        return None
+    others = [ref for ref in skills if not (isinstance(ref, dict) and ref.get("id") == main_id)]
+    reordered = [*main_refs, *others]
+    if reordered == skills:
+        return None  # Already main-first — nothing to reorder.
+    parsed["skills"] = reordered
+    after_text = json.dumps(parsed, indent=2, ensure_ascii=False) + "\n"
+    if after_text == before_text:
+        return None
+    before = sha256_text(before_text)
+    run_path.write_text(after_text, encoding="utf-8")
+    after = sha256_text(after_text)
+    return {"changed": [path], "before": {path: before}, "after": {path: after}}
+
+
+def _revalidate_after_mutation(project: Path, alias: str, core_cmd: str | None, api_base_url: str | None) -> dict[str, str]:
+    from verifysignal_spec.commands import validate as validate_command
+
+    try:
+        result = validate_command.run(project, alias, core_cmd=core_cmd, api_base_url=api_base_url)
+    except Exception as error:  # noqa: BLE001 - revalidation must never crash repair reporting
+        return {"status": "not-run", "message": f"Revalidation could not run after the applied mutation: {error}."}
+    core_status = str(result.get("status") or "")
+    status = (
+        "passed"
+        if core_status in {"ready", "passed"}
+        else "failed"
+        if core_status in {"blocked", "failed", "error"}
+        else "not-run"
+    )
+    return {
+        "status": status,
+        "coreStatus": core_status or "unknown",
+        "message": "Revalidation ran after the applied artifact mutation; rerun is still required before reporting success.",
+    }

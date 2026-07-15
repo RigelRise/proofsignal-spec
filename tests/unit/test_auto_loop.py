@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from verifysignal_spec.core.adapter import CoreAdapter
-from verifysignal_spec.core.contracts import core_supports_discover
+from verifysignal_spec.core.contracts import core_supports_crystallize, core_supports_discover
 from verifysignal_spec.integrations.base import WORKFLOW_COMMANDS, render_workflow_skill_files
 from verifysignal_spec.workflows.models import WORKFLOW_STAGES
 from verifysignal_spec.workflows.stage_persistence import PERSISTABLE_STAGES
@@ -42,6 +42,46 @@ class AutoLoopAdapterTests(unittest.TestCase):
         args, _ = adapter.calls[-1]
         self.assertIn("--headed", args)
 
+    def test_crystallize_builds_expected_argv(self) -> None:
+        adapter = _CapturingAdapter()
+        adapter.crystallize(run_dir=Path(".verifysignal/runs/login/fake-run-1"))
+        args, _ = adapter.calls[-1]
+        self.assertEqual(args, ["crystallize", ".verifysignal/runs/login/fake-run-1", "--json"])
+
+    def test_crystallize_passes_out_dir(self) -> None:
+        adapter = _CapturingAdapter()
+        adapter.crystallize(run_dir=Path("run"), out=Path("fixtures/out"))
+        args, _ = adapter.calls[-1]
+        self.assertEqual(args, ["crystallize", "run", "--out", "fixtures/out", "--json"])
+
+    def test_run_passes_record_and_replay_flags(self) -> None:
+        adapter = _CapturingAdapter()
+        adapter.run(
+            run_request=Path("req.yaml"),
+            main_skill=Path("main.browser.md"),
+            skills=[Path("main.browser.md")],
+            record=True,
+            replay=Path("fixtures/login"),
+        )
+        args, _ = adapter.calls[-1]
+        self.assertIn("--record", args)
+        self.assertEqual(args[args.index("--replay") + 1], "fixtures/login")
+        # additive flags land before the trailing --json sentinel
+        self.assertEqual(args[-1], "--json")
+        self.assertLess(args.index("--record"), args.index("--json"))
+        self.assertLess(args.index("--replay"), args.index("--json"))
+
+    def test_run_omits_record_and_replay_by_default(self) -> None:
+        adapter = _CapturingAdapter()
+        adapter.run(
+            run_request=Path("req.yaml"),
+            main_skill=Path("main.browser.md"),
+            skills=[Path("main.browser.md")],
+        )
+        args, _ = adapter.calls[-1]
+        self.assertNotIn("--record", args)
+        self.assertNotIn("--replay", args)
+
 
 class CoreSupportsDiscoverTests(unittest.TestCase):
     def test_true_when_discover_advertised(self) -> None:
@@ -64,6 +104,29 @@ class CoreSupportsDiscoverTests(unittest.TestCase):
     def test_false_on_malformed(self) -> None:
         self.assertFalse(core_supports_discover({}))
         self.assertFalse(core_supports_discover({"data": {"operations": "nope"}}))
+
+
+class CoreSupportsCrystallizeTests(unittest.TestCase):
+    def test_true_when_crystallize_advertised(self) -> None:
+        response = _version_response(
+            [
+                {"name": "run", "schema": "verifysignal.run/v1"},
+                {"name": "crystallize", "schema": "verifysignal.crystallize/v1", "status": "experimental"},
+            ]
+        )
+        self.assertTrue(core_supports_crystallize(response))
+
+    def test_false_when_absent(self) -> None:
+        response = _version_response([{"name": "run", "schema": "verifysignal.run/v1"}])
+        self.assertFalse(core_supports_crystallize(response))
+
+    def test_false_on_wrong_schema(self) -> None:
+        response = _version_response([{"name": "crystallize", "schema": "verifysignal.crystallize/v2"}])
+        self.assertFalse(core_supports_crystallize(response))
+
+    def test_false_on_malformed(self) -> None:
+        self.assertFalse(core_supports_crystallize({}))
+        self.assertFalse(core_supports_crystallize({"data": {"operations": "nope"}}))
 
 
 class AutoCommandRegistrationTests(unittest.TestCase):

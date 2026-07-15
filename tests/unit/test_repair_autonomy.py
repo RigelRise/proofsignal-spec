@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from verifysignal_spec.workflows.repair_recommendations import classify_repair_findings
+from verifysignal_spec.workflows.repair_recommendations import MUTABLE_SAFE_CATEGORIES, classify_repair_findings
 
 
-def test_safe_mechanical_repairs_are_auto_applicable_when_intent_preserved() -> None:
+def test_safe_mechanical_repair_autonomy_matches_the_available_mutator() -> None:
+    # RATCHET: `autonomy` must describe the MECHANISM that exists, not an aspiration. Only
+    # main-skill-ordering has a real on-disk mutator (_apply_safe_artifact_repair); the rest need live
+    # page/DOM context or render into no artifact, so they are `propose-only` — described, not applied.
+    # (Bug: all four were labeled `auto-applied` while three could never apply anything, which drove an
+    # "after" and a stage card reading as if the fix had landed.)
     recommendations = classify_repair_findings(
         [
             {"code": "wait-timeout", "message": "Step timed out waiting for a rendered slider."},
@@ -20,7 +25,16 @@ def test_safe_mechanical_repairs_are_auto_applicable_when_intent_preserved() -> 
         "run-profile-defaults",
     }
     assert all(item.safeMechanical for item in recommendations)
-    assert all(item.autonomy == "auto-applied" for item in recommendations)
+    assert {item.safeCategory: item.autonomy for item in recommendations} == {
+        "main-skill-ordering": "auto-applied",
+        "wait-strategy": "propose-only",
+        "selector-ambiguity": "propose-only",
+        "run-profile-defaults": "propose-only",
+    }
+    # The invariant itself, so a NEW category can never be labeled auto-applied without a mutator (and
+    # adding a mutator flips its label automatically — the two cannot drift apart).
+    for item in recommendations:
+        assert (item.autonomy == "auto-applied") == (item.safeCategory in MUTABLE_SAFE_CATEGORIES)
     assert not any(item.requiresUserDecision for item in recommendations)
 
 

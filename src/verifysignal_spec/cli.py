@@ -10,6 +10,8 @@ from . import __version__
 from .commands import author as author_command
 from .commands import check as check_command
 from .commands import core_setup as core_setup_command
+from .commands import crystallize as crystallize_command
+from .commands import discover as discover_command
 from .commands import init as init_command
 from .commands import integration as integration_command
 from .commands import list as list_command
@@ -72,6 +74,8 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     run_parser.add_argument("--project", default=".")
     run_parser.add_argument("--profile", default="normal")
     run_parser.add_argument("--slow-mo", dest="slow_mo", type=int, help="Override browser slow motion in milliseconds for this run")
+    run_parser.add_argument("--record", action="store_true", help="Record this run's network activity so it can be crystallized into a fixture")
+    run_parser.add_argument("--replay", help="Replay this run against a crystallized fixture instead of the live target")
     run_parser.add_argument("--core-cmd", help="Override configured VerifySignal Core command")
     run_parser.add_argument("--api-base-url", help="Override the VerifySignal entitlement API base URL for staging, local development, or tests")
     run_parser.add_argument("--json", action="store_true")
@@ -92,7 +96,16 @@ def create_parser(prog: str | None = None) -> argparse.ArgumentParser:
     discover_parser.add_argument("--skill", required=True, help="Drafted browser skill Markdown path")
     discover_parser.add_argument("--project", default=".")
     discover_parser.add_argument("--core-cmd", help="Override configured VerifySignal Core command")
+    discover_parser.add_argument("--api-base-url", help="Override the VerifySignal entitlement API base URL for staging, local development, or tests")
     discover_parser.add_argument("--json", action="store_true")
+
+    crystallize_parser = subparsers.add_parser("crystallize", help="Crystallize a completed run into a reusable fixture via Core")
+    crystallize_parser.add_argument("run_dir", help="Completed run directory to crystallize")
+    crystallize_parser.add_argument("--out", help="Fixture output directory")
+    crystallize_parser.add_argument("--project", default=".")
+    crystallize_parser.add_argument("--core-cmd", help="Override configured VerifySignal Core command")
+    crystallize_parser.add_argument("--api-base-url", help="Override the VerifySignal entitlement API base URL for staging, local development, or tests")
+    crystallize_parser.add_argument("--json", action="store_true")
 
     core_parser = subparsers.add_parser("core", help="Inspect configured VerifySignal Core")
     core_sub = core_parser.add_subparsers(dest="core_command", required=True)
@@ -279,16 +292,27 @@ def dispatch(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
             api_base_url=args.api_base_url,
             slow_mo_override=args.slow_mo,
             confirmed_risks=args.confirm_risk,
+            record=args.record,
+            replay=args.replay,
         ), args.json
     if command == "repair":
         return repair_command.run(Path(args.project).resolve(), args.alias, from_report=args.from_report, approve=args.approve, core_cmd=args.core_cmd, api_base_url=args.api_base_url), args.json
     if command == "discover":
-        from .core.adapter import CoreAdapter
-        from .workspace.repository import get_core_command
-
-        project = Path(args.project).resolve()
-        adapter = CoreAdapter(executable=args.core_cmd or get_core_command(project), cwd=project)
-        return adapter.discover(url=args.url, skill=Path(args.skill)), args.json
+        return discover_command.run(
+            Path(args.project).resolve(),
+            args.url,
+            Path(args.skill),
+            core_cmd=args.core_cmd,
+            api_base_url=args.api_base_url,
+        ), args.json
+    if command == "crystallize":
+        return crystallize_command.run(
+            Path(args.project).resolve(),
+            Path(args.run_dir),
+            out=Path(args.out) if args.out else None,
+            core_cmd=args.core_cmd,
+            api_base_url=args.api_base_url,
+        ), args.json
     if command == "core":
         from .core.adapter import CoreAdapter
         from .workspace.repository import get_core_command
@@ -564,8 +588,16 @@ def exit_code_for_result(command: str, result: dict[str, Any]) -> int:
         return EXIT_SUCCESS
     if command == "check" and status != "passed":
         return EXIT_VALIDATION_FAILED
-    if command == "repair" and result.get("repair", {}).get("approvalStatus") == "pending":
+    # A repair signals "action required" (exit 4) unless a deterministic mutation was actually
+    # applied. `conflict` is a blocked repair that was `--approve`d but applied nothing
+    # (readyForRun=False) — it must not report success to CI just because the flag was set.
+    if command == "repair" and result.get("repair", {}).get("approvalStatus") in {"pending", "proposed", "conflict"}:
         return EXIT_APPROVAL_REQUIRED
+    # A mutation was applied but revalidation either FAILED (artifact still does not pass) or could not
+    # RUN at all (crashed → "not-run"). Neither proves the gap closed, so both are validation failures
+    # (exit 2), never a silent success.
+    if command == "repair" and result.get("repair", {}).get("approvalStatus") in {"revalidation-failed", "revalidation-unavailable"}:
+        return EXIT_VALIDATION_FAILED
     if status in {"blocked", "error", "failed", "incomplete"}:
         return EXIT_VALIDATION_FAILED
     return EXIT_SUCCESS

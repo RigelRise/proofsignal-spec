@@ -561,7 +561,16 @@ def _persist_implementation(project: Path, alias: str, content: dict[str, Any]) 
         run_request_content,
         lambda: artifacts.render_run_request(record, schema_version=run_request_schema, core_contract=core_contract),
     )
-    for item, skill in zip(content.get("skills", []), skills, strict=False):
+    # Pair each skill reference to its ORIGINAL payload item by stable path, not by
+    # position: `skills` was reordered main-first above while content["skills"] keeps its
+    # authored order, so a positional zip would write a helper's content into the main
+    # skill's path. `_skill_reference` derives `.path` deterministically from the payload
+    # item, so the reference path is the stable join key back to the authored content.
+    payload_by_path = {_skill_path(item): item for item in content.get("skills", [])}
+    for skill in skills:
+        item = payload_by_path.get(skill.path)
+        if item is None:
+            raise ValueError(f"No authored skill payload matches persisted skill path: {skill.path}.")
         skill_content = _ensure_core_skill_document(_artifact_content(item), record, skill, item, credential_refs=credential_refs, core_contract=core_contract)
         _write_payload_artifact(
             project,

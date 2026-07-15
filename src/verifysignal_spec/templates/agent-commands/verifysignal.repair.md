@@ -26,8 +26,8 @@ Repair invalid or failed use cases through the workflow.
 - Apply the most restrictive rerun decision between Core `rerunRisk` and Spec `rerunPolicy`; refresh only generated runtime inputs explicitly declared refreshable.
 - If a generated identity binding collides with a committed local binding, prefer safe template/seed adjustment when intent is preserved; otherwise route to clarification. Do not overwrite managed last-run state to bypass the guard.
 - Generated freshness repairs must preserve the seed plus a run-attempt token when intent is clear. Confirmation repairs must Resolve `{{parameters.*}}` confirmation expected values before Core execution or route unresolved placeholders through clarify/plan/implement.
-- Safe mechanical selector, wait strategy, step ordering, target specificity, equivalent-flow, and run-profile repairs may auto-apply only when the result classifies them as intent-preserving.
-- If a safe mechanical repair is auto-applied, show before/after repair feedback, revalidation status, rerun status, and the next command. Do not report success until validate and rerun produce strict pass.
+- Step-ordering repairs are the only ones VerifySignal applies itself, and only when the result classifies them as intent-preserving. Selector, wait-strategy, and run-profile findings are reported as `propose-only`: read the recommended change and apply it yourself. Trust the `autonomy` field on each recommendation over any expectation of what should be automatic.
+- If a repair is auto-applied, show before/after repair feedback, revalidation status, rerun status, and the next command. Do not report success until validate and rerun produce strict pass.
 - Data assumptions, credentials, required gates, target selection, dynamic-versus-fixed data, and expected product behavior changes still require explicit confirmation.
 - Conditional-gate and gateId mapping changes require confirmation before any artifact edit.
 - If a repair would replace dynamic discovery with fixed data, weaken a rendered-result gate, or remove required evidence, route it to clarification or planning instead of applying it.

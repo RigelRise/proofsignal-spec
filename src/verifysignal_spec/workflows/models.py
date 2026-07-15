@@ -992,7 +992,7 @@ class FirstRunRecommendation:
 class RepairFeedback:
     repairId: str
     category: str
-    autonomy: Literal["auto-applied", "confirmation-required", "blocked"]
+    autonomy: Literal["auto-applied", "propose-only", "confirmation-required", "blocked"]
     safeMechanical: bool
     before: str
     after: str | None = None
@@ -1495,7 +1495,7 @@ class RepairRecommendation:
     blockedReason: str | None = None
     requiresUserDecision: bool = False
     sourceFeedback: list[str] = field(default_factory=list)
-    autonomy: Literal["auto-applied", "confirmation-required", "blocked"] = "confirmation-required"
+    autonomy: Literal["auto-applied", "propose-only", "confirmation-required", "blocked"] = "confirmation-required"
     safeMechanical: bool = False
     intentPreserved: bool = False
 
@@ -1511,6 +1511,10 @@ class SafeRepairApplication:
     validationStatus: Literal["passed", "failed", "not-run"] = "not-run"
     validationReport: str | None = None
     remainingGaps: list[str] = field(default_factory=list)
+    # before/after SHA-256 of each artifact whose bytes actually changed. Present only when
+    # `applied` is True: the invariant is that `applied` requires a verified byte mutation.
+    beforeSha256: dict[str, str] | None = None
+    afterSha256: dict[str, str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return clean(asdict(self))

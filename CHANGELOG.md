@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.19.0 - 2026-07-13
+
+- Absorbed Core's new experimental crystallization capability, contract-first and
+  additively, following the `discover` (feature 016) precedent:
+  - Added `CoreAdapter.crystallize(run_dir, out=..., entitlement_receipt=...)`
+    for Core's entitlement-protected `crystallize` operation
+    (`verifysignal.crystallize/v1`).
+  - Added `record`/`replay` parameters to `CoreAdapter.run()` (`run` stays on
+    `verifysignal.run/v1`; the flags are additive).
+  - Added `core_supports_crystallize()` optional-capability probe; `crystallize`
+    is intentionally NOT part of `REQUIRED_OPERATIONS`, so an older Core without
+    it stays compatible.
+
 ## 0.10.2 - 2026-06-08
 
 - Fixed Core public contract projection for the current `data.sections` shape:

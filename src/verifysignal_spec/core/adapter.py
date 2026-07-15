@@ -115,6 +115,8 @@ class CoreAdapter:
         output_dir: Path | None = None,
         headed: bool = False,
         slow_mo_ms: int = 0,
+        record: bool = False,
+        replay: Path | str | None = None,
         env: dict[str, str] | None = None,
         entitlement_receipt: Path | str | None = None,
     ) -> dict[str, Any]:
@@ -129,6 +131,10 @@ class CoreAdapter:
             args.append("--headed")
         if slow_mo_ms:
             args.extend(["--slow-mo", str(slow_mo_ms)])
+        if record:
+            args.append("--record")
+        if replay:
+            args.extend(["--replay", str(replay)])
         args.append("--json")
         return self._run(args, env={**(env or {}), **_receipt_env(entitlement_receipt)})
 
@@ -147,6 +153,25 @@ class CoreAdapter:
         args = ["discover", "--url", url, "--skill", str(skill)]
         if headed:
             args.append("--headed")
+        args.append("--json")
+        return self._run(args, env={**(env or {}), **_receipt_env(entitlement_receipt)})
+
+    def crystallize(
+        self,
+        *,
+        run_dir: Path | str,
+        out: Path | str | None = None,
+        env: dict[str, str] | None = None,
+        entitlement_receipt: Path | str | None = None,
+    ) -> dict[str, Any]:
+        """Crystallize a completed run into a reusable fixture via Core's
+        optional, entitlement-PROTECTED `crystallize` operation (schema
+        `verifysignal.crystallize/v1`). It reads private evidence, so callers
+        supply an entitlement receipt just like `run`."""
+        self.require_compatible()
+        args = ["crystallize", str(run_dir)]
+        if out:
+            args.extend(["--out", str(out)])
         args.append("--json")
         return self._run(args, env={**(env or {}), **_receipt_env(entitlement_receipt)})
 

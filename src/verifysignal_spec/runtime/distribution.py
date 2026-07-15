@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import platform as host_platform
 import shutil
 import socket
@@ -18,8 +19,11 @@ from typing import Any
 
 from verifysignal_spec.core.contracts import PUBLIC_CONTRACT_VERSION
 
+import base64
+
 from .cache import cache_root, platform_cache_dir, save_cache_entry
 from .models import EntitlementClientConfig, RuntimeEntitlementReceipt, RuntimeEntitlementStatus, RuntimeSetupBlocker, RuntimeVerificationKeyStatus
+from .release_signature import verify_release_signature
 
 
 @dataclass(slots=True)
@@ -82,8 +86,17 @@ def _entry_has_required_fields(entry: dict[str, Any]) -> bool:
 
 
 def signature_contract_available(entry: dict[str, Any]) -> bool:
+    # A verifiable entry carries the detached Ed25519 signature record AND the exact signed
+    # metadata bytes the signature covers. (The old contract only required self-reported
+    # `value`/`algorithm` strings, which proved nothing.)
     signature = entry.get("signature")
-    return isinstance(signature, dict) and bool(signature.get("algorithm")) and bool(signature.get("keyId")) and bool(signature.get("value"))
+    return (
+        isinstance(signature, dict)
+        and signature.get("algorithm") == "ed25519"
+        and bool(signature.get("keyId"))
+        and bool(signature.get("signature"))
+        and bool(entry.get("releaseMetadataBytes"))
+    )
 
 
 def verify_sha256(path: Path, expected: str) -> bool:
@@ -91,15 +104,84 @@ def verify_sha256(path: Path, expected: str) -> bool:
     return digest.lower() == expected.lower()
 
 
-def verify_signature_metadata(entry: dict[str, Any]) -> bool:
-    signature = entry.get("signature") or {}
-    value = str(signature.get("value", "")).lower()
-    algorithm = str(signature.get("algorithm", "")).lower()
-    if not signature_contract_available(entry):
-        return False
-    if value in {"invalid", "bad", "failed"}:
-        return False
-    return algorithm in {"test", "ed25519"}
+def verify_release_authenticity(entry: dict[str, Any]) -> RuntimeSetupBlocker | None:
+    """Cryptographically verify a runtime release: the detached Ed25519 signature over the
+    exact signed metadata bytes, then that the signed metadata binds this platform's archive
+    sha256 and public-contract version. Returns a blocker on any failure (fails closed), or
+    None when the release is authentic.
+    """
+    metadata_b64 = entry.get("releaseMetadataBytes")
+    signature = entry.get("signature")
+    if not isinstance(metadata_b64, str) or not metadata_b64 or not isinstance(signature, dict):
+        return RuntimeSetupBlocker(code="artifact.authenticity-failed", message="Managed runtime release is missing signed metadata bytes.")
+    try:
+        metadata_bytes = base64.b64decode(metadata_b64, validate=True)
+    except (ValueError, TypeError):
+        return RuntimeSetupBlocker(code="artifact.authenticity-failed", message="Managed runtime signed metadata bytes were malformed.")
+
+    ok, _key_id = verify_release_signature(metadata_bytes, signature)
+    if not ok:
+        return RuntimeSetupBlocker(code="artifact.authenticity-failed", message="Managed runtime release signature could not be verified against a trusted release key.")
+
+    try:
+        metadata = json.loads(metadata_bytes.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return RuntimeSetupBlocker(code="artifact.authenticity-failed", message="Signed runtime release metadata was malformed.")
+
+    # The signed payload MUST declare that it IS a release. A signature proves WHO signed, never WHAT
+    # KIND of document was signed, so without this any other document a trusted key ever signed could
+    # be replayed here as a release. The `schema` check in release_signature.py is NOT this check: it
+    # inspects the detached signature RECORD, which sits outside the signed bytes and is freely
+    # attacker-mutable. Absent schema fails closed, like every other binding below.
+    if metadata.get("schema") != "verifysignal.runtime-release/v1":
+        return RuntimeSetupBlocker(
+            code="artifact.authenticity-failed",
+            message="Signed runtime release metadata is not a verifysignal.runtime-release/v1 document.",
+        )
+
+    packages = metadata.get("packages") if isinstance(metadata.get("packages"), list) else []
+    signed_entry = next(
+        (item for item in packages if isinstance(item, dict) and item.get("platform") == entry.get("platform")),
+        None,
+    )
+    # Both hashes must be well-formed sha256 hex AND equal. Requiring the 64-hex shape rejects
+    # the degenerate matches that a bare equality would accept — "" == "", "   " == "   ", or
+    # None/None stringifying to "none" == "none" — none of which prove a real archive binding.
+    signed_sha = str(signed_entry.get("sha256", "")).strip().lower() if signed_entry else ""
+    entry_sha = str(entry.get("sha256", "")).strip().lower()
+    if (
+        signed_entry is None
+        or not re.fullmatch(r"[0-9a-f]{64}", signed_sha)
+        or not re.fullmatch(r"[0-9a-f]{64}", entry_sha)
+        or signed_sha != entry_sha
+    ):
+        return RuntimeSetupBlocker(code="artifact.authenticity-failed", message="Runtime archive sha256 does not match the signed release metadata.")
+
+    # The signed metadata MUST bind the public-contract version. A release whose signed metadata
+    # omits it cannot be accepted (fail closed) — matching the stated "fail closed on any
+    # mismatch" contract rather than silently skipping the binding when the field is absent.
+    signed_contract = metadata.get("publicContractVersion")
+    if not signed_contract or signed_contract != entry.get("contractVersion"):
+        return RuntimeSetupBlocker(code="artifact.authenticity-failed", message="Signed runtime release metadata public-contract version did not match.")
+
+    # The signed metadata MUST also bind coreVersion — it drives the cache path and the persisted
+    # install record, so a validly-signed blob cannot be re-pointed at a different coreVersion.
+    # Absent signed coreVersion fails closed, matching the sha256 and contract-version bindings.
+    signed_core_version = metadata.get("coreVersion")
+    if not signed_core_version or signed_core_version != entry.get("coreVersion"):
+        return RuntimeSetupBlocker(code="artifact.authenticity-failed", message="Signed runtime release metadata coreVersion did not match.")
+
+    # Bind the artifact filename too. Core really does sign packages[].filename (see the cross-repo
+    # golden) and the BE already cross-checks it at registration — the Spec was the only consumer
+    # taking it on trust from the server. Only checked when the entry claims one: the field is inert
+    # now (a fixed scratch name is used), so an entry that omits it has nothing to lie about.
+    entry_filename = entry.get("artifactName")
+    if entry_filename and str(entry_filename) != str(signed_entry.get("filename") or ""):
+        return RuntimeSetupBlocker(
+            code="artifact.authenticity-failed",
+            message="Runtime archive filename does not match the signed release metadata.",
+        )
+    return None
 
 
 def _resolve_packaged_executable(package_root: Path) -> Path | None:
@@ -132,14 +214,24 @@ def _resolve_packaged_executable(package_root: Path) -> Path | None:
 
 def install_from_manifest(entry: dict[str, Any], *, entitlement_receipt_id: str | None = None) -> tuple[str | None, RuntimeSetupBlocker | None]:
     temp_dir = Path(tempfile.mkdtemp(prefix="verifysignal-runtime-"))
-    artifact_path = temp_dir / str(entry.get("artifactName") or "verifysignal-core.tar.gz")
+    # A FIXED scratch name. `entry["artifactName"]` comes from the distribution server's JSON — the
+    # party this whole signature architecture exists because it does not trust — and it used to be
+    # joined here directly. `Path("/tmp/x") / "/Users/me/.zshrc"` yields `/Users/me/.zshrc`: an
+    # absolute name silently REPLACES the scratch dir, and `..` escapes it. Worse, the download below
+    # writes BEFORE sha256 and signature verification, so rejecting the release does not un-write the
+    # attacker's bytes, and the `finally` rmtree cannot reach a file that escaped temp_dir.
+    # The field only ever named a throwaway file (extraction reads the archive, not its name), so the
+    # fix is to stop using it: untrusted input never reaches a path join. It is ALSO bound to the
+    # signed metadata in verify_release_authenticity — two independent defenses on purpose.
+    artifact_path = temp_dir / "verifysignal-core.tar.gz"
     destination: Path | None = None
     try:
         _download_artifact(str(entry["url"]), artifact_path)
         if not verify_sha256(artifact_path, str(entry["sha256"])):
             return None, RuntimeSetupBlocker(code="artifact.integrity-failed", message="Managed runtime artifact checksum did not match.")
-        if not verify_signature_metadata(entry):
-            return None, RuntimeSetupBlocker(code="artifact.authenticity-failed", message="Managed runtime artifact signature could not be verified.")
+        authenticity_blocker = verify_release_authenticity(entry)
+        if authenticity_blocker is not None:
+            return None, authenticity_blocker
         core_version = str(entry["coreVersion"])
         platform = str(entry["platform"])
         destination = platform_cache_dir(core_version, platform)
@@ -184,11 +276,10 @@ def install_from_authorization(grant: dict[str, Any], *, entitlement_receipt_id:
         "artifactName": package.get("filename"),
         "url": package.get("downloadUrl"),
         "sha256": package.get("sha256"),
-        "signature": {
-            "algorithm": signature.get("algorithm", "test"),
-            "keyId": signature.get("keyId", "runtime-release"),
-            "value": signature.get("value", "valid"),
-        },
+        # The real detached signature + the exact signed metadata bytes the backend served,
+        # so authenticity is verified cryptographically rather than synthesized.
+        "signature": signature,
+        "releaseMetadataBytes": grant.get("releaseMetadataBytes"),
     }
     if _is_expired(package.get("expiresAt")):
         return None, RuntimeSetupBlocker(code="distribution.url-expired", message="Authorized runtime download URL expired before use.")
@@ -215,6 +306,36 @@ class RuntimeDistributionClient:
             return RuntimeAuthorizationResponse(data={}, blocker=_download_http_blocker(status, data))
         blocker = validate_runtime_authorization_response(data, expected_platform=platform)
         return RuntimeAuthorizationResponse(data=data, blocker=blocker)
+
+    def resolve_latest_core_version(self, platform: str, receipt: RuntimeEntitlementReceipt) -> tuple[str | None, RuntimeSetupBlocker | None]:
+        """Ask the backend which Core version is current for this platform.
+
+        Every other lookup here is exact-match on a version the client must already know, and the only
+        thing that ever wrote that version locally read it off an installed Core — so a first-time
+        user was in a closed loop: the managed download needs the version, and the version came from
+        the runtime the download exists to fetch.
+
+        Returns ``(coreVersion, None)`` or ``(None, blocker)``. Fails closed: an unreachable or
+        unparseable answer yields a blocker rather than a guess, because guessing a version produces
+        an opaque 404 from the exact-match download API.
+        """
+        if not receipt.receiptPayload:
+            return None, RuntimeSetupBlocker(code="entitlement.malformed", message="Entitlement receipt payload is unavailable.")
+        path = f"/runtimes/latest?platform={urllib.parse.quote(platform)}"
+        status, data, transport_blocker = self._json_request(
+            path,
+            headers={"Authorization": f"Bearer {receipt.receiptPayload}"},
+        )
+        if transport_blocker:
+            return None, transport_blocker
+        if status != 200:
+            return None, _download_http_blocker(status, data)
+        if data.get("schema") != "verifysignal.runtime-latest/v1" or data.get("schemaVersion") != 1:
+            return None, RuntimeSetupBlocker(code="manifest.invalid", message="Runtime latest-version response did not match the public contract.")
+        core_version = data.get("coreVersion")
+        if not isinstance(core_version, str) or not core_version.strip():
+            return None, RuntimeSetupBlocker(code="manifest.invalid", message="Runtime latest-version response did not carry a coreVersion.")
+        return core_version.strip(), None
 
     def fetch_verification_keys(self, *, issuer: str | None = None) -> RuntimeAuthorizationResponse:
         status, data, transport_blocker = self._json_request("/entitlements/keys")

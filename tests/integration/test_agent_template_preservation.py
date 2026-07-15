@@ -14,7 +14,13 @@ def test_codex_and_claude_generated_guidance_preserves_browser_guardrails(tmp_pa
         repair = files[f"{root}/verifysignal-repair/SKILL.md"]
         assert "Browser validation use cases require a resolved target application environment" in files[f"{root}/verifysignal-specify/SKILL.md"]
         assert "runtime readiness verifies target resolution, target reachability, required runtime prerequisites, and Core authoring readiness" in validate
-        assert "Safe mechanical selector" in repair
+        # This asserted "Safe mechanical selector" — the opening of a sentence promising that
+        # selector, wait-strategy, target-specificity, equivalent-flow, and run-profile repairs "may
+        # auto-apply", when step-ordering is the only category with a mutator. The test PRESERVED the
+        # overclaim as a guardrail, and it reaches the user's agent as instruction. Pin the honest
+        # guarantee instead: what VerifySignal applies, and that the rest are proposed.
+        assert "Step-ordering repairs are the only ones VerifySignal applies itself" in repair
+        assert "propose-only" in repair
         assert "Data assumptions, credentials, required gates" in repair
         assert "Never persist credential values" in implement
 

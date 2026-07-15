@@ -980,7 +980,9 @@ class RepairSession:
     applications: list[dict[str, Any]] = field(default_factory=list)
     repairFeedback: list[dict[str, Any]] = field(default_factory=list)
     stageCards: list[dict[str, Any]] = field(default_factory=list)
-    approvalStatus: Literal["pending", "approved", "rejected", "conflict", "applied"] = "pending"
+    approvalStatus: Literal[
+        "pending", "proposed", "approved", "rejected", "conflict", "applied", "revalidation-failed", "revalidation-unavailable"
+    ] = "pending"
     appliedAt: str | None = None
     revalidation: dict[str, Any] | None = None
     readyForRun: bool = False

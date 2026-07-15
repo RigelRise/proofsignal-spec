@@ -46,11 +46,11 @@ never use fake/demo targets as a user-facing fallback.
 
 Repair guidance must classify the root cause before edits. Missing prerequisite,
 environment recovery, wait/flow, selector, data/product-state, coverage mapping,
-and unsupported feedback have different next actions. Safe mechanical selector,
-wait, ordering, target-specificity, equivalent-flow, and run-profile repairs may
-auto-apply only when validation intent is preserved. Data, credential, required
-gate, target-selection, and expected-behavior changes still require
-confirmation.
+and unsupported feedback have different next actions. Step-ordering repairs are
+the only ones VerifySignal applies itself, and only when validation intent is
+preserved; selector, wait, and run-profile repairs are proposed for the developer
+to apply. Data, credential, required gate, target-selection, and
+expected-behavior changes still require confirmation.
 
 Execution-boundary repair guidance must not weaken required gates when a helper
 or source-only skill passed without mapped evidence. The correct recovery is to

@@ -564,3 +564,89 @@ def _persist_browser_skill(tmp_path, browser: dict) -> dict:
             ],
         },
     )
+
+
+def test_implement_pairs_reordered_skill_content_with_its_own_path(tmp_path) -> None:
+    # Regression: when the planned main skill is not first in the authored payload, the
+    # references are reordered main-first while the payload keeps its authored order. A
+    # positional zip of the two would write the helper's body into the main-skill path.
+    project = tmp_path / "repo"
+    project.mkdir()
+    init_workspace(project)
+    helper_path = ".verifysignal/skills/navigate-to-search.browser.md"
+    main_path = ".verifysignal/skills/validate-search-people-flow.browser.md"
+    persist_stage(
+        project,
+        "specify",
+        alias="search-people",
+        payload={
+            "alias": "search-people",
+            "surface": "/search/people",
+            "behavior": "Validate people search.",
+            "expectedOutcome": "People cards appear.",
+            "customSourceReason": "Fixture.",
+        },
+    )
+    persist_stage(
+        project,
+        "plan",
+        alias="search-people",
+        payload={
+            "runRequest": ".verifysignal/run-requests/search-people.yaml",
+            "reusableSkills": [helper_path, main_path],
+            "mainSkill": main_path,
+            "runtimeInputs": [{"name": "baseUrl", "value": "https://app.example.test"}],
+            "unresolvedBlockingClarifications": [],
+        },
+    )
+    # Helper listed FIRST, planned main SECOND -> forces the main-first reorder.
+    result = persist_stage(
+        project,
+        "implement",
+        alias="search-people",
+        payload={
+            "runRequest": {"path": ".verifysignal/run-requests/search-people.yaml"},
+            "skills": [
+                {
+                    "path": helper_path,
+                    "kind": "skill",
+                    "intent": {
+                        "description": "Navigate to the search surface.",
+                        "successGate": "Search page is open.",
+                        "browser": {
+                            "targets": {"nav": {"css": "#nav"}},
+                            "steps": [
+                                {"id": "helper-open-step", "action": "navigate", "value": "{{parameters.baseUrl}}/search/people"},
+                                {"id": "helper-wait-step", "action": "waitForText", "target": "nav", "value": "Search"},
+                            ],
+                            "assertions": [{"id": "nav-visible", "kind": "visible", "target": "nav"}],
+                        },
+                    },
+                },
+                {
+                    "path": main_path,
+                    "kind": "skill",
+                    "intent": {
+                        "description": "Validate the full search people flow.",
+                        "successGate": "People cards render.",
+                        "browser": {
+                            "targets": {"results": {"css": "#results"}},
+                            "steps": [
+                                {"id": "main-open-step", "action": "navigate", "value": "{{parameters.baseUrl}}/search/people"},
+                                {"id": "main-wait-step", "action": "waitForText", "target": "results", "value": "Jordan"},
+                            ],
+                            "assertions": [{"id": "results-visible", "kind": "visible", "target": "results"}],
+                        },
+                    },
+                },
+            ],
+        },
+    )
+    assert result["status"] == "persisted"
+    main_file = (project / main_path).read_text()
+    helper_file = (project / helper_path).read_text()
+    # Each skill's authored content must land at ITS OWN path — never swapped by the reorder.
+    assert "main-open-step" in main_file
+    assert "helper-open-step" not in main_file
+    assert "helper-open-step" in helper_file
+    assert "main-open-step" not in helper_file

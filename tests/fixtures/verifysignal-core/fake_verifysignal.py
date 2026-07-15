@@ -10,7 +10,12 @@ from pathlib import Path
 def main() -> int:
     args = sys.argv[1:]
     mode = os.environ.get("FAKE_VERIFYSIGNAL_MODE", "ok").replace("_", "-")
-    protected = bool(args[:2] == ["authoring-check", "run-request"] or (args and args[0] == "run") or args[:2] == ["report", "inspect"])
+    protected = bool(
+        args[:2] == ["authoring-check", "run-request"]
+        or (args and args[0] == "run")
+        or args[:2] == ["report", "inspect"]
+        or (args and args[0] == "crystallize")
+    )
     if protected and mode in {"requires-entitlement", "rejects-entitlement", "expired-entitlement", "malformed-entitlement"}:
         receipt_path = os.environ.get("VERIFYSIGNAL_ENTITLEMENT_RECEIPT")
         error_code = None
@@ -63,6 +68,7 @@ def main() -> int:
                 {"name": "authoring-check", "schema": "verifysignal.authoring-check/v1", "schemaVersion": 1, "status": "stable"},
                 {"name": "run", "schema": "verifysignal.run/v1", "schemaVersion": 1, "status": "stable"},
                 {"name": "report.inspect", "schema": "verifysignal.report-inspection/v1", "schemaVersion": 1, "status": "stable"},
+                {"name": "crystallize", "schema": "verifysignal.crystallize/v1", "schemaVersion": 1, "status": "experimental"},
             ]
             if mode == "missing-contracts-operation":
                 operations = [operation for operation in operations if operation["name"] != "contracts"]
@@ -73,6 +79,12 @@ def main() -> int:
                     if operation["name"] == "run":
                         operation["schema"] = "verifysignal.run/v2"
                         operation["schemaVersion"] = 2
+            if mode == "advertises-discover":
+                operations.append({"name": "discover", "schema": "verifysignal.discover/v1", "schemaVersion": 1, "status": "experimental"})
+            if mode == "omits-crystallize":
+                # A compatible Core that simply predates crystallization: every REQUIRED operation is
+                # present, only the optional one is absent.
+                operations = [operation for operation in operations if operation["name"] != "crystallize"]
             payload = {
                 "schema": "verifysignal.version/v1",
                 "schemaVersion": 1,
@@ -149,6 +161,12 @@ def main() -> int:
         return 0
     if args and args[0] == "run":
         headed = "--headed" in args
+        record = "--record" in args
+        replay = None
+        if "--replay" in args:
+            replay_index = args.index("--replay")
+            if replay_index + 1 < len(args):
+                replay = args[replay_index + 1]
         slow_mo = 0
         skill_args = [args[index + 1] for index, item in enumerate(args) if item == "--skill" and index + 1 < len(args)]
         executed_skill = skill_args[0] if skill_args else None
@@ -237,11 +255,58 @@ def main() -> int:
                         "args": args,
                         "headed": headed,
                         "slowMoMs": slow_mo,
+                        "record": record,
+                        "replay": replay,
+                        "replayComparison": (
+                            {"fixture": replay, "comparison": "matched", "tiers": {"identity": "matched", "structural": "matched", "semantic": "matched"}}
+                            if replay
+                            else None
+                        ),
                         "executedSkill": executed_skill,
                         "gateEvidence": gate_evidence,
                         "sideEffects": side_effects,
                         "runtimeOutputs": runtime_outputs,
                         "resultClassification": result_classification,
+                    },
+                }
+            )
+        )
+        return 0
+    if args and args[0] == "crystallize":
+        run_dir = args[1] if len(args) > 1 else ""
+        out_dir = None
+        if "--out" in args:
+            out_index = args.index("--out")
+            if out_index + 1 < len(args):
+                out_dir = args[out_index + 1]
+        manifest_dir = out_dir or ".verifysignal/fixtures/fake-run-1"
+        print(
+            json.dumps(
+                {
+                    "schema": "verifysignal.crystallize/v1",
+                    "schemaVersion": 1,
+                    "operation": "crystallize",
+                    "status": "passed",
+                    "data": {
+                        "fixture": {
+                            "manifestPath": f"{manifest_dir}/manifest.json",
+                            "schema": "verifysignal-fixture/v1",
+                            "schemaVersion": 1,
+                            "sha256": "0" * 64,
+                            "artifacts": [
+                                {"name": "manifest.json", "sha256": "0" * 64},
+                                {"name": "network.har", "sha256": "1" * 64},
+                            ],
+                        },
+                        "flavor": "internal",
+                        "source": {"runId": "fake-run-1", "status": "passed"},
+                        "origin": {"runDir": run_dir},
+                        "redactionSummary": {"redactedFields": 0, "policy": "public-redaction/v1"},
+                        "determinism": {"status": "deterministic", "seed": "fake-seed"},
+                        "golden": {
+                            "comparison": "matched",
+                            "tiers": {"identity": "matched", "structural": "matched", "semantic": "matched"},
+                        },
                     },
                 }
             )
@@ -287,6 +352,26 @@ def main() -> int:
                         "observedFailure": "Dashboard did not appear.",
                         "expectedBehavior": "Dashboard appears.",
                         "findings": [finding],
+                    },
+                }
+            )
+        )
+        return 0
+    if args and args[0] == "discover":
+        url = args[args.index("--url") + 1] if "--url" in args and args.index("--url") + 1 < len(args) else None
+        skill = args[args.index("--skill") + 1] if "--skill" in args and args.index("--skill") + 1 < len(args) else None
+        print(
+            json.dumps(
+                {
+                    "schema": "verifysignal.discover/v1",
+                    "schemaVersion": 1,
+                    "operation": "discover",
+                    "status": "passed",
+                    "data": {
+                        "url": url,
+                        "skill": skill,
+                        "groundedTargets": [{"name": "hero", "css": "h1", "status": "grounded"}],
+                        "verdicts": [{"target": "hero", "status": "grounded"}],
                     },
                 }
             )
@@ -354,6 +439,7 @@ def _contracts_payload(mode: str) -> dict[str, object]:
         {"name": "authoring-check", "schema": "verifysignal.authoring-check/v1", "schemaVersion": 1, "status": "stable"},
         {"name": "run", "schema": "verifysignal.run/v1", "schemaVersion": 1, "status": "stable"},
         {"name": "report.inspect", "schema": "verifysignal.report-inspection/v1", "schemaVersion": 1, "status": "stable"},
+        {"name": "crystallize", "schema": "verifysignal.crystallize/v1", "schemaVersion": 1, "status": "experimental"},
     ]
     browser_actions = [
         {"name": "navigate", "status": "stable", "requiredFields": ["value"]},
@@ -457,6 +543,20 @@ def _contracts_payload(mode: str) -> dict[str, object]:
             "verificationKeysEnv": "VERIFYSIGNAL_ENTITLEMENT_PUBLIC_KEYS_JSON",
         },
         "sideEffectGuardrails": _side_effect_guardrails_section(),
+        "crystallizationPolicy": {
+            "status": "experimental",
+            "operation": "crystallize",
+            "schema": "verifysignal.crystallize/v1",
+            "schemaVersion": 1,
+            "flavors": ["internal", "shareable"],
+            "fixtureSchema": {"name": "verifysignal-fixture/v1", "schemaVersion": 1},
+            "goldenTiers": ["identity", "structural", "semantic"],
+            "runFlags": [
+                {"name": "--record", "status": "experimental"},
+                {"name": "--replay", "status": "experimental", "requiredFields": ["fixture"]},
+            ],
+            "replaySource": {"status": "experimental", "referenceShape": "replaySource.fixture"},
+        },
     }
     if mode == "multi-skill-supported":
         data["skillExecution"] = {

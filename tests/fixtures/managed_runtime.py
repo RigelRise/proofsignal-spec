@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import contextlib
 import hashlib
 import json
@@ -12,6 +13,33 @@ from pathlib import Path
 from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
+
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+
+# Trust the shipped TEST release key while these fixtures build signed distributions.
+os.environ.setdefault("VERIFYSIGNAL_ALLOW_TEST_RELEASE_KEYS", "1")
+
+_TEST_RELEASE_KEY_ID = "verifysignal-core-release-test-key"
+# Matching private half of the TEST release key in runtime/release_signature.py. Test-only.
+_TEST_RELEASE_PRIVATE_KEY_PEM = """-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIHo4Do7CxUHugcTuwe6Jwiz1D8K8sBJ2GJ6HCnK059+d
+-----END PRIVATE KEY-----
+"""
+
+
+def _sign_release_metadata(metadata: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Return (base64 of the exact signed bytes, detached Ed25519 signature record)."""
+    metadata_bytes = json.dumps(metadata).encode("utf-8")
+    private_key = load_pem_private_key(_TEST_RELEASE_PRIVATE_KEY_PEM.encode("utf-8"), password=None)
+    signature_value = base64.b64encode(private_key.sign(metadata_bytes)).decode("ascii")
+    return base64.b64encode(metadata_bytes).decode("ascii"), {
+        "schema": "verifysignal.runtime-signature/v1",
+        "schemaVersion": 1,
+        "signedSchema": "verifysignal.runtime-release/v1",
+        "algorithm": "ed25519",
+        "keyId": _TEST_RELEASE_KEY_ID,
+        "signature": signature_value,
+    }
 
 from helpers import FAKE_CORE
 
@@ -348,6 +376,16 @@ def build_managed_runtime_distribution(root: Path, *, platform: str, core_versio
     with tarfile.open(artifact, "w:gz") as archive:
         archive.add(package_root, arcname="verifysignal-core")
     sha256 = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    release_metadata = {
+        "schema": "verifysignal.runtime-release/v1",
+        "schemaVersion": 1,
+        "coreVersion": core_version,
+        "publicContractVersion": "verifysignal-public-cli-json/v1",
+        "channel": "stable",
+        "issuer": "https://verifysignal.io",
+        "packages": [{"platform": platform, "filename": artifact.name, "sha256": sha256}],
+    }
+    metadata_bytes_b64, release_signature = _sign_release_metadata(release_metadata)
     manifest = {
         "entries": [
             {
@@ -357,7 +395,8 @@ def build_managed_runtime_distribution(root: Path, *, platform: str, core_versio
                 "artifactName": artifact.name,
                 "url": artifact.as_uri(),
                 "sha256": sha256,
-                "signature": {"algorithm": "test", "keyId": "test-release-key", "value": "valid"},
+                "releaseMetadataBytes": metadata_bytes_b64,
+                "signature": release_signature,
             }
         ]
     }
@@ -369,6 +408,8 @@ def build_managed_runtime_distribution(root: Path, *, platform: str, core_versio
         "sha256": sha256,
         "coreVersion": core_version,
         "platform": platform,
+        "releaseMetadataBytes": metadata_bytes_b64,
+        "releaseSignature": release_signature,
     }
 
 
@@ -491,7 +532,8 @@ def runtime_authorization_response(distribution: dict[str, Path | str]) -> dict[
         "coreVersion": distribution["coreVersion"],
         "platform": distribution["platform"],
         "releaseMetadata": {"schema": "verifysignal.runtime-release/v1"},
-        "releaseSignature": {"schema": "verifysignal.runtime-signature/v1", "algorithm": "test", "keyId": "test-release-key", "value": "valid"},
+        "releaseSignature": distribution["releaseSignature"],
+        "releaseMetadataBytes": distribution["releaseMetadataBytes"],
         "package": {
             "filename": Path(str(distribution["artifact"])).name,
             "byteSize": Path(str(distribution["artifact"])).stat().st_size,
@@ -517,6 +559,7 @@ class FakeBackendState:
         self.keys_key_id = "ps-entitlement-2026-06"
         self.keys_issuer: str | None = None
         self.download_status = "ok"
+        self.latest_status = "ok"
         self.requests: list[dict[str, Any]] = []
         self.exchange_count = 0
 
@@ -574,6 +617,27 @@ class _FakeBackendHandler(BaseHTTPRequestHandler):
                 return
             key_id = "ps-entitlement-other" if self.state.keys_status == "mismatched" else self.state.keys_key_id
             self._json(200, public_verification_keys(key_id=key_id, issuer=self.state.keys_issuer))
+            return
+        # Must precede the generic /runtimes/ branch, which would otherwise swallow it and answer a
+        # download authorization to a version-resolution request.
+        if parsed.path.startswith("/runtimes/latest"):
+            if not self.headers.get("Authorization", "").startswith("Bearer "):
+                self._json(401, {"schema": "verifysignal.error/v1", "code": "entitlement.missing"})
+                return
+            if self.state.latest_status == "unavailable" or not self.state.distribution:
+                self._json(404, {"schema": "verifysignal.error/v1", "code": "distribution.unavailable"})
+                return
+            self._json(
+                200,
+                {
+                    "schema": "verifysignal.runtime-latest/v1",
+                    "schemaVersion": 1,
+                    "coreVersion": self.state.distribution["coreVersion"],
+                    "publicContractVersion": "verifysignal-public-cli-json/v1",
+                    "platform": self.state.distribution["platform"],
+                    "channel": "stable",
+                },
+            )
             return
         if parsed.path.startswith("/runtimes/"):
             if self.state.download_status == "unauthorized" or not self.headers.get("Authorization", "").startswith("Bearer "):

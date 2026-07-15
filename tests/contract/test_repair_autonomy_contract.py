@@ -7,7 +7,7 @@ from helpers import CliTestCase
 
 
 class RepairAutonomyContractTests(CliTestCase):
-    def test_wait_strategy_report_auto_applies_as_safe_mechanical_repair(self) -> None:
+    def test_wait_strategy_report_is_proposed_without_a_verified_mutation(self) -> None:
         os.environ["FAKE_VERIFYSIGNAL_MODE"] = "aborted-activity-wait"
         self.cli(["init", str(self.project), "--integration", "codex"])
         self.cli(["author", "home-page-unauth", "Validate home page.", "--project", str(self.project)])
@@ -16,12 +16,19 @@ class RepairAutonomyContractTests(CliTestCase):
 
         code, out, err = self.cli(["repair", "home-page-unauth", "--project", str(self.project), "--from-report", str(report), "--json"])
 
-        self.assertEqual(code, 0, err)
+        # Wait-strategy fixes need live page/DOM context, so the repair is PROPOSED (exit 4),
+        # never a false `applied`: the agent must apply the described wait adjustment and rerun.
+        self.assertEqual(code, 4, err)
         repair = json.loads(out)["repair"]
-        self.assertEqual(repair["approvalStatus"], "applied")
-        self.assertEqual(repair["recommendations"][0]["autonomy"], "auto-applied")
+        self.assertEqual(repair["approvalStatus"], "proposed")
+        # `autonomy` describes the available MECHANISM, not an aspiration: wait-strategy has no on-disk
+        # mutator (only main-skill-ordering does), so labeling it `auto-applied` claimed an automation
+        # that does not exist and drove an "after" reading as if the fix had been applied.
+        self.assertEqual(repair["recommendations"][0]["autonomy"], "propose-only")
+        self.assertNotEqual(repair["recommendations"][0]["autonomy"], "auto-applied")
         self.assertTrue(repair["recommendations"][0]["safeMechanical"])
         self.assertFalse(repair["recommendations"][0]["requiresUserDecision"])
+        self.assertFalse(repair["applications"][0]["applied"])
         self.assertEqual(repair["applications"][0]["validationStatus"], "not-run")
         self.assertEqual(repair["stageCards"][0]["statusMarker"], "[REPAIR]")
 

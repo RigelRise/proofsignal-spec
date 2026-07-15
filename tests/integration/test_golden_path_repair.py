@@ -17,9 +17,12 @@ class GoldenPathRepairIntegrationTests(CliTestCase):
 
         code, out, err = self.cli(["repair", PUBLIC_ALIAS, "--project", str(self.project), "--from-report", str(report), "--json"])
 
-        self.assertEqual(code, 0, err)
+        # wait-strategy needs live page context, so the repair is proposed (exit 4), not a
+        # false `applied`. The classification is `propose-only` — it has no mutator, so calling it
+        # `auto-applied` contradicted this very comment — and the feedback + stage card still surface.
+        self.assertEqual(code, 4, err)
         repair = json.loads(out)["repair"]
-        self.assertEqual(repair["approvalStatus"], "applied")
-        self.assertEqual(repair["recommendations"][0]["autonomy"], "auto-applied")
-        self.assertEqual(repair["repairFeedback"][0]["autonomy"], "auto-applied")
+        self.assertEqual(repair["approvalStatus"], "proposed")
+        self.assertEqual(repair["recommendations"][0]["autonomy"], "propose-only")
+        self.assertEqual(repair["repairFeedback"][0]["autonomy"], "propose-only")
         self.assertEqual(repair["stageCards"][0]["statusMarker"], "[REPAIR]")

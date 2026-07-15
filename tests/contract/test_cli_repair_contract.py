@@ -63,7 +63,9 @@ class RepairContractTests(CliTestCase):
 
         code, out, err = self.cli(["repair", "profile-view-unauth", "--project", str(self.project), "--approve", "--json"])
 
-        self.assertEqual(code, 0, err)
+        # A blocked repair that was `--approve`d but applied nothing must signal action-required
+        # (exit 4), not success — the `--approve` flag cannot silence an unresolved block.
+        self.assertEqual(code, 4, err)
         repair = json.loads(out)["repair"]
         self.assertEqual(repair["approvalStatus"], "conflict")
         self.assertFalse(repair["readyForRun"])
@@ -106,7 +108,9 @@ class RepairContractTests(CliTestCase):
 
         code, out, err = self.cli(["repair", "profile-view-unauth", "--project", str(self.project), "--approve", "--json"])
 
-        self.assertEqual(code, 0, err)
+        # Approving a product-decision-changing (blocked) repair still applies nothing, so it must
+        # exit 4 (action required), not 0.
+        self.assertEqual(code, 4, err)
         repair = json.loads(out)["repair"]
         self.assertEqual(repair["approvalStatus"], "conflict")
         self.assertFalse(repair["readyForRun"])
@@ -141,11 +145,18 @@ class RepairContractTests(CliTestCase):
 
         code, out, _err = self.cli(["repair", "profile-view-unauth", "--project", str(self.project), "--json"])
 
-        self.assertEqual(code, 0)
+        # This fixture's run-request already has the main skill first, so there is no deterministic
+        # ordering mutation to apply — the repair is `proposed` (exit 4), not a false `applied`.
+        # (Previously this exited 0 only because the buggy mutator regenerated the run-request and
+        # its byte change was reported as `applied`.)
+        self.assertEqual(code, 4)
         recommendations = json.loads(out)["repair"]["recommendations"]
         self.assertEqual(recommendations[0]["runtimeCategory"], "execution-boundary-issue")
         self.assertEqual(recommendations[0]["safeCategory"], "main-skill-ordering")
-        self.assertIn("do not weaken required gates", recommendations[0]["action"])
+        # The guarantee, not one phrasing of it: the action must still rule out weakening required
+        # gates. (The prose is now rendered from `autonomy` rather than hand-written, so the clause
+        # reads "does not weaken" instead of the old imperative "do not weaken".)
+        self.assertRegex(recommendations[0]["action"], r"(?:do|does) not weaken required gates")
 
     def test_post_commit_write_risk_does_not_recommend_blind_rerun(self) -> None:
         create_main_skill_coverage_workspace(self.project)

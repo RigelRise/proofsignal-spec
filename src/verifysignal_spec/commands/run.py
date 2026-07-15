@@ -56,11 +56,16 @@ def run(
     api_base_url: str | None = None,
     slow_mo_override: int | None = None,
     confirmed_risks: list[str] | None = None,
+    record: bool = False,
+    replay: str | Path | None = None,
 ) -> dict[str, Any]:
-    record = load_use_case(project, alias)
-    profile = next((item for item in record.profiles if item.name == profile_name), None)
+    # The loaded use case is `use_case`, not `record`: `record` is the --record flag, and this module
+    # also imports `record_run`. The overloaded name is not cosmetic — a local `record` holding the
+    # (always truthy) use case silently shadowed this flag and made EVERY run pass --record to Core.
+    use_case = load_use_case(project, alias)
+    profile = next((item for item in use_case.profiles if item.name == profile_name), None)
     if profile is None:
-        available = ", ".join(item.name for item in record.profiles) or "normal"
+        available = ", ".join(item.name for item in use_case.profiles) or "normal"
         raise ValueError(f"Unknown profile for {alias}: {profile_name}. Available profiles: {available}.")
     managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="run")
     if managed_runtime.status != "ready":
@@ -93,7 +98,7 @@ def run(
             "nextAction": managed_runtime.nextAction,
         }
     core_contract = _core_contract(project, managed_runtime.runtimeCommand)
-    record, run_request, main_skill, skills = resolve_artifacts(project, alias, core_contract=core_contract)
+    use_case, run_request, main_skill, skills = resolve_artifacts(project, alias, core_contract=core_contract)
     profile_settings_model = resolve_effective_profile_settings(profile, slow_mo_override=slow_mo_override)
     contract_blockers = [
         *legacy_executable_artifact_blockers(run_request, main_skill, skills),
@@ -107,7 +112,7 @@ def run(
             "coverageStatus": "not-run",
             "coreBrowserStatus": "blocked",
             "specCoverageStatus": "not-run",
-            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "selectedMainSkill": _selected_main_skill(use_case.mainSkill, main_skill),
             "profile": profile_name,
             "profileSettings": profile_settings_model.to_dict(),
             "managedRuntimeReadiness": managed_runtime.to_dict(),
@@ -115,7 +120,7 @@ def run(
             "reason": contract_blockers[0].message,
             "nextAction": f"verifysignal workflow check run --alias {alias} --json",
         }
-    pending_confirmations = run_confirmation_requirements(project, record)
+    pending_confirmations = run_confirmation_requirements(project, use_case)
     unmatched_confirmations = [
         item
         for item in pending_confirmations
@@ -130,7 +135,7 @@ def run(
             "coverageStatus": "not-run",
             "coreBrowserStatus": "blocked",
             "specCoverageStatus": "not-run",
-            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "selectedMainSkill": _selected_main_skill(use_case.mainSkill, main_skill),
             "profile": profile_name,
             "profileSettings": profile_settings_model.to_dict(),
             "managedRuntimeReadiness": managed_runtime.to_dict(),
@@ -149,10 +154,10 @@ def run(
             "nextAction": f"verifysignal run {alias} --confirm-risk {confirmation.id} --json",
         }
     side_effect_findings = validate_side_effect_declaration(
-        record.sideEffects,
-        record.rerunPolicy,
-        record.runtimeOutputs,
-        [item.to_dict() for item in record.runtimeInputs],
+        use_case.sideEffects,
+        use_case.rerunPolicy,
+        use_case.runtimeOutputs,
+        [item.to_dict() for item in use_case.runtimeInputs],
         core_contract=core_contract,
     )
     if any(item.get("severity") == "blocking" for item in side_effect_findings):
@@ -175,7 +180,7 @@ def run(
             "coverageStatus": "not-run",
             "coreBrowserStatus": "blocked",
             "specCoverageStatus": "not-run",
-            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "selectedMainSkill": _selected_main_skill(use_case.mainSkill, main_skill),
             "profile": profile_name,
             "profileSettings": profile_settings_model.to_dict(),
             "managedRuntimeReadiness": managed_runtime.to_dict(),
@@ -183,11 +188,11 @@ def run(
             "reason": blockers[0]["message"],
             "nextAction": f"verifysignal workflow check run --alias {alias} --json",
         }
-    rerun_guard = evaluate_rerun_decision(record, supersede_reviews=load_supersede_reviews(project, alias))
+    rerun_guard = evaluate_rerun_decision(use_case, supersede_reviews=load_supersede_reviews(project, alias))
     if rerun_guard["decision"] == "requires-confirmation" and rerun_guard.get("confirmationId") in set(confirmed_risks or []):
-        review = build_rerun_approval_review(record, rerun_guard, created_at=now_iso(), created_by="run --confirm-risk")
+        review = build_rerun_approval_review(use_case, rerun_guard, created_at=now_iso(), created_by="run --confirm-risk")
         save_supersede_review(project, alias, review)
-        rerun_guard = evaluate_rerun_decision(record, supersede_reviews=load_supersede_reviews(project, alias))
+        rerun_guard = evaluate_rerun_decision(use_case, supersede_reviews=load_supersede_reviews(project, alias))
     if rerun_guard["decision"] in {"blocked", "requires-confirmation"}:
         requires_rerun_confirmation = rerun_guard["decision"] == "requires-confirmation"
         blocker: dict[str, Any] = {
@@ -206,7 +211,7 @@ def run(
             "coverageStatus": "not-run",
             "coreBrowserStatus": "blocked",
             "specCoverageStatus": "not-run",
-            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "selectedMainSkill": _selected_main_skill(use_case.mainSkill, main_skill),
             "profile": profile_name,
             "profileSettings": profile_settings_model.to_dict(),
             "managedRuntimeReadiness": managed_runtime.to_dict(),
@@ -228,7 +233,7 @@ def run(
             "nextAction": rerun_guard["nextAction"],
         }
     prepared_run_id = f"{alias}-{now_iso().replace(':', '').replace('-', '')}"
-    named_output_values, named_output_error = _named_output_runtime_values(project, record)
+    named_output_values, named_output_error = _named_output_runtime_values(project, use_case)
     if named_output_error:
         return {
             "alias": alias,
@@ -237,7 +242,7 @@ def run(
             "coverageStatus": "not-run",
             "coreBrowserStatus": "blocked",
             "specCoverageStatus": "not-run",
-            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "selectedMainSkill": _selected_main_skill(use_case.mainSkill, main_skill),
             "profile": profile_name,
             "profileSettings": profile_settings_model.to_dict(),
             "managedRuntimeReadiness": managed_runtime.to_dict(),
@@ -254,13 +259,13 @@ def run(
             "nextAction": "Publish or disambiguate the named output before running.",
         }
     runtime_values = resolve_runtime_inputs(
-        record.runtimeInputs,
+        use_case.runtimeInputs,
         interactive=interactive,
         provided={**_run_request_parameters(run_request), **named_output_values},
         run_id=prepared_run_id,
         refresh_names=rerun_guard.get("refreshRuntimeInputs", []),
     )
-    collision_findings = _generated_binding_collision_findings(project, record, runtime_values)
+    collision_findings = _generated_binding_collision_findings(project, use_case, runtime_values)
     if collision_findings:
         return {
             "alias": alias,
@@ -269,7 +274,7 @@ def run(
             "coverageStatus": "not-run",
             "coreBrowserStatus": "blocked",
             "specCoverageStatus": "not-run",
-            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "selectedMainSkill": _selected_main_skill(use_case.mainSkill, main_skill),
             "profile": profile_name,
             "profileSettings": profile_settings_model.to_dict(),
             "managedRuntimeReadiness": managed_runtime.to_dict(),
@@ -298,7 +303,7 @@ def run(
             "coverageStatus": "not-run",
             "coreBrowserStatus": "blocked",
             "specCoverageStatus": "not-run",
-            "selectedMainSkill": _selected_main_skill(record.mainSkill, main_skill),
+            "selectedMainSkill": _selected_main_skill(use_case.mainSkill, main_skill),
             "profile": profile_name,
             "profileSettings": profile_settings_model.to_dict(),
             "managedRuntimeReadiness": managed_runtime.to_dict(),
@@ -319,6 +324,8 @@ def run(
         output_dir=output_dir,
         headed=profile_settings_model.headed,
         slow_mo_ms=profile_settings_model.slowMoMs,
+        record=record,
+        replay=replay,
         env=runtime_values,
         entitlement_receipt=_valid_receipt_path(),
     )
@@ -328,7 +335,7 @@ def run(
     result_with_report = _result_with_public_report(project, result)
     side_effects = _public_result_field(result_with_report, "sideEffects")
     runtime_outputs = _public_result_field(result_with_report, "runtimeOutputs") or []
-    post_commit = _post_commit_interpretation(result_with_report, record, side_effects)
+    post_commit = _post_commit_interpretation(result_with_report, use_case, side_effects)
     result_classification = _public_result_field(result_with_report, "resultClassification")
     gates = _planned_gates(project, alias)
     gate_coverage_results = _runtime_gate_coverage(project, result, gates)
@@ -346,7 +353,7 @@ def run(
         for item in _repair_recommendations_from_gate_coverage(gate_coverage_results, core, source_run_id=str(run_id))
     ]
     spec_coverage_status = coverage_status(core, gate_coverage_results)
-    selected_main_skill = _selected_main_skill(record.mainSkill, main_skill)
+    selected_main_skill = _selected_main_skill(use_case.mainSkill, main_skill)
     executed_skill = _executed_skill(data)
     skill_selection_status = _skill_selection_status(selected_main_skill, executed_skill)
     missing_required_gates = _missing_required_gates(gate_coverage_results)
@@ -408,20 +415,20 @@ def run(
             {
                 "name": name,
                 "value": value,
-                "source": "generated" if _runtime_input_source(record, name) == "generated" else "runtime",
+                "source": "generated" if _runtime_input_source(use_case, name) == "generated" else "runtime",
                 "runId": str(run_id),
-                "targetScope": _target_scope(record),
+                "targetScope": _target_scope(use_case),
                 "useCaseAlias": alias,
                 "refreshed": name in set(rerun_guard.get("refreshRuntimeInputs", [])),
                 "committed": bool(post_commit.postCommit or post_commit.sideEffectMayExist),
                 "status": "committed" if bool(post_commit.postCommit or post_commit.sideEffectMayExist) else "discarded",
             }
             for name, value in runtime_values.items()
-            if _safe_resolved_runtime_input(record, name)
+            if _safe_resolved_runtime_input(use_case, name)
         ],
         postCommitInterpretation=post_commit.to_dict(),
         rerunDecision=rerun_guard,
-        sideEffectLifecycle=side_effect_lifecycle_summary(record, runtime_outputs if isinstance(runtime_outputs, list) else []),
+        sideEffectLifecycle=side_effect_lifecycle_summary(use_case, runtime_outputs if isinstance(runtime_outputs, list) else []),
         startedAt=now_iso(),
         completedAt=now_iso(),
         summary={
@@ -437,7 +444,7 @@ def run(
             "postCommitInterpretation": post_commit.to_dict(),
             "resultClassification": result_classification,
             "rerunDecision": rerun_guard,
-            "sideEffectLifecycle": side_effect_lifecycle_summary(record, runtime_outputs if isinstance(runtime_outputs, list) else []),
+            "sideEffectLifecycle": side_effect_lifecycle_summary(use_case, runtime_outputs if isinstance(runtime_outputs, list) else []),
         },
         reportPath=data.get("reportPath"),
         evidenceDir=data.get("evidencePath") or data.get("evidenceDir"),
@@ -467,7 +474,7 @@ def run(
         "rerunDecision": rerun_guard,
         "runtimeOutputs": runtime_outputs if isinstance(runtime_outputs, list) else [],
         "sideEffects": side_effects if isinstance(side_effects, dict) else None,
-        "sideEffectLifecycle": side_effect_lifecycle_summary(record, runtime_outputs if isinstance(runtime_outputs, list) else []),
+        "sideEffectLifecycle": side_effect_lifecycle_summary(use_case, runtime_outputs if isinstance(runtime_outputs, list) else []),
         "reason": reason,
         "nextAction": next_action,
         "reportPath": entry.reportPath,

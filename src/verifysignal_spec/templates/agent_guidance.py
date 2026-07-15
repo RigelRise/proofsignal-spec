@@ -6,10 +6,11 @@ RUNTIME_READINESS_BOUNDARY = (
     "and Core authoring readiness"
 )
 CONFIRMED_REPAIR_BOUNDARY = "Selector, flow, data, and coverage changes require confirmation"
-SAFE_MECHANICAL_REPAIR_GUIDANCE = (
-    "Safe mechanical selector, wait, step-ordering, target-specificity, equivalent-flow, and run-profile repairs may auto-apply only when validation intent is preserved; "
-    "data, credential, required-gate, target-selection, and expected-behavior changes still require confirmation"
-)
+# SAFE_MECHANICAL_REPAIR_GUIDANCE was deleted here, not rewritten. It claimed selector, wait,
+# target-specificity, equivalent-flow, and run-profile repairs "may auto-apply" — only step-ordering
+# has a mutator — and it had zero importers, so it was dead prose that could only ever mislead
+# whoever wired it up next. The live source of truth is MUTABLE_SAFE_CATEGORIES in
+# workflows/repair_recommendations.py; render guidance from that, never from a second hand-written copy.
 FIRST_RUN_STAGE_CARD_GUIDANCE = (
     "For Golden Path first-run output, render clear stage cards with a separator, status marker, "
     "one-line summary, why it matters, primary evidence, repair details when present, and next action"
