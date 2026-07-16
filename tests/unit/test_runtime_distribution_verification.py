@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 
 from verifysignal_spec.runtime.distribution import (
+    install_from_manifest,
     manifest_entries,
     normalize_platform,
     select_manifest_entry,
@@ -137,3 +138,29 @@ def test_verify_sha256_detects_mismatch(tmp_path: Path) -> None:
     artifact.write_text("runtime", encoding="utf-8")
     assert verify_sha256(artifact, hashlib.sha256(b"runtime").hexdigest())
     assert not verify_sha256(artifact, "0" * 64)
+
+
+def test_install_fails_closed_when_the_served_object_drifts_from_the_signed_sha(tmp_path: Path) -> None:
+    # Characterizes the DURABLE guarantee behind runtime-storage.ts's corrected comment. The BE upload
+    # read-back is only a POINT-IN-TIME check: a later `upsert` overwrite, or an import that writes the
+    # runtime_releases row without reading the object back, can leave the advertised — and SIGNED —
+    # sha256 describing bytes the bucket no longer holds. install_from_manifest pins the DOWNLOADED
+    # bytes to that signed sha and fails closed at integrity, BEFORE extraction, rather than serving
+    # bad bytes. The write-primitive regression in test_signed_field_binding.py passes through this
+    # path but asserts a different dimension, so nothing pinned `artifact.integrity-failed` on a
+    # genuinely-signed-but-drifted object until now.
+    good_bytes = b"the-genuine-runtime-archive"
+    signed_sha = hashlib.sha256(good_bytes).hexdigest()
+
+    served = tmp_path / "served.tar.gz"
+    served.write_bytes(b"an-overwritten-object")  # the bucket now holds bytes the signed sha never described
+    assert hashlib.sha256(served.read_bytes()).hexdigest() != signed_sha
+
+    entry = signed_manifest_entry(platform="darwin-arm64", sha256=signed_sha, url=served.as_uri())
+    # The release IS genuinely signed against the good sha — authenticity would pass if it were reached.
+    assert verify_release_authenticity(entry) is None
+
+    runtime, blocker = install_from_manifest(entry)
+
+    assert runtime is None
+    assert blocker is not None and blocker.code == "artifact.integrity-failed"
