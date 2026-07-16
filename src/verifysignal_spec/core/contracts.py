@@ -39,13 +39,16 @@ CORE_ENTITLEMENT_ERROR_MAP = {
     "entitlement.malformed": "entitlement.malformed",
     "entitlement.signature-invalid": "entitlement.unverifiable",
     "entitlement.key-unknown": "entitlement.unverifiable",
+    # A trust failure: the receipt's signing key is real but not trusted in this runtime context.
+    # Core emits and publishes this (operation-contract.ts, runtime-trust-contract.ts); the map used
+    # to lack it, so it fell through to a generic message.
+    "entitlement.trust-key-context-disallowed": "entitlement.unverifiable",
     "entitlement.expired": "entitlement.expired",
     "entitlement.issuer-mismatch": "entitlement.rejected",
     "entitlement.audience-mismatch": "entitlement.rejected",
     "entitlement.scope-missing": "entitlement.rejected",
     "entitlement.policy-denied": "entitlement.rejected",
     "entitlement.contract-mismatch": "core.incompatible",
-    "entitlement.runtime-mismatch": "core.incompatible",
     "entitlement.version-mismatch": "core.incompatible",
     "entitlement.subject-invalid": "entitlement.rejected",
 }

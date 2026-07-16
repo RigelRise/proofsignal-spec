@@ -3,8 +3,13 @@
 This golden file is byte-for-byte identical to the copies committed in Core and BE — a single
 Core-signed release-metadata blob. Spec must verify it with the SAME committed TEST key, accept it
 through ``verify_release_authenticity`` (signature + sha + contract + coreVersion bindings), reject a
-coreVersion tamper, and accept the trusted key in base64-DER form too. A divergence in any repo
-(dropping the coreVersion binding, or refusing a documented key format) fails CI in that repo.
+coreVersion tamper, and accept the trusted key in base64-DER form too. A verifier that drops the
+coreVersion binding or refuses a documented key format fails Spec's OWN suite.
+
+This test does not compare Spec's copy to the other two. That byte-identity is enforced by Core's
+cross-repo-release-golden-identity.test.ts on a full checkout (and, pending, by CI). Nothing compared
+the copies for a long while, so they silently diverged — which is the failure this wording used to
+hide behind an unqualified "fails CI in that repo".
 """
 
 from __future__ import annotations
