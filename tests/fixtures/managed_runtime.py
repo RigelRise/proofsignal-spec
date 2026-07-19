@@ -423,7 +423,7 @@ def public_free_token_policy() -> dict[str, Any]:
         "maxExchangesPerHour": 1,
         "defaultTokenTtlDays": 30,
         "defaultReceiptTtlDays": 7,
-        "refresh": "request_new_token",
+        "refresh": "silent-credential",
     }
 
 
@@ -447,7 +447,7 @@ def public_free_receipt_summary(*, token: str = "vs_valid", exchange_count: int 
             "maxExchanges": 1,
             "hourlyExchangeCount": min(exchange_count, 1),
             "maxExchangesPerHour": 1,
-            "refresh": "request_new_token",
+            "refresh": "silent-credential",
         },
     }
 
@@ -521,6 +521,43 @@ def token_exchange_response(*, token: str = "vs_valid", exchange_count: int = 1)
         "schema": "verifysignal.entitlement-exchange/v1",
         "schemaVersion": 1,
         "receipt": json.dumps(receipt, separators=(",", ":")),
+        "refreshCredential": "vs_refresh_credential_fixture_0000000000",
+        "receiptSummary": summary,
+    }
+
+
+def token_refresh_response(*, credential: str = "vs_refresh", replayed: bool = False) -> dict[str, Any]:
+    digest = hashlib.sha256(credential.encode("utf-8")).hexdigest()
+    summary = public_free_receipt_summary(token=credential)
+    # The refresh receipt summary carries no tokenPolicy (renew ≠ re-exchange).
+    summary = {key: value for key, value in summary.items() if key != "tokenPolicy"}
+    receipt = {
+        "schema": "verifysignal.entitlement-receipt/v1",
+        "schemaVersion": 1,
+        "claims": {
+            "receiptId": summary["receiptId"],
+            "issuer": summary["issuer"],
+            "audience": "verifysignal-core",
+            "subject": {"kind": "opaque-subject", "value": f"sub_{digest[:16]}"},
+            "issuedAt": summary["issuedAt"],
+            "expiresAt": summary["expiresAt"],
+            "scopes": summary["scopes"],
+            "usePolicy": summary["usePolicy"],
+            "publicContractVersion": "verifysignal-public-cli-json/v1",
+            "coreVersionConstraint": ">=0.1.0 <1.0.0",
+        },
+        "signature": {
+            "algorithm": "ed25519",
+            "keyId": summary["keyId"],
+            "signedPayload": "canonical-claims-json/v1",
+            "value": "fake-signature",
+        },
+    }
+    return {
+        "schema": "verifysignal.entitlement-refresh/v1",
+        "schemaVersion": 1,
+        "replayed": replayed,
+        "receipt": json.dumps(receipt, separators=(",", ":")),
         "receiptSummary": summary,
     }
 
@@ -562,6 +599,12 @@ class FakeBackendState:
         self.latest_status = "ok"
         self.requests: list[dict[str, Any]] = []
         self.exchange_count = 0
+        self.refresh_count = 0
+        self.usage_count = 0
+        # Keyed by refresh credential → (status, code), like exchange_failures.
+        self.refresh_failures: dict[str, tuple[int, str]] = {
+            "vs_refresh_revoked": (403, "entitlement.rejected"),
+        }
 
     def request_paths(self, path: str) -> list[str]:
         return [request["path"] for request in self.requests if request.get("path") == path]
@@ -602,6 +645,20 @@ class _FakeBackendHandler(BaseHTTPRequestHandler):
                 return
             self.state.exchange_count += 1
             self._json(200, token_exchange_response(token=token, exchange_count=self.state.exchange_count))
+            return
+        if self.path == "/entitlements/refresh":
+            credential = str(payload.get("credential", ""))
+            failure = self.state.refresh_failures.get(credential)
+            if failure:
+                status, code = failure
+                self._json(status, {"schema": "verifysignal.error/v1", "code": code, "message": "Refresh refused."})
+                return
+            self.state.refresh_count += 1
+            self._json(200, token_refresh_response(credential=credential))
+            return
+        if self.path == "/entitlements/usage":
+            self.state.usage_count += 1
+            self._json(200, {"schema": "verifysignal.usage-ping-ack/v1", "schemaVersion": 1, "ok": True})
             return
         self._json(404, {"schema": "verifysignal.error/v1", "code": "not-found"})
 

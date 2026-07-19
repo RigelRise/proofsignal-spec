@@ -27,6 +27,9 @@ PRODUCTION_RECEIPT_ISSUER = "https://verifysignal.io"
 DEFAULT_HTTP_TIMEOUT_SECONDS = 30
 MIN_HTTP_TIMEOUT_SECONDS = 1
 MAX_HTTP_TIMEOUT_SECONDS = 120
+# Refresh proactively once the receipt is within this window of expiry, so an active user renews
+# BEFORE lapsing and an occasional offline moment never blocks a run (the 7-day receipt is still valid).
+REFRESH_THRESHOLD_SECONDS = 2 * 24 * 60 * 60
 
 
 @dataclass(slots=True)
@@ -40,6 +43,9 @@ class TokenExchangeResponse:
     receipt: RuntimeEntitlementReceipt | None = None
     data: dict[str, Any] | None = None
     blocker: RuntimeSetupBlocker | None = None
+    # The durable refresh credential the exchange bootstraps (None on the /refresh path, which reuses
+    # the stored credential without rotating it).
+    refresh_credential: str | None = None
 
 
 def resolve_entitlement_config(
@@ -120,6 +126,45 @@ def save_receipt(receipt: RuntimeEntitlementReceipt) -> RuntimeEntitlementReceip
     return receipt
 
 
+def refresh_credential_path() -> Path:
+    return cache_root() / "entitlement" / "refresh.json"
+
+
+def save_refresh_credential(credential: str) -> None:
+    """Persist the durable refresh credential 0600, next to the receipt.
+
+    The credential is a secret bearer (it mints receipts); it is written with the same
+    mkdir + write + chmod(0o600) pattern as save_receipt.
+    """
+    path = refresh_credential_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"schema": "verifysignal.refresh-credential/v1", "credential": credential}), encoding="utf-8")
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+
+
+def load_refresh_credential() -> str | None:
+    path = refresh_credential_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        credential = data.get("credential") if isinstance(data, dict) else None
+        return credential if isinstance(credential, str) and credential else None
+    except Exception:
+        return None
+
+
+def clear_refresh_credential() -> None:
+    """Discard a dead refresh credential (revoked/rejected) so we stop retrying a doomed refresh."""
+    try:
+        refresh_credential_path().unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def receipt_status(receipt: dict[str, Any] | RuntimeEntitlementReceipt) -> RuntimeEntitlementStatus:
     parsed = receipt if isinstance(receipt, RuntimeEntitlementReceipt) else RuntimeEntitlementReceipt.from_dict(receipt)
     status = parsed.status
@@ -173,6 +218,48 @@ def receipt_status(receipt: dict[str, Any] | RuntimeEntitlementReceipt) -> Runti
     return status_result
 
 
+def _try_silent_refresh(
+    client: EntitlementClient,
+    receipt: RuntimeEntitlementReceipt | None,
+    status: RuntimeEntitlementStatus,
+) -> RuntimeEntitlementStatus | None:
+    """Silently re-mint a fresh 7-day receipt from the durable refresh credential (no email).
+
+    Returns a resolved status when it acted (renewed, or an honest offline block), or None to let the
+    normal email-token path handle it. Runs when the receipt is expired (reactive) or within the
+    proactive window while still valid; a transient failure on a still-valid receipt keeps using it.
+    """
+    if receipt is None or status.status not in {"valid", "expired"}:
+        return None
+    credential = load_refresh_credential()
+    if not credential:
+        return None
+    if status.status == "valid" and not _is_near_expiry(receipt.expiresAt, REFRESH_THRESHOLD_SECONDS):
+        return None
+
+    refreshed = client.refresh(credential)
+    if refreshed.receipt:
+        return receipt_status(save_receipt(refreshed.receipt))
+
+    blocker = refreshed.blocker
+    if blocker and blocker.code in {"entitlement.invalid-token", "entitlement.expired-token", "entitlement.rejected"}:
+        # The credential itself is dead (revoked/expired). Discard it and fall back to the email path
+        # rather than retrying a doomed refresh on every run.
+        clear_refresh_credential()
+        return None
+    if status.status == "valid":
+        # Transient failure (offline) but the current receipt is still valid — keep using it.
+        return status
+    # Expired + transient failure: honest, no elaborate grace — reconnect to revalidate.
+    return RuntimeEntitlementStatus(
+        status="expired",
+        receiptId=status.receiptId,
+        expiresAt=status.expiresAt,
+        message="Entitlement receipt expired; reconnect to the internet to revalidate automatically.",
+        blockerCode="entitlement.expired",
+    )
+
+
 def ensure_entitlement(
     *,
     config: EntitlementClientConfig | None = None,
@@ -183,16 +270,23 @@ def ensure_entitlement(
 ) -> RuntimeEntitlementStatus:
     receipt = load_receipt()
     status = receipt_status(receipt) if receipt else RuntimeEntitlementStatus(status="required", message="Email unlock token is required.", blockerCode="entitlement.unlock-required")
-    if status.status == "valid":
-        return status
     config = config or resolve_entitlement_config()
     client = EntitlementClient(config)
+
+    refreshed = _try_silent_refresh(client, receipt, status)
+    if refreshed is not None:
+        return refreshed
+    if status.status == "valid":
+        return status
+
     raw_token = token or os.environ.get("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN")
     if raw_token:
         exchanged = client.exchange_token(raw_token)
         if exchanged.blocker:
             return RuntimeEntitlementStatus(status="rejected", message=exchanged.blocker.message, blockerCode=exchanged.blocker.code)
         if exchanged.receipt:
+            if exchanged.refresh_credential:
+                save_refresh_credential(exchanged.refresh_credential)
             saved = save_receipt(exchanged.receipt)
             return receipt_status(saved)
     delivery_email = email or os.environ.get("VERIFYSIGNAL_EMAIL")
@@ -257,6 +351,35 @@ class EntitlementClient:
         if status != 200:
             return TokenExchangeResponse(data={}, blocker=_http_blocker(status, data, exchange=True))
         blocker = _validate_exchange(data, production=self.config.apiBaseUrl == DEFAULT_API_BASE_URL)
+        if blocker:
+            return TokenExchangeResponse(data=data, blocker=blocker)
+        receipt = RuntimeEntitlementReceipt.from_dict(data)
+        credential = data.get("refreshCredential")
+        return TokenExchangeResponse(
+            receipt=receipt,
+            data=data,
+            refresh_credential=credential if isinstance(credential, str) and credential else None,
+        )
+
+    def refresh(self, credential: str, *, idempotency_key: str | None = None) -> TokenExchangeResponse:
+        """Silently re-mint a fresh 7-day receipt from the durable refresh credential (no email)."""
+        payload: dict[str, Any] = {
+            "schema": "verifysignal.entitlement-refresh-request/v1",
+            "schemaVersion": 1,
+            "credential": credential,
+            "client": {
+                "cliVersion": self.config.cliVersion,
+                "platform": self.config.platform,
+            },
+        }
+        if idempotency_key:
+            payload["idempotencyKey"] = idempotency_key
+        status, data, transport_blocker = self._json_request("POST", "/entitlements/refresh", payload=payload)
+        if transport_blocker:
+            return TokenExchangeResponse(data={}, blocker=transport_blocker)
+        if status != 200:
+            return TokenExchangeResponse(data={}, blocker=_http_blocker(status, data, exchange=True))
+        blocker = _validate_refresh(data, production=self.config.apiBaseUrl == DEFAULT_API_BASE_URL)
         if blocker:
             return TokenExchangeResponse(data=data, blocker=blocker)
         receipt = RuntimeEntitlementReceipt.from_dict(data)
@@ -328,6 +451,20 @@ def _validate_exchange(data: dict[str, Any], *, production: bool) -> RuntimeSetu
     return None
 
 
+def _validate_refresh(data: dict[str, Any], *, production: bool) -> RuntimeSetupBlocker | None:
+    summary = data.get("receiptSummary") if isinstance(data.get("receiptSummary"), dict) else {}
+    use_policy = summary.get("usePolicy") if isinstance(summary.get("usePolicy"), dict) else {}
+    if data.get("schema") != "verifysignal.entitlement-refresh/v1" or data.get("schemaVersion") != 1:
+        return RuntimeSetupBlocker(code="api.incompatible", message="Entitlement refresh response did not match the public contract.")
+    if not isinstance(data.get("receipt"), str) or not data.get("receipt") or not summary.get("receiptId"):
+        return RuntimeSetupBlocker(code="entitlement.malformed", message="Entitlement refresh did not include a usable receipt.")
+    if production and summary.get("issuer") != PRODUCTION_RECEIPT_ISSUER:
+        return RuntimeSetupBlocker(code="entitlement.rejected", message="Production entitlement receipt issuer is not trusted.")
+    if use_policy.get("policyId") != "public-free":
+        return RuntimeSetupBlocker(code="api.incompatible", message="Refreshed entitlement receipt use policy did not match the expected public/free contract.")
+    return None
+
+
 def _http_blocker(status: int, data: dict[str, Any], *, delivery: bool = False, exchange: bool = False) -> RuntimeSetupBlocker:
     code = str(data.get("code") or "")
     if status in {500, 503}:
@@ -369,3 +506,15 @@ def _is_expired(value: str | None) -> bool:
     except ValueError:
         return True
     return parsed <= datetime.now(UTC)
+
+
+def _is_near_expiry(value: str | None, within_seconds: int) -> bool:
+    """True when the receipt expires within `within_seconds` (or is unparseable). Used to renew
+    proactively while the receipt is still valid, so an active user never actually lapses."""
+    if not value:
+        return True
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    return (parsed - datetime.now(UTC)).total_seconds() <= within_seconds

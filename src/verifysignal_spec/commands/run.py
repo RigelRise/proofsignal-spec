@@ -15,6 +15,7 @@ from verifysignal_spec.core.errors import CoreMissingError
 from verifysignal_spec.core.executable_contract import project_core_contract
 from verifysignal_spec.runtime.entitlement import load_receipt, receipt_status
 from verifysignal_spec.runtime.resolver import ensure_core_runtime
+from verifysignal_spec.runtime.telemetry import ping_outcome, send_usage_ping
 from verifysignal_spec.workflows.browser_authoring import resolve_effective_profile_settings
 from verifysignal_spec.workflows.evidence import extract_core_runtime_evidence, normalize_planned_gates
 from verifysignal_spec.workflows.first_run import classify_first_run_status, golden_path_state, update_golden_path_run_state
@@ -450,6 +451,7 @@ def run(
         evidenceDir=data.get("evidencePath") or data.get("evidenceDir"),
     )
     record_run(project, entry)
+    send_usage_ping("run", ping_outcome(entry.status), api_base_url=api_base_url)
     return {
         "alias": alias,
         "status": entry.status,

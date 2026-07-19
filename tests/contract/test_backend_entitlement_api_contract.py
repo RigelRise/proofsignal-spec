@@ -30,7 +30,7 @@ def test_backend_token_delivery_and_exchange_contract_public_free_policy(monkeyp
         "maxExchangesPerHour": 1,
         "defaultTokenTtlDays": 30,
         "defaultReceiptTtlDays": 7,
-        "refresh": "request_new_token",
+        "refresh": "silent-credential",
     }
     assert exchange.blocker is None
     assert exchange.receipt is not None
