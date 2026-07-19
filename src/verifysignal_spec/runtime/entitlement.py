@@ -22,7 +22,10 @@ from .models import (
     RuntimeSetupBlocker,
 )
 
-DEFAULT_API_BASE_URL = "https://verifysignal.io/api"
+# The canonical API host is www: the apex (verifysignal.io) 308-redirects to it, and urllib does not
+# reliably re-POST across a 308, so the CLI must target www directly or every POST (exchange/refresh/
+# usage) fails. (The receipt ISSUER stays the apex — that is an identifier, not an HTTP target.)
+DEFAULT_API_BASE_URL = "https://www.verifysignal.io/api"
 PRODUCTION_RECEIPT_ISSUER = "https://verifysignal.io"
 DEFAULT_HTTP_TIMEOUT_SECONDS = 30
 MIN_HTTP_TIMEOUT_SECONDS = 1

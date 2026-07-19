@@ -416,7 +416,7 @@ class ManagedRuntimeReadinessResult:
     missingOperations: list[str] = field(default_factory=list)
     incompatibleOperations: list[dict[str, Any]] = field(default_factory=list)
     attempts: list[RuntimeSourceAttempt] = field(default_factory=list)
-    api: RuntimeApiStatus = field(default_factory=lambda: RuntimeApiStatus(baseUrl="https://verifysignal.io/api"))
+    api: RuntimeApiStatus = field(default_factory=lambda: RuntimeApiStatus(baseUrl="https://www.verifysignal.io/api"))
     entitlement: RuntimeEntitlementStatus = field(default_factory=RuntimeEntitlementStatus)
     cache: RuntimeCacheStatus = field(default_factory=RuntimeCacheStatus)
     verificationKeys: RuntimeVerificationKeyStatus = field(default_factory=RuntimeVerificationKeyStatus)

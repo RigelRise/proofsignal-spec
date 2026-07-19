@@ -16,7 +16,7 @@ def test_readiness_shape_includes_api_and_valid_receipt_summary_without_payload(
         status="ready",
         source="managed-cache",
         runtimeCommand="/cache/verifysignal-core",
-        api=RuntimeApiStatus(baseUrl="https://verifysignal.io/api", source="default", status="reachable"),
+        api=RuntimeApiStatus(baseUrl="https://www.verifysignal.io/api", source="default", status="reachable"),
         entitlement=RuntimeEntitlementStatus(
             status="valid",
             receiptId="rcpt_123",
@@ -28,7 +28,7 @@ def test_readiness_shape_includes_api_and_valid_receipt_summary_without_payload(
     payload = result.to_dict()
     text = json.dumps(payload)
 
-    assert payload["api"] == {"baseUrl": "https://verifysignal.io/api", "source": "default", "status": "reachable"}
+    assert payload["api"] == {"baseUrl": "https://www.verifysignal.io/api", "source": "default", "status": "reachable"}
     assert payload["entitlement"]["issuer"] == "https://verifysignal.io"
     assert "signed-receipt" not in text
 
