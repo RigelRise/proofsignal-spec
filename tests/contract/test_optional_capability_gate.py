@@ -33,6 +33,10 @@ from verifysignal_spec.runtime.resolver import (
 CORE_LACKING_CAPABILITY = {
     "discover": "ok",  # the default fake Core implements discover but never advertises it
     "crystallize": "omits-crystallize",
+    # run --record/--replay are MODES of run; the default fake Core's run entry has no `modes`,
+    # standing in for an older Core that predates the advertisement.
+    "run-record": "ok",
+    "run-replay": "ok",
 }
 
 
@@ -73,3 +77,34 @@ def test_capability_gate_does_not_fire_for_contexts_that_do_not_need_the_operati
     # otherwise every pre-crystallize Core becomes unusable for running.
     assert "run" not in CONTEXT_REQUIRED_CAPABILITY
     assert "runtime" not in CONTEXT_REQUIRED_CAPABILITY
+
+
+@pytest.mark.parametrize("capability", ["run-record", "run-replay"])
+def test_run_mode_capability_blocks_only_when_requested(
+    capability: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # CONDITIONAL requirement: --record/--replay demand the advertised run mode, but a plain run must
+    # keep working against an older Core (the mode gate must not make every old Core unusable).
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    lacking = write_fake_core_executable(tmp_path / "bin" / "verifysignal-core", mode="ok")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(lacking))
+
+    blocked = ensure_core_runtime(tmp_path, context="run", required_capability=capability)
+    assert blocked.status == "blocked"
+    assert any(blocker.code == capability_blocker_code(capability) for blocker in blocked.blockers)
+
+    plain = ensure_core_runtime(tmp_path, context="run")
+    assert plain.status == "ready"
+
+
+@pytest.mark.parametrize("capability", ["run-record", "run-replay"])
+def test_run_mode_capability_passes_when_core_advertises_modes(
+    capability: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    advertising = write_fake_core_executable(tmp_path / "bin" / "verifysignal-core", mode="advertises-run-modes")
+    monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(advertising))
+
+    result = ensure_core_runtime(tmp_path, context="run", required_capability=capability)
+
+    assert result.status == "ready"

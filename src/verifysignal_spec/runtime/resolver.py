@@ -9,6 +9,8 @@ from verifysignal_spec.core.contracts import (
     PUBLIC_CONTRACT_VERSION,
     core_supports_crystallize,
     core_supports_discover,
+    core_supports_run_record,
+    core_supports_run_replay,
 )
 from verifysignal_spec.core.errors import CoreExecutionError, CoreMissingError
 from verifysignal_spec.workspace.repository import (
@@ -51,6 +53,11 @@ from .models import (
 OPTIONAL_CAPABILITY_PROBES = {
     "discover": core_supports_discover,
     "crystallize": core_supports_crystallize,
+    # run --record / --replay are MODES of run, advertised in its version entry. They are required
+    # CONDITIONALLY (only when the flag is passed), so they are registered here but selected by the
+    # caller via ensure_core_runtime(required_capability=...), not by CONTEXT_REQUIRED_CAPABILITY.
+    "run-record": core_supports_run_record,
+    "run-replay": core_supports_run_replay,
 }
 CONTEXT_REQUIRED_CAPABILITY = {
     "discover": "discover",
@@ -153,13 +160,16 @@ def ensure_core_runtime(
     token: str | None = None,
     integration: str | None = None,
     context: str = "runtime",
+    required_capability: str | None = None,
 ) -> ManagedRuntimeReadinessResult:
     project = project.resolve()
     config = resolve_entitlement_config(api_base_url=api_base_url, workspace_api_base_url=get_entitlement_api_base_url(project))
     api_status = RuntimeApiStatus(baseUrl=config.apiBaseUrl, source=config.source, status="not-checked")
     attempts: list[RuntimeSourceAttempt] = []
     # Capability negotiation applies to EVERY source, not just the entitlement-free managed-cache path.
-    required_capability = CONTEXT_REQUIRED_CAPABILITY.get(context)
+    # Callers may pass a CONDITIONAL requirement (e.g. run-record only when --record was requested);
+    # otherwise it derives from the context registry.
+    required_capability = required_capability or CONTEXT_REQUIRED_CAPABILITY.get(context)
     for source, command in _override_candidates(project, explicit_core_cmd):
         attempt = _verify_command(project, source, command, required_capability=required_capability)
         attempts.append(attempt)

@@ -15,7 +15,11 @@ from verifysignal_spec.commands import run as run_command
 def _workspace(tmp_path: Path, monkeypatch) -> str:
     from tests.helpers import FAKE_CORE
 
+    # Record/replay are now capability-negotiated: forwarding requires a Core that ADVERTISES the run
+    # modes in its version entry (an older Core blocks with core.run-record-unsupported instead). The
+    # env flag composes with any behavior mode (some tests also need e.g. full-coverage).
     monkeypatch.setenv("VERIFYSIGNAL_CORE_CMD", str(FAKE_CORE))
+    monkeypatch.setenv("FAKE_VERIFYSIGNAL_ADVERTISE_RUN_MODES", "1")
     monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "runtime-cache"))
     create_main_skill_coverage_workspace(tmp_path, helper_first=True)
     return str(FAKE_CORE)

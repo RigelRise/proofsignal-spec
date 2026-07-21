@@ -3,10 +3,13 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import json
+
 from verifysignal_spec.runtime.entitlement import (
     ensure_entitlement,
     load_refresh_credential,
     refresh_credential_path,
+    refresh_pending_key_path,
     resolve_entitlement_config,
     save_receipt,
     save_refresh_credential,
@@ -110,6 +113,28 @@ def test_expired_offline_shows_honest_reconnect_message(tmp_path: Path, monkeypa
     assert "reconnect" in (status.message or "").lower()
     # The credential is a transient failure, NOT a rejection — it must be kept for the next attempt.
     assert refresh_credential_path().exists()
+
+
+def test_refresh_sends_persistent_idempotency_key_and_clears_on_success(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.delenv("VERIFYSIGNAL_EMAIL_UNLOCK_TOKEN", raising=False)
+    _place_receipt("valid", "2000-01-01T00:00:00Z")
+    save_refresh_credential("vs_refresh")
+
+    # Attempt 1: offline (dead port) → transient failure → the pending key survives for the retry.
+    ensure_entitlement(config=resolve_entitlement_config(api_base_url="http://127.0.0.1:1/api"))
+    assert refresh_pending_key_path().exists()
+    pending = json.loads(refresh_pending_key_path().read_text(encoding="utf-8"))["idempotencyKey"]
+
+    # Attempt 2 (retry): the SAME key is sent, so the backend can replay instead of double-minting;
+    # success clears the pending key.
+    with serve_fake_entitlement_backend() as (api_base_url, state):
+        status = ensure_entitlement(config=resolve_entitlement_config(api_base_url=api_base_url))
+    refresh_payloads = [r["payload"] for r in state.requests if r.get("path") == "/entitlements/refresh"]
+
+    assert status.status == "valid"
+    assert refresh_payloads and refresh_payloads[0]["idempotencyKey"] == pending
+    assert not refresh_pending_key_path().exists()
 
 
 def test_dead_credential_is_discarded(tmp_path: Path, monkeypatch) -> None:

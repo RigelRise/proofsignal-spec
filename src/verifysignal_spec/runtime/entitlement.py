@@ -6,6 +6,7 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -168,6 +169,41 @@ def clear_refresh_credential() -> None:
         pass
 
 
+def refresh_pending_key_path() -> Path:
+    return cache_root() / "entitlement" / "refresh-pending.json"
+
+
+def load_or_create_pending_refresh_key() -> str:
+    """The idempotency key for the CURRENT renewal attempt, persisted until it succeeds.
+
+    A retry (including after a crash mid-request) reuses the same key, so the backend replays the
+    already-minted receipt instead of double-minting. Only a successful renewal clears it.
+    """
+    path = refresh_pending_key_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        key = data.get("idempotencyKey") if isinstance(data, dict) else None
+        if isinstance(key, str) and key:
+            return key
+    except Exception:
+        pass
+    key = f"refresh-{uuid.uuid4()}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"schema": "verifysignal.refresh-pending/v1", "idempotencyKey": key}), encoding="utf-8")
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return key
+
+
+def clear_pending_refresh_key() -> None:
+    try:
+        refresh_pending_key_path().unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def receipt_status(receipt: dict[str, Any] | RuntimeEntitlementReceipt) -> RuntimeEntitlementStatus:
     parsed = receipt if isinstance(receipt, RuntimeEntitlementReceipt) else RuntimeEntitlementReceipt.from_dict(receipt)
     status = parsed.status
@@ -240,8 +276,10 @@ def _try_silent_refresh(
     if status.status == "valid" and not _is_near_expiry(receipt.expiresAt, REFRESH_THRESHOLD_SECONDS):
         return None
 
-    refreshed = client.refresh(credential)
+    refreshed = client.refresh(credential, idempotency_key=load_or_create_pending_refresh_key())
     if refreshed.receipt:
+        # Success consumes the pending idempotency key; the NEXT renewal is a new attempt.
+        clear_pending_refresh_key()
         return receipt_status(save_receipt(refreshed.receipt))
 
     blocker = refreshed.blocker
@@ -249,6 +287,7 @@ def _try_silent_refresh(
         # The credential itself is dead (revoked/expired). Discard it and fall back to the email path
         # rather than retrying a doomed refresh on every run.
         clear_refresh_credential()
+        clear_pending_refresh_key()
         return None
     if status.status == "valid":
         # Transient failure (offline) but the current receipt is still valid — keep using it.

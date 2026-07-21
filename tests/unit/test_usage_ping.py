@@ -58,6 +58,47 @@ def test_usage_ping_payload_is_minimal_and_pii_free(tmp_path: Path, monkeypatch)
     assert "@" not in __import__("json").dumps(payload)
 
 
+def test_first_run_notice_prints_once_to_stderr(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.delenv("VERIFYSIGNAL_USAGE_PING", raising=False)
+    # The notice is TTY-only (a human at a terminal); simulate one.
+    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
+
+    with serve_fake_entitlement_backend() as (api_base_url, _state):
+        send_usage_ping("run", "pass", api_base_url=api_base_url, block=True)
+        first = capsys.readouterr()
+        send_usage_ping("run", "pass", api_base_url=api_base_url, block=True)
+        second = capsys.readouterr()
+
+    # Disclosed once, on stderr (stdout must stay clean for JSON), with the opt-out named.
+    assert "usage ping" in first.err
+    assert "VERIFYSIGNAL_USAGE_PING=0" in first.err
+    assert first.out == ""
+    assert second.err == ""
+
+
+def test_opted_out_user_sees_no_notice(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("VERIFYSIGNAL_USAGE_PING", "0")
+    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
+
+    send_usage_ping("run", "pass", api_base_url="http://127.0.0.1:1/api", block=True)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_no_notice_when_not_a_tty(tmp_path: Path, monkeypatch, capsys) -> None:
+    # Piped/CI invocations must keep stderr clean (the public CLI contract asserts empty stderr on
+    # --json runs); disclosure there is the documented ToS/Privacy.
+    monkeypatch.setenv("VERIFYSIGNAL_RUNTIME_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.delenv("VERIFYSIGNAL_USAGE_PING", raising=False)
+
+    with serve_fake_entitlement_backend() as (api_base_url, _state):
+        send_usage_ping("run", "pass", api_base_url=api_base_url, block=True)
+
+    assert capsys.readouterr().err == ""
+
+
 def test_ping_outcome_maps_statuses() -> None:
     assert ping_outcome("passed") == "pass"
     assert ping_outcome("failed") == "fail"

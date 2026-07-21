@@ -12,11 +12,43 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 import urllib.request
 from typing import Any
 
+from .cache import cache_root
 from .entitlement import load_receipt, resolve_entitlement_config
+
+FIRST_RUN_NOTICE = (
+    "VerifySignal: the free CLI sends a minimal, PII-free usage ping (command, outcome, platform, "
+    "CLI version) per run — your tested app, code, and evidence never leave your machine. "
+    "Details: https://www.verifysignal.io/privacy — opt out with VERIFYSIGNAL_USAGE_PING=0."
+)
+
+
+def _notice_state_path():
+    return cache_root() / "entitlement" / "telemetry-notice.json"
+
+
+def maybe_print_first_run_notice() -> bool:
+    """Print the telemetry disclosure ONCE (stderr, so JSON stdout stays clean). Returns True if printed.
+
+    TTY only: the notice is for a human at a terminal. Piped/CI invocations rely on the documented
+    ToS/Privacy disclosure and keep stderr clean (the public CLI contract asserts empty stderr on
+    --json runs)."""
+    if not sys.stderr.isatty():
+        return False
+    path = _notice_state_path()
+    if path.exists():
+        return False
+    print(FIRST_RUN_NOTICE, file=sys.stderr)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"schema": "verifysignal.telemetry-notice/v1", "shown": True}), encoding="utf-8")
+    except OSError:
+        pass
+    return True
 
 
 def usage_ping_enabled() -> bool:
@@ -49,6 +81,7 @@ def send_usage_ping(
     """
     if not usage_ping_enabled():
         return None
+    maybe_print_first_run_notice()
     try:
         config = resolve_entitlement_config(api_base_url=api_base_url)
     except Exception:

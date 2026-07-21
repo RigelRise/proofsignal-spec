@@ -68,7 +68,12 @@ def run(
     if profile is None:
         available = ", ".join(item.name for item in use_case.profiles) or "normal"
         raise ValueError(f"Unknown profile for {alias}: {profile_name}. Available profiles: {available}.")
-    managed_runtime = ensure_core_runtime(project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="run")
+    # --record/--replay are optional Core run MODES: require the advertised capability only when the
+    # flag is actually passed, so an older Core blocks with a clear code instead of failing inside run.
+    run_mode_capability = "run-record" if record else ("run-replay" if replay else None)
+    managed_runtime = ensure_core_runtime(
+        project, explicit_core_cmd=core_cmd, api_base_url=api_base_url, context="run", required_capability=run_mode_capability
+    )
     if managed_runtime.status != "ready":
         contract_blockers = managed_runtime_contract_blockers(managed_runtime)
         if contract_blockers:

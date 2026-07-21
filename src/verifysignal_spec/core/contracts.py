@@ -186,6 +186,33 @@ def core_supports_crystallize(version_response: dict[str, Any]) -> bool:
     return False
 
 
+def _run_operation_modes(version_response: dict[str, Any]) -> list[str]:
+    payload = version_response.get("data", {}) if isinstance(version_response, dict) else {}
+    operations = payload.get("operations", []) if isinstance(payload, dict) else []
+    if not isinstance(operations, list):
+        return []
+    for item in operations:
+        if isinstance(item, dict) and item.get("name") == "run":
+            modes = item.get("modes", [])
+            return [str(mode) for mode in modes] if isinstance(modes, list) else []
+    return []
+
+
+def core_supports_run_record(version_response: dict[str, Any]) -> bool:
+    """Optional-capability check for `run --record`.
+
+    Record/replay are MODES of the run operation, advertised in its version entry (`modes`).
+    Advertised, never assumed: a Core that predates the advertisement is treated as not
+    supporting them, so the client blocks with a clear code instead of failing inside Core.
+    """
+    return "record" in _run_operation_modes(version_response)
+
+
+def core_supports_run_replay(version_response: dict[str, Any]) -> bool:
+    """Optional-capability check for `run --replay` (see core_supports_run_record)."""
+    return "replay" in _run_operation_modes(version_response)
+
+
 def normalize_status(data: dict[str, Any]) -> str:
     status = data.get("status")
     if status in ALLOWED_CORE_STATUSES:

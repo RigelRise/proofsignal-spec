@@ -85,6 +85,13 @@ def main() -> int:
                 # A compatible Core that simply predates crystallization: every REQUIRED operation is
                 # present, only the optional one is absent.
                 operations = [operation for operation in operations if operation["name"] != "crystallize"]
+            if mode == "advertises-run-modes" or os.environ.get("FAKE_VERIFYSIGNAL_ADVERTISE_RUN_MODES") == "1":
+                # A Core that advertises run's record/replay MODES (the default fake predates the
+                # advertisement, standing in for an older Core that cannot serve --record/--replay).
+                # The env flag composes with any behavior mode (e.g. full-coverage + advertised modes).
+                for operation in operations:
+                    if operation["name"] == "run":
+                        operation["modes"] = ["record", "replay"]
             payload = {
                 "schema": "verifysignal.version/v1",
                 "schemaVersion": 1,
