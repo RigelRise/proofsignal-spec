@@ -13,10 +13,21 @@ from cryptography.hazmat.primitives.serialization import load_der_public_key, lo
 # module verifies that signature against a trusted release key so an install can prove the
 # downloaded archive bytes were signed by an accepted release key.
 #
-# Trust anchors: production keys from VERIFYSIGNAL_RUNTIME_RELEASE_PUBLIC_KEYS (JSON:
-# keyId -> PEM or base64-DER SPKI), plus the shipped TEST key ONLY when
-# VERIFYSIGNAL_ALLOW_TEST_RELEASE_KEYS == "1". With neither configured the trust set is empty
-# and every verification fails closed.
+# Trust anchors, in merge order: the EMBEDDED production release keys below (a clean machine with
+# no configuration trusts the official releases), then VERIFYSIGNAL_RUNTIME_RELEASE_PUBLIC_KEYS
+# (JSON: keyId -> PEM or base64-DER SPKI), then the shipped TEST key ONLY when
+# VERIFYSIGNAL_ALLOW_TEST_RELEASE_KEYS == "1".
+
+# The public half of the production release-signing keypair (private half lives ONLY in the Core
+# repo's GitHub Actions secrets; the BE deploy env mirrors this public map). Pinned byte-for-byte
+# by tests/unit/test_production_release_trust_anchor.py.
+PRODUCTION_RELEASE_PUBLIC_KEYS: dict[str, str] = {
+    "verifysignal-core-release-2026": (
+        "-----BEGIN PUBLIC KEY-----\n"
+        "MCowBQYDK2VwAyEAkplu04rmKl1GFpr+e1UdhIcsPlI1qVbYnQjBWBSH7ow=\n"
+        "-----END PUBLIC KEY-----"
+    ),
+}
 
 TEST_RELEASE_KEY_ID = "verifysignal-core-release-test-key"
 TEST_RELEASE_PUBLIC_KEY_PEM = """-----BEGIN PUBLIC KEY-----
@@ -37,7 +48,7 @@ def _load_public_key(raw: str) -> Ed25519PublicKey:
 
 
 def trusted_release_keys() -> dict[str, str]:
-    keys: dict[str, str] = {}
+    keys: dict[str, str] = dict(PRODUCTION_RELEASE_PUBLIC_KEYS)
     configured = os.environ.get("VERIFYSIGNAL_RUNTIME_RELEASE_PUBLIC_KEYS")
     if configured:
         try:
